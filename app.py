@@ -36,8 +36,6 @@ back_porch_sqft = st.sidebar.number_input("Back Porch SqFt", value=120, step=10,
 back_porch_cost_sf = st.sidebar.slider("Back Porch Cost / SF ($)", min_value=15.0, max_value=70.0, value=35.0, step=1.0)
 
 st.sidebar.subheader("Financing & Timeline")
-use_comp_valuation = st.sidebar.checkbox("Derive Appraised Value (ARV) from Comp Tool?", value=True)
-manual_arv_per_unit = st.sidebar.number_input("Manual Retail Appraised Value (ARV) per Unit ($)", value=182600, step=1000, format="%d")
 ltv = st.sidebar.slider("Commercial Takeout LTV (%)", min_value=60.0, max_value=85.0, value=80.0, step=5.0) / 100.0
 build_months = st.sidebar.slider("Construction Duration (Months)", min_value=3, max_value=18, value=9, step=1)
 const_rate = st.sidebar.slider("Construction Loan Rate (%)", min_value=4.0, max_value=12.0, value=8.0, step=0.5) / 100.0
@@ -50,7 +48,7 @@ takeout_fees = st.sidebar.number_input("Takeout Refi Fee per Unit ($)", value=36
 
 # --- COMPARABLE MARKET ANALYSIS (COMP BENCHMARK TOOL) ---
 st.markdown("### 🔍 Market Comp Blended Cost & Valuation Benchmark")
-st.markdown("Input market comparable data below to evaluate blended under-roof costs. If enabled in the sidebar, this comp valuation drives the project's Appraised Value (ARV).")
+st.markdown("Input market comparable data below to evaluate blended under-roof costs. This comp valuation automatically drives the project's Appraised Value (ARV).")
 
 cc_col1, cc_col2, cc_col3, cc_col4, cc_col5 = st.columns(5)
 comp_price = cc_col1.number_input("Comp Total Value / Price ($)", value=182600, step=1000, format="%d")
@@ -75,11 +73,8 @@ total_hard_cost = hard_cost_per_unit * units
 total_under_roof_sqft = sqft + struct_sqft + front_porch_sqft + back_porch_sqft
 blended_cost_per_sf = hard_cost_per_unit / total_under_roof_sqft if total_under_roof_sqft > 0 else 0
 
-# Determine Appraised Value (ARV) per unit
-if use_comp_valuation:
-    arv_per_unit = comp_blended_cost * total_under_roof_sqft
-else:
-    arv_per_unit = manual_arv_per_unit
+# Appraised Value (ARV) is now purely derived from the Comp's blended cost per SF applied to the project's under-roof square footage
+arv_per_unit = comp_blended_cost * total_under_roof_sqft
 
 gcond = total_hard_cost * 0.05
 fee_basis = total_hard_cost + gcond
