@@ -35,10 +35,28 @@ front_porch_cost_sf = st.sidebar.slider("Front Porch Cost / SF ($)", min_value=1
 back_porch_sqft = st.sidebar.number_input("Back Porch SqFt", value=120, step=10, format="%d")
 back_porch_cost_sf = st.sidebar.slider("Back Porch Cost / SF ($)", min_value=15.0, max_value=70.0, value=35.0, step=1.0)
 
-st.sidebar.subheader("Financing & Timeline")
-ltv = st.sidebar.slider("Commercial Takeout LTV (%)", min_value=60.0, max_value=85.0, value=80.0, step=5.0) / 100.0
+# --- SECTION 1: CONSTRUCTION LOAN FINANCING & TIMELINE ---
+st.sidebar.subheader("Construction Loan Financing & Timeline")
 build_months = st.sidebar.slider("Construction Duration (Months)", min_value=3, max_value=18, value=9, step=1)
 const_rate = st.sidebar.slider("Construction Loan Rate (%)", min_value=4.0, max_value=12.0, value=8.0, step=0.5) / 100.0
+
+# --- SECTION 2: PERMANENT REFINANCE (TAKEOUT) ---
+st.sidebar.subheader("Permanent Refinance (Takeout)")
+refi_ltv = st.sidebar.slider("Refinance LTV (%)", min_value=60.0, max_value=85.0, value=80.0, step=5.0) / 100.0
+refi_term_years = st.sidebar.selectbox("Amortization Term (Years)", [15, 20, 25, 30], index=3)
+base_refi_rate = st.sidebar.slider("Base Refi Interest Rate (%)", min_value=4.0, max_value=10.0, value=6.5, step=0.25) / 100.0
+
+apply_buydown = st.sidebar.checkbox("Apply Interest Rate Buydown Points?")
+buydown_pts = 0.0
+buydown_cost_pct = 0.0
+net_refi_rate = base_refi_rate
+
+if apply_buydown:
+    buydown_pts = st.sidebar.number_input("Points Buydown (e.g. 2.0)", min_value=0.0, max_value=5.0, value=2.0, step=0.5)
+    buydown_cost_pct = st.sidebar.slider("Cost of Points (% of Loan)", min_value=0.5, max_value=3.0, value=1.0, step=0.25) / 100.0
+    rate_reduction = buydown_pts * 0.0025  # Standard rule of thumb: 1 pt = 0.25% rate drop
+    net_refi_rate = max(0.01, base_refi_rate - rate_reduction)
+    st.sidebar.markdown(f"📉 **Buydown Net Rate:** `{net_refi_rate*100:.3f}%`")
 
 st.sidebar.subheader("Standard Fees & Land")
 land_basis = st.sidebar.number_input("Land Basis per Lot ($)", value=15000, step=1000, format="%d")
@@ -73,8 +91,21 @@ total_hard_cost = hard_cost_per_unit * units
 total_under_roof_sqft = sqft + struct_sqft + front_porch_sqft + back_porch_sqft
 blended_cost_per_sf = hard_cost_per_unit / total_under_roof_sqft if total_under_roof_sqft > 0 else 0
 
-# Appraised Value (ARV) is now purely derived from the Comp's blended cost per SF applied to the project's under-roof square footage
+# Appraised Value (ARV) derived from Comp's blended cost per SF applied to project under-roof area
 arv_per_unit = comp_blended_cost * total_under_roof_sqft
+total_arv = arv_per_unit * units
+
+# Refinance Loan and P&I Calculations
+loan_total = total_arv * refi_ltv
+total_buydown_cost = loan_total * buydown_cost_pct if apply_buydown else 0
+
+# Monthly P&I Calculation
+monthly_interest_rate = net_refi_rate / 12.0
+total_payments = refi_term_years * 12
+if monthly_interest_rate > 0:
+    monthly_pi = loan_total * (monthly_interest_rate * (1 + monthly_interest_rate)**total_payments) / ((1 + monthly_interest_rate)**total_payments - 1)
+else:
+    monthly_pi = loan_total / total_payments if total_payments > 0 else 0
 
 gcond = total_hard_cost * 0.05
 fee_basis = total_hard_cost + gcond
@@ -92,25 +123,21 @@ total_land = land_basis * units
 total_const_fees = const_fees * units
 total_takeout_fees = takeout_fees * units
 
-total_arv = arv_per_unit * units
-loan_total = total_arv * ltv
-buydown_pts = loan_total * 0.02
-
 # Carry interest calculation (dynamic build time)
 carry_int = (total_const + total_soft_costs) * 0.5 * const_rate * (build_months / 12.0)
 
-total_project_basis = total_land + total_const + total_soft_costs + total_const_fees + total_takeout_fees + buydown_pts + carry_int
+total_project_basis = total_land + total_const + total_soft_costs + total_const_fees + total_takeout_fees + total_buydown_cost + carry_int
 cash_surplus = loan_total - total_project_basis
 retained_equity = total_arv - loan_total
 day1_wealth = gc_fee + max(0, cash_surplus) + retained_equity
 
-st.info(f"📊 **Comp Benchmarks:** Comp Under-Roof Area: **{comp_total_sf:,} SF** | Comp Blended Cost: **${comp_blended_cost:.2f} / SF** | **Derived Unit ARV: ${arv_per_unit:,.0f}**")
+st.info(f"📊 **Comp & Refi Benchmarks:** Comp Under-Roof SF: **{comp_total_sf:,}** | Blended Cost: **${comp_blended_cost:.2f}/SF** | **Derived Unit ARV: ${arv_per_unit:,.0f}** | **Monthly P&I ({refi_term_years}Yr @ {net_refi_rate*100:.2f}%): ${monthly_pi:,.2f}/mo**")
 st.divider()
 
 # --- DASHBOARD UI ---
 col1, col2, col3, col4 = st.columns(4)
 
-col1.metric("Takeout Loan Proceeds", f"${loan_total:,.0f}", f"{ltv*100:.0f}% LTV")
+col1.metric("Takeout Loan Proceeds", f"${loan_total:,.0f}", f"{refi_ltv*100:.0f}% LTV")
 col2.metric("Total Project Basis", f"${total_project_basis:,.0f}", f"${total_project_basis/units:,.0f} per door", delta_color="inverse")
 col3.metric("Under-Roof Blended Cost", f"${blended_cost_per_sf:.2f} / SF", f"{total_under_roof_sqft:,} Total SF Under Roof")
 
@@ -137,7 +164,7 @@ with row2_col1:
             "BTR Buying Power Premium (5%)", 
             "Soft Costs & Permitting",
             "Const. Loan Fees & Carry Interest", 
-            "Takeout Refi Fees & Buydown Points", 
+            "Takeout Refi Fees & Rate Buydown Points", 
             "TOTAL PROJECT BASIS"
         ],
         "Amount ($)": [
@@ -151,7 +178,7 @@ with row2_col1:
             premium,
             total_soft_costs,
             total_const_fees + carry_int,
-            total_takeout_fees + buydown_pts,
+            total_takeout_fees + total_buydown_cost,
             total_project_basis
         ]
     }
@@ -183,3 +210,9 @@ with row2_col2:
         st.success(f"**Infinite Cash-on-Cash Return Achieved:** You have recovered 100% of your seed capital plus an additional ${cash_surplus:,.0f} in liquid cash.")
     else:
         st.error(f"**Capital Trapped:** You are leaving ${abs(cash_surplus):,.0f} of your seed capital in the deal to close the takeout loan. Try lowering your Direct Build Cost / SF or reducing the construction timeline.")
+
+    st.markdown("---")
+    st.markdown("### 🏦 Permanent Loan Service Metric")
+    st.markdown(f"* **Monthly Principal & Interest (P&I):** `${monthly_pi:,.2f}` / month")
+    st.markdown(f"* **Amortization Schedule:** `{refi_term_years} Years` ({total_payments} payments)")
+    st.markdown(f"* **Net Permanent Interest Rate:** `{net_refi_rate*100:.3f}%`")
