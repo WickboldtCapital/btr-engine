@@ -37,8 +37,10 @@ back_porch_cost_sf = st.sidebar.slider("Back Porch Cost / SF ($)", min_value=15.
 
 # --- SECTION 1: CONSTRUCTION LOAN FINANCING & TIMELINE ---
 st.sidebar.subheader("Construction Loan Financing & Timeline")
+const_ltv = st.sidebar.slider("Construction Loan LTV (%)", min_value=60.0, max_value=100.0, value=85.0, step=5.0) / 100.0
 build_months = st.sidebar.slider("Construction Duration (Months)", min_value=3, max_value=18, value=9, step=1)
-const_rate = st.sidebar.slider("Construction Loan Rate (%)", min_value=4.0, max_value=12.0, value=8.0, step=0.5) / 100.0
+const_rate = st.sidebar.slider("Construction Loan Rate (%)", min_value=4.0, max_value=14.0, value=8.5, step=0.5) / 100.0
+avg_draw_pct = st.sidebar.slider("Average Draw / Principal Utilization Rate (%)", min_value=20.0, max_value=100.0, value=50.0, step=5.0) / 100.0
 
 # --- SECTION 2: PERMANENT REFINANCE (TAKEOUT) ---
 st.sidebar.subheader("Permanent Refinance (Takeout)")
@@ -54,9 +56,16 @@ net_refi_rate = base_refi_rate
 if apply_buydown:
     buydown_pts = st.sidebar.number_input("Points Buydown (e.g. 2.0)", min_value=0.0, max_value=5.0, value=2.0, step=0.5)
     buydown_cost_pct = st.sidebar.slider("Cost of Points (% of Loan)", min_value=0.5, max_value=3.0, value=1.0, step=0.25) / 100.0
-    rate_reduction = buydown_pts * 0.0025  # Standard rule of thumb: 1 pt = 0.25% rate drop
+    rate_reduction = buydown_pts * 0.0025  
     net_refi_rate = max(0.01, base_refi_rate - rate_reduction)
     st.sidebar.markdown(f"📉 **Buydown Net Rate:** `{net_refi_rate*100:.3f}%`")
+
+# --- SECTION 3: DSCR & OPERATING SECTION ---
+st.sidebar.subheader("DSCR & Operating Metrics")
+target_dscr_rate = st.sidebar.number_input("Target Lender DSCR Rate", min_value=1.0, max_value=1.5, value=1.20, step=0.05)
+gross_monthly_rent = st.sidebar.number_input("Gross Monthly Rental Income per Unit ($)", value=1650, step=50, format="%d")
+vacancy_rate = st.sidebar.slider("Vacancy Rate (%)", min_value=0.0, max_value=15.0, value=5.0, step=1.0) / 100.0
+opex_rate = st.sidebar.slider("Operating Expenses (OpEx) Rate of EGI (%)", min_value=15.0, max_value=50.0, value=30.0, step=1.0) / 100.0
 
 st.sidebar.subheader("Standard Fees & Land")
 land_basis = st.sidebar.number_input("Land Basis per Lot ($)", value=15000, step=1000, format="%d")
@@ -99,13 +108,27 @@ total_arv = arv_per_unit * units
 loan_total = total_arv * refi_ltv
 total_buydown_cost = loan_total * buydown_cost_pct if apply_buydown else 0
 
-# Monthly P&I Calculation
+# Monthly P&I Calculation (per door or total based on units)
 monthly_interest_rate = net_refi_rate / 12.0
 total_payments = refi_term_years * 12
 if monthly_interest_rate > 0:
-    monthly_pi = loan_total * (monthly_interest_rate * (1 + monthly_interest_rate)**total_payments) / ((1 + monthly_interest_rate)**total_payments - 1)
+    monthly_pi_per_unit = loan_total / units * (monthly_interest_rate * (1 + monthly_interest_rate)**total_payments) / ((1 + monthly_interest_rate)**total_payments - 1)
 else:
-    monthly_pi = loan_total / total_payments if total_payments > 0 else 0
+    monthly_pi_per_unit = (loan_total / units) / total_payments if total_payments > 0 else 0
+
+total_monthly_pi = monthly_pi_per_unit * units
+
+# DSCR & Operating Calculations
+total_gross_monthly_income = gross_monthly_rent * units
+effective_gross_monthly_income = total_gross_monthly_income * (1.0 - vacancy_rate)
+annual_egi = effective_gross_monthly_income * 12.0
+annual_opex = annual_egi * opex_rate
+annual_noi = annual_egi - annual_opex
+monthly_noi = annual_noi / 12.0
+
+annual_debt_service = total_monthly_pi * 12.0
+actual_dscr = annual_noi / annual_debt_service if annual_debt_service > 0 else 0
+monthly_cash_flow = monthly_noi - total_monthly_pi
 
 gcond = total_hard_cost * 0.05
 fee_basis = total_hard_cost + gcond
@@ -123,15 +146,17 @@ total_land = land_basis * units
 total_const_fees = const_fees * units
 total_takeout_fees = takeout_fees * units
 
-# Carry interest calculation (dynamic build time)
-carry_int = (total_const + total_soft_costs) * 0.5 * const_rate * (build_months / 12.0)
+# Construction Loan sizing and Accrued Interest calculation
+total_project_costs_ex_interest = total_land + total_const + total_soft_costs + total_const_fees
+construction_loan_limit = total_project_costs_ex_interest * const_ltv
+carry_int = construction_loan_limit * avg_draw_pct * const_rate * (build_months / 12.0)
 
-total_project_basis = total_land + total_const + total_soft_costs + total_const_fees + total_takeout_fees + total_buydown_cost + carry_int
+total_project_basis = total_project_costs_ex_interest + carry_int + total_takeout_fees + total_buydown_cost
 cash_surplus = loan_total - total_project_basis
 retained_equity = total_arv - loan_total
 day1_wealth = gc_fee + max(0, cash_surplus) + retained_equity
 
-st.info(f"📊 **Comp & Refi Benchmarks:** Comp Under-Roof SF: **{comp_total_sf:,}** | Blended Cost: **${comp_blended_cost:.2f}/SF** | **Derived Unit ARV: ${arv_per_unit:,.0f}** | **Monthly P&I ({refi_term_years}Yr @ {net_refi_rate*100:.2f}%): ${monthly_pi:,.2f}/mo**")
+st.info(f"📊 **Project Benchmarks:** Derived Unit ARV: **${arv_per_unit:,.0f}** | Actual DSCR: **{actual_dscr:.2f}x** (Target: {target_dscr_rate:.2f}x) | Monthly Cash Flow: **${monthly_cash_flow:,.2f}/mo**")
 st.divider()
 
 # --- DASHBOARD UI ---
@@ -139,12 +164,8 @@ col1, col2, col3, col4 = st.columns(4)
 
 col1.metric("Takeout Loan Proceeds", f"${loan_total:,.0f}", f"{refi_ltv*100:.0f}% LTV")
 col2.metric("Total Project Basis", f"${total_project_basis:,.0f}", f"${total_project_basis/units:,.0f} per door", delta_color="inverse")
-col3.metric("Under-Roof Blended Cost", f"${blended_cost_per_sf:.2f} / SF", f"{total_under_roof_sqft:,} Total SF Under Roof")
-
-if cash_surplus >= 0:
-    col4.metric("Tax-Free Cash Surplus", f"${cash_surplus:,.0f}", "Capital Recovered")
-else:
-    col4.metric("Trapped Seed Capital", f"${cash_surplus:,.0f}", "Loss at Closing")
+col3.metric("Actual DSCR Rate", f"{actual_dscr:.2f}x", f"Target: {target_dscr_rate:.2f}x", delta_color="normal" if actual_dscr >= target_dscr_rate else "inverse")
+col4.metric("Monthly Cash Flow", f"${monthly_cash_flow:,.0f} /mo", f"${monthly_cash_flow*12:,.0f} Annual", delta_color="normal" if monthly_cash_flow >= 0 else "inverse")
 
 st.divider()
 
@@ -163,7 +184,8 @@ with row2_col1:
             "GC Management Fee", 
             "BTR Buying Power Premium (5%)", 
             "Soft Costs & Permitting",
-            "Const. Loan Fees & Carry Interest", 
+            "Const. Loan Closing Fees", 
+            f"Accrued Const. Interest ({build_months} Mos @ {const_rate*100:.1f}%, {avg_draw_pct*100:.0f}% Draw)",
             "Takeout Refi Fees & Rate Buydown Points", 
             "TOTAL PROJECT BASIS"
         ],
@@ -177,7 +199,8 @@ with row2_col1:
             gc_fee,
             premium,
             total_soft_costs,
-            total_const_fees + carry_int,
+            total_const_fees,
+            carry_int,
             total_takeout_fees + total_buydown_cost,
             total_project_basis
         ]
@@ -212,7 +235,18 @@ with row2_col2:
         st.error(f"**Capital Trapped:** You are leaving ${abs(cash_surplus):,.0f} of your seed capital in the deal to close the takeout loan. Try lowering your Direct Build Cost / SF or reducing the construction timeline.")
 
     st.markdown("---")
-    st.markdown("### 🏦 Permanent Loan Service Metric")
-    st.markdown(f"* **Monthly Principal & Interest (P&I):** `${monthly_pi:,.2f}` / month")
-    st.markdown(f"* **Amortization Schedule:** `{refi_term_years} Years` ({total_payments} payments)")
-    st.markdown(f"* **Net Permanent Interest Rate:** `{net_refi_rate*100:.3f}%`")
+    st.markdown("### 🏢 Operating & DSCR Performance Summary")
+    dscr_summary_data = {
+        "Metric Item": [
+            "Gross Monthly Rental Income", "Effective Gross Income (EGI - Annual)", 
+            "Operating Expenses (OpEx - Annual)", "Net Operating Income (NOI - Annual)", 
+            "Total Debt Service (P&I - Annual)", "Monthly Net Cash Flow", "Actual DSCR Rate"
+        ],
+        "Value": [
+            f"${total_gross_monthly_income:,.2f} /mo", f"${annual_egi:,.2f}", 
+            f"${annual_opex:,.2f} ({opex_rate*100:.0f}%)", f"${annual_noi:,.2f}", 
+            f"${annual_debt_service:,.2f}", f"${monthly_cash_flow:,.2f} /mo", f"{actual_dscr:.2f}x (Target: {target_dscr_rate:.2f}x)"
+        ]
+    }
+    df_dscr = pd.DataFrame(dscr_summary_data)
+    st.dataframe(df_dscr, hide_index=True, use_container_width=True)
