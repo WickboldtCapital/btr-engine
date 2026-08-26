@@ -1,37 +1,7 @@
-<!DOCTYPE html>
-<html>
-  <head>
-    <meta charset="UTF-8" />
-    <meta http-equiv="X-UA-Compatible" content="IE=edge" />
-    <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no" />
-    <title>Wickboldt Capital | BTR Pro Forma Engine</title>
-    <!-- Stlite CSS -->
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@stlite/mountable@0.31.0/build/stlite.css" />
-    <style>
-      /* Make sure the app takes up the full screen */
-      body, html {
-        height: 100%;
-        margin: 0;
-        padding: 0;
-        background-color: #f9f9f8;
-      }
-      #root {
-        height: 100%;
-      }
-    </style>
-  </head>
-  <body>
-    <div id="root"></div>
-    
-    <!-- Stlite JS Engine -->
-    <script src="https://cdn.jsdelivr.net/npm/@stlite/mountable@0.31.0/build/stlite.js"></script>
-    <script>
-      stlite.mount({
-        requirements: ["pandas"],
-        mainScriptData: `
 import streamlit as st
 import pandas as pd
 
+# Page Configuration
 st.set_page_config(page_title="Wickboldt Capital | BTR Pro Forma Engine", layout="wide")
 
 st.title("🏗️ BTR Pro Forma Engine")
@@ -89,7 +59,7 @@ total_arv = arv_per_unit * units
 loan_total = total_arv * ltv
 buydown_pts = loan_total * 0.02
 
-# Carry interest calculation
+# Carry interest calculation (using the 9-month/dynamic build time)
 carry_int = (total_const + total_soft_costs) * 0.5 * const_rate * (build_months / 12.0)
 
 total_project_basis = total_land + total_const + total_soft_costs + total_const_fees + total_takeout_fees + buydown_pts + carry_int
@@ -146,9 +116,3 @@ with row2_col2:
         st.success(f"**Infinite Cash-on-Cash Return Achieved:** You have recovered 100% of your seed capital plus an additional ${cash_surplus:,.0f} in liquid cash.")
     else:
         st.error(f"**Capital Trapped:** You are leaving ${abs(cash_surplus):,.0f} of your seed capital in the deal to close the takeout loan. Try lowering your Direct Build Cost / SF or reducing the construction timeline.")
-`
-      },
-      document.getElementById("root"));
-    </script>
-  </body>
-</html>
