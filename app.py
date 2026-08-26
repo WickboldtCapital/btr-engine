@@ -102,6 +102,25 @@ else:
 
 st.divider()
 
+# --- NEW: COMPARABLE MARKET ANALYSIS (COMP BENCHMARK TOOL) ---
+with st.expander("🔍 Market Comp Blended Cost Calculator (Reverse-Engineer a Comp)", expanded=True):
+    st.markdown("Input a market comparable's sale price and area breakdowns to calculate its exact blended under-roof cost per square foot.")
+    
+    cc_col1, cc_col2, cc_col3, cc_col4, cc_col5 = st.columns(5)
+    
+    comp_price = cc_col1.number_input("Comp Total Value / Price ($)", value=182600, step=1000, format="%d")
+    comp_heated_sf = cc_col2.number_input("Comp Heated SF", value=1150, step=50, format="%d")
+    comp_struct_sf = cc_col3.number_input("Comp Garage/Carport SF", value=200, step=25, format="%d")
+    comp_front_sf = cc_col4.number_input("Comp Front Porch SF", value=60, step=10, format="%d")
+    comp_back_sf = cc_col5.number_input("Comp Back Porch SF", value=120, step=10, format="%d")
+    
+    comp_total_sf = comp_heated_sf + comp_struct_sf + comp_front_sf + comp_back_sf
+    comp_blended_cost = comp_price / comp_total_sf if comp_total_sf > 0 else 0
+    
+    st.info(f"📊 **Comp Analysis Results:** Total Under-Roof Area: **{comp_total_sf:,} SF** | Comp Blended Value / Cost: **${comp_blended_cost:.2f} / SF** Under Roof")
+
+st.divider()
+
 row2_col1, row2_col2 = st.columns(2)
 
 with row2_col1:
