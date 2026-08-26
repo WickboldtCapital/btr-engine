@@ -27,7 +27,8 @@ carport_sqft = st.sidebar.number_input("Carport SqFt per Unit", value=200, step=
 carport_cost_sf = st.sidebar.slider("Carport Cost / SF ($)", min_value=10.0, max_value=60.0, value=31.0, step=1.0)
 
 st.sidebar.subheader("Financing & Timeline")
-arv_per_unit = st.sidebar.number_input("Retail Appraised Value (ARV) per Unit", value=182600, step=1000, format="%d")
+# Converted to number_input with commas so dollar amounts format correctly
+arv_per_unit = st.sidebar.number_input("Retail Appraised Value (ARV) per Unit ($)", value=182600, step=1000, format="%d")
 ltv = st.sidebar.slider("Commercial Takeout LTV (%)", min_value=60.0, max_value=85.0, value=80.0, step=5.0) / 100.0
 build_months = st.sidebar.slider("Construction Duration (Months)", min_value=3, max_value=18, value=9, step=1)
 const_rate = st.sidebar.slider("Construction Loan Rate (%)", min_value=4.0, max_value=12.0, value=8.0, step=0.5) / 100.0
