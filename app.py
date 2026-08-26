@@ -22,12 +22,20 @@ st.sidebar.subheader("Construction Costs (Heated Area)")
 sqft = st.sidebar.number_input("Heated SqFt per Unit", value=1150, step=50, format="%d")
 direct_cost_sf = st.sidebar.slider("Direct Build Cost / SF ($)", min_value=40.0, max_value=150.0, value=74.0, step=1.0)
 
-st.sidebar.subheader("Construction Costs (Carport / Structure)")
-carport_sqft = st.sidebar.number_input("Carport SqFt per Unit", value=200, step=25, format="%d")
-carport_cost_sf = st.sidebar.slider("Carport Cost / SF ($)", min_value=10.0, max_value=60.0, value=31.0, step=1.0)
+st.sidebar.subheader("Auxiliary Structure (Carport / Garage)")
+structure_type = st.sidebar.selectbox("Structure Type", ["Carport", "Garage"])
+struct_sqft = st.sidebar.number_input(f"{structure_type} SqFt per Unit", value=200, step=25, format="%d")
+default_struct_cost = 31.0 if structure_type == "Carport" else 55.0
+struct_cost_sf = st.sidebar.slider(f"{structure_type} Cost / SF ($)", min_value=15.0, max_value=90.0, value=default_struct_cost, step=1.0)
+
+st.sidebar.subheader("Porches (Front & Back)")
+front_porch_sqft = st.sidebar.number_input("Front Porch SqFt", value=60, step=10, format="%d")
+front_porch_cost_sf = st.sidebar.slider("Front Porch Cost / SF ($)", min_value=15.0, max_value=70.0, value=35.0, step=1.0)
+
+back_porch_sqft = st.sidebar.number_input("Back Porch SqFt", value=120, step=10, format="%d")
+back_porch_cost_sf = st.sidebar.slider("Back Porch Cost / SF ($)", min_value=15.0, max_value=70.0, value=35.0, step=1.0)
 
 st.sidebar.subheader("Financing & Timeline")
-# Converted to number_input with commas so dollar amounts format correctly
 arv_per_unit = st.sidebar.number_input("Retail Appraised Value (ARV) per Unit ($)", value=182600, step=1000, format="%d")
 ltv = st.sidebar.slider("Commercial Takeout LTV (%)", min_value=60.0, max_value=85.0, value=80.0, step=5.0) / 100.0
 build_months = st.sidebar.slider("Construction Duration (Months)", min_value=3, max_value=18, value=9, step=1)
@@ -41,9 +49,16 @@ takeout_fees = st.sidebar.number_input("Takeout Refi Fee per Unit ($)", value=36
 
 # --- CORE CALCULATIONS ---
 heated_hard_cost = sqft * direct_cost_sf
-carport_total_cost = carport_sqft * carport_cost_sf
-hard_cost_per_unit = heated_hard_cost + carport_total_cost
+struct_total_cost = struct_sqft * struct_cost_sf
+front_porch_cost = front_porch_sqft * front_porch_cost_sf
+back_porch_cost = back_porch_sqft * back_porch_cost_sf
+
+hard_cost_per_unit = heated_hard_cost + struct_total_cost + front_porch_cost + back_porch_cost
 total_hard_cost = hard_cost_per_unit * units
+
+# Under-roof metrics
+total_under_roof_sqft = sqft + struct_sqft + front_porch_sqft + back_porch_sqft
+blended_cost_per_sf = hard_cost_per_unit / total_under_roof_sqft if total_under_roof_sqft > 0 else 0
 
 gcond = total_hard_cost * 0.05
 fee_basis = total_hard_cost + gcond
@@ -65,7 +80,7 @@ total_arv = arv_per_unit * units
 loan_total = total_arv * ltv
 buydown_pts = loan_total * 0.02
 
-# Carry interest calculation (9-month / dynamic build time)
+# Carry interest calculation (dynamic build time)
 carry_int = (total_const + total_soft_costs) * 0.5 * const_rate * (build_months / 12.0)
 
 total_project_basis = total_land + total_const + total_soft_costs + total_const_fees + total_takeout_fees + buydown_pts + carry_int
@@ -74,15 +89,16 @@ retained_equity = total_arv - loan_total
 day1_wealth = gc_fee + max(0, cash_surplus) + retained_equity
 
 # --- DASHBOARD UI ---
-col1, col2, col3 = st.columns(3)
+col1, col2, col3, col4 = st.columns(4)
 
 col1.metric("Takeout Loan Proceeds", f"${loan_total:,.0f}", f"{ltv*100:.0f}% LTV")
 col2.metric("Total Project Basis", f"${total_project_basis:,.0f}", f"${total_project_basis/units:,.0f} per door", delta_color="inverse")
+col3.metric("Under-Roof Blended Cost", f"${blended_cost_per_sf:.2f} / SF", f"{total_under_roof_sqft:,} Total SF Under Roof")
 
 if cash_surplus >= 0:
-    col3.metric("Tax-Free Cash Surplus", f"${cash_surplus:,.0f}", "Capital Recovered")
+    col4.metric("Tax-Free Cash Surplus", f"${cash_surplus:,.0f}", "Capital Recovered")
 else:
-    col3.metric("Trapped Seed Capital", f"${cash_surplus:,.0f}", "Loss at Closing")
+    col4.metric("Trapped Seed Capital", f"${cash_surplus:,.0f}", "Loss at Closing")
 
 st.divider()
 
@@ -94,7 +110,9 @@ with row2_col1:
         "Category": [
             "Land Acquisition", 
             f"Heated Hard Costs ({sqft:,.0f} SF @ ${direct_cost_sf:.2f}/SF)", 
-            f"Carport Hard Costs ({carport_sqft:,.0f} SF @ ${carport_cost_sf:.2f}/SF)",
+            f"{structure_type} Hard Costs ({struct_sqft:,.0f} SF @ ${struct_cost_sf:.2f}/SF)",
+            f"Front Porch ({front_porch_sqft:,.0f} SF @ ${front_porch_cost_sf:.2f}/SF)",
+            f"Back Porch ({back_porch_sqft:,.0f} SF @ ${back_porch_cost_sf:.2f}/SF)",
             "General Conditions (5%)", 
             "GC Management Fee", 
             "BTR Buying Power Premium (5%)", 
@@ -106,7 +124,9 @@ with row2_col1:
         "Amount ($)": [
             total_land,
             heated_hard_cost * units,
-            carport_total_cost * units,
+            struct_total_cost * units,
+            front_porch_cost * units,
+            back_porch_cost * units,
             gcond,
             gc_fee,
             premium,
