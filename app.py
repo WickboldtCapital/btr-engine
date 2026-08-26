@@ -18,10 +18,13 @@ custom_gc_fee = 0
 if opt_gc:
     custom_gc_fee = st.sidebar.number_input("Flat Consolidated GC Fee ($)", value=20000, step=1000)
 
-st.sidebar.subheader("Construction Costs")
+st.sidebar.subheader("Construction Costs (Heated Area)")
 sqft = st.sidebar.number_input("Heated SqFt per Unit", value=1150, step=50)
-carport_cost = st.sidebar.number_input("Carport/Flatwork Cost per Unit ($)", value=6200, step=100)
 direct_cost_sf = st.sidebar.slider("Direct Build Cost / SF ($)", min_value=40.0, max_value=150.0, value=74.0, step=1.0)
+
+st.sidebar.subheader("Construction Costs (Carport / Structure)")
+carport_sqft = st.sidebar.number_input("Carport SqFt per Unit", value=200, step=25)
+carport_cost_sf = st.sidebar.slider("Carport Cost / SF ($)", min_value=10.0, max_value=60.0, value=31.0, step=1.0)
 
 st.sidebar.subheader("Financing & Timeline")
 arv_per_unit = st.sidebar.number_input("Retail Appraised Value (ARV) per Unit", value=182600, step=1000)
@@ -36,7 +39,9 @@ const_fees = st.sidebar.number_input("Const. Loan Closing Fee per Unit ($)", val
 takeout_fees = st.sidebar.number_input("Takeout Refi Fee per Unit ($)", value=3650, step=50)
 
 # --- CORE CALCULATIONS ---
-hard_cost_per_unit = (sqft * direct_cost_sf) + carport_cost
+heated_hard_cost = sqft * direct_cost_sf
+carport_total_cost = carport_sqft * carport_cost_sf
+hard_cost_per_unit = heated_hard_cost + carport_total_cost
 total_hard_cost = hard_cost_per_unit * units
 
 gcond = total_hard_cost * 0.05
@@ -59,7 +64,7 @@ total_arv = arv_per_unit * units
 loan_total = total_arv * ltv
 buydown_pts = loan_total * 0.02
 
-# Carry interest calculation (using the 9-month/dynamic build time)
+# Carry interest calculation (9-month / dynamic build time)
 carry_int = (total_const + total_soft_costs) * 0.5 * const_rate * (build_months / 12.0)
 
 total_project_basis = total_land + total_const + total_soft_costs + total_const_fees + total_takeout_fees + buydown_pts + carry_int
@@ -86,13 +91,28 @@ with row2_col1:
     st.markdown("### 📊 Capital Ledger Breakdown")
     ledger_data = {
         "Category": [
-            "Land Acquisition", "Direct Hard Costs", "General Conditions (5%)", 
-            "GC Management Fee", "BTR Buying Power Premium (5%)", "Soft Costs & Permitting",
-            "Const. Loan Fees & Carry Interest", "Takeout Refi Fees & Buydown Points", "TOTAL PROJECT BASIS"
+            "Land Acquisition", 
+            f"Heated Hard Costs ({sqft:,} SF @ ${direct_cost_sf:.2f}/SF)", 
+            f"Carport Hard Costs ({carport_sqft:,} SF @ ${carport_cost_sf:.2f}/SF)",
+            "General Conditions (5%)", 
+            "GC Management Fee", 
+            "BTR Buying Power Premium (5%)", 
+            "Soft Costs & Permitting",
+            "Const. Loan Fees & Carry Interest", 
+            "Takeout Refi Fees & Buydown Points", 
+            "TOTAL PROJECT BASIS"
         ],
         "Amount ($)": [
-            total_land, total_hard_cost, gcond, gc_fee, premium, total_soft_costs, 
-            total_const_fees + carry_int, total_takeout_fees + buydown_pts, total_project_basis
+            total_land,
+            heated_hard_cost * units,
+            carport_total_cost * units,
+            gcond,
+            gc_fee,
+            premium,
+            total_soft_costs,
+            total_const_fees + carry_int,
+            total_takeout_fees + buydown_pts,
+            total_project_basis
         ]
     }
     df_ledger = pd.DataFrame(ledger_data)
@@ -103,10 +123,17 @@ with row2_col2:
     st.markdown("### 💰 Day-1 Wealth Creation")
     wealth_data = {
         "Pocket Component": [
-            "Pocket 1: Active GC Fee Revenue", "Pocket 2: Tax-Free Cash Surplus at Close",
-            "Pocket 3: Retained Asset Equity", "TOTAL DAY-1 CREATED VALUE"
+            "Pocket 1: Active GC Fee Revenue", 
+            "Pocket 2: Tax-Free Cash Surplus at Close",
+            "Pocket 3: Retained Asset Equity", 
+            "TOTAL DAY-1 CREATED VALUE"
         ],
-        "Value ($)": [gc_fee, cash_surplus, retained_equity, day1_wealth]
+        "Value ($)": [
+            gc_fee, 
+            cash_surplus, 
+            retained_equity, 
+            day1_wealth
+        ]
     }
     df_wealth = pd.DataFrame(wealth_data)
     df_wealth['Value ($)'] = df_wealth['Value ($)'].apply(lambda x: f"${x:,.0f}")
