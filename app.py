@@ -36,7 +36,8 @@ back_porch_sqft = st.sidebar.number_input("Back Porch SqFt", value=120, step=10,
 back_porch_cost_sf = st.sidebar.slider("Back Porch Cost / SF ($)", min_value=15.0, max_value=70.0, value=35.0, step=1.0)
 
 st.sidebar.subheader("Financing & Timeline")
-arv_per_unit = st.sidebar.number_input("Retail Appraised Value (ARV) per Unit ($)", value=182600, step=1000, format="%d")
+use_comp_valuation = st.sidebar.checkbox("Derive Appraised Value (ARV) from Comp Tool?", value=True)
+manual_arv_per_unit = st.sidebar.number_input("Manual Retail Appraised Value (ARV) per Unit ($)", value=182600, step=1000, format="%d")
 ltv = st.sidebar.slider("Commercial Takeout LTV (%)", min_value=60.0, max_value=85.0, value=80.0, step=5.0) / 100.0
 build_months = st.sidebar.slider("Construction Duration (Months)", min_value=3, max_value=18, value=9, step=1)
 const_rate = st.sidebar.slider("Construction Loan Rate (%)", min_value=4.0, max_value=12.0, value=8.0, step=0.5) / 100.0
@@ -47,6 +48,20 @@ soft_costs = st.sidebar.number_input("Soft Costs per Unit ($)", value=5500, step
 const_fees = st.sidebar.number_input("Const. Loan Closing Fee per Unit ($)", value=6000, step=500, format="%d")
 takeout_fees = st.sidebar.number_input("Takeout Refi Fee per Unit ($)", value=3650, step=50, format="%d")
 
+# --- COMPARABLE MARKET ANALYSIS (COMP BENCHMARK TOOL) ---
+st.markdown("### 🔍 Market Comp Blended Cost & Valuation Benchmark")
+st.markdown("Input market comparable data below to evaluate blended under-roof costs. If enabled in the sidebar, this comp valuation drives the project's Appraised Value (ARV).")
+
+cc_col1, cc_col2, cc_col3, cc_col4, cc_col5 = st.columns(5)
+comp_price = cc_col1.number_input("Comp Total Value / Price ($)", value=182600, step=1000, format="%d")
+comp_heated_sf = cc_col2.number_input("Comp Heated SF", value=1150, step=50, format="%d")
+comp_struct_sf = cc_col3.number_input("Comp Garage/Carport SF", value=200, step=25, format="%d")
+comp_front_sf = cc_col4.number_input("Comp Front Porch SF", value=60, step=10, format="%d")
+comp_back_sf = cc_col5.number_input("Comp Back Porch SF", value=120, step=10, format="%d")
+
+comp_total_sf = comp_heated_sf + comp_struct_sf + comp_front_sf + comp_back_sf
+comp_blended_cost = comp_price / comp_total_sf if comp_total_sf > 0 else 0
+
 # --- CORE CALCULATIONS ---
 heated_hard_cost = sqft * direct_cost_sf
 struct_total_cost = struct_sqft * struct_cost_sf
@@ -56,9 +71,15 @@ back_porch_cost = back_porch_sqft * back_porch_cost_sf
 hard_cost_per_unit = heated_hard_cost + struct_total_cost + front_porch_cost + back_porch_cost
 total_hard_cost = hard_cost_per_unit * units
 
-# Under-roof metrics
+# Under-roof metrics for project unit
 total_under_roof_sqft = sqft + struct_sqft + front_porch_sqft + back_porch_sqft
 blended_cost_per_sf = hard_cost_per_unit / total_under_roof_sqft if total_under_roof_sqft > 0 else 0
+
+# Determine Appraised Value (ARV) per unit
+if use_comp_valuation:
+    arv_per_unit = comp_blended_cost * total_under_roof_sqft
+else:
+    arv_per_unit = manual_arv_per_unit
 
 gcond = total_hard_cost * 0.05
 fee_basis = total_hard_cost + gcond
@@ -88,6 +109,9 @@ cash_surplus = loan_total - total_project_basis
 retained_equity = total_arv - loan_total
 day1_wealth = gc_fee + max(0, cash_surplus) + retained_equity
 
+st.info(f"📊 **Comp Benchmarks:** Comp Under-Roof Area: **{comp_total_sf:,} SF** | Comp Blended Cost: **${comp_blended_cost:.2f} / SF** | **Derived Unit ARV: ${arv_per_unit:,.0f}**")
+st.divider()
+
 # --- DASHBOARD UI ---
 col1, col2, col3, col4 = st.columns(4)
 
@@ -99,25 +123,6 @@ if cash_surplus >= 0:
     col4.metric("Tax-Free Cash Surplus", f"${cash_surplus:,.0f}", "Capital Recovered")
 else:
     col4.metric("Trapped Seed Capital", f"${cash_surplus:,.0f}", "Loss at Closing")
-
-st.divider()
-
-# --- NEW: COMPARABLE MARKET ANALYSIS (COMP BENCHMARK TOOL) ---
-with st.expander("🔍 Market Comp Blended Cost Calculator (Reverse-Engineer a Comp)", expanded=True):
-    st.markdown("Input a market comparable's sale price and area breakdowns to calculate its exact blended under-roof cost per square foot.")
-    
-    cc_col1, cc_col2, cc_col3, cc_col4, cc_col5 = st.columns(5)
-    
-    comp_price = cc_col1.number_input("Comp Total Value / Price ($)", value=182600, step=1000, format="%d")
-    comp_heated_sf = cc_col2.number_input("Comp Heated SF", value=1150, step=50, format="%d")
-    comp_struct_sf = cc_col3.number_input("Comp Garage/Carport SF", value=200, step=25, format="%d")
-    comp_front_sf = cc_col4.number_input("Comp Front Porch SF", value=60, step=10, format="%d")
-    comp_back_sf = cc_col5.number_input("Comp Back Porch SF", value=120, step=10, format="%d")
-    
-    comp_total_sf = comp_heated_sf + comp_struct_sf + comp_front_sf + comp_back_sf
-    comp_blended_cost = comp_price / comp_total_sf if comp_total_sf > 0 else 0
-    
-    st.info(f"📊 **Comp Analysis Results:** Total Under-Roof Area: **{comp_total_sf:,} SF** | Comp Blended Value / Cost: **${comp_blended_cost:.2f} / SF** Under Roof")
 
 st.divider()
 
