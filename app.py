@@ -46,11 +46,14 @@ comp_entry_mode = st.radio(
     "Comparable Data Entry Mode", 
     [
         "Manual Entry", 
-        "RentCast Live API Fetch"
+        "RentCast Live API Fetch",
+        "Auto-Load: 1103 S Spruce St (Hammond)", 
+        "Auto-Load: 71728 Spike Dr (Madisonville)"
     ], 
     horizontal=True
 )
 
+# API Logic
 if comp_entry_mode == "RentCast Live API Fetch":
     rc_col1, rc_col2 = st.columns([4, 1])
     search_address = rc_col1.text_input("Property Address", placeholder="e.g. 1103 S Spruce St, Hammond, LA")
@@ -108,36 +111,48 @@ if comp_entry_mode == "RentCast Live API Fetch":
                     st.error(f"Error fetching data: {e}")
             else:
                 st.error("Missing API Key. Paste it in the Configuration box or add RENTCAST_API_KEY to Railway Variables.")
-            
-    st.info("💡 RentCast Mode is active. Address, Price, and Heated SF are locked to the fetched data. Switch to 'Manual Entry' to edit them.")
-    
-    comp_address = st.text_input("Comparable Property Address", value=st.session_state.comp_address, disabled=True)
-    c1, c2, c3 = st.columns(3)
-    comp_price = c1.number_input("Comp Sale Price ($)", value=st.session_state.comp_price, disabled=True)
-    comp_heated_sf = c2.number_input("Comp Heated SF", value=st.session_state.comp_heated_sf, disabled=True)
-    comp_struct_sf = c3.number_input("Comp Aux. SF (Garage/Carport)", value=200, step=25, format="%d")
-    
-    c4, c5, c6 = st.columns(3)
-    comp_front_sf = c4.number_input("Comp Front Porch SF", value=60, step=10, format="%d")
-    comp_back_sf = c5.number_input("Comp Back Porch SF", value=120, step=10, format="%d")
-    comp_storage_sf = c6.number_input("Comp Storage Room SF", value=40, step=5, format="%d")
+
+# --- RENDER COMP INPUT UI (Cleanly, once!) ---
+st.markdown("##### 1. Primary Comp Metrics")
+col_addr, col_price, col_hsf = st.columns([2, 1, 1])
+
+if comp_entry_mode == "Auto-Load: 1103 S Spruce St (Hammond)":
+    st.session_state.comp_address = "1103 S Spruce St, Hammond, LA 70403"
+    st.session_state.comp_price = 210100
+    st.session_state.comp_heated_sf = 1300
+    comp_address = col_addr.text_input("Comparable Property Address", value=st.session_state.comp_address, disabled=True)
+    comp_price = col_price.number_input("Comp Sale Price ($)", value=st.session_state.comp_price, disabled=True)
+    comp_heated_sf = col_hsf.number_input("Comp Heated SF", value=st.session_state.comp_heated_sf, disabled=True)
+
+elif comp_entry_mode == "Auto-Load: 71728 Spike Dr (Madisonville)":
+    st.session_state.comp_address = "71728 Spike Dr, Madisonville, LA 70447"
+    st.session_state.comp_price = 205045
+    st.session_state.comp_heated_sf = 1001
+    comp_address = col_addr.text_input("Comparable Property Address", value=st.session_state.comp_address, disabled=True)
+    comp_price = col_price.number_input("Comp Sale Price ($)", value=st.session_state.comp_price, disabled=True)
+    comp_heated_sf = col_hsf.number_input("Comp Heated SF", value=st.session_state.comp_heated_sf, disabled=True)
+
+elif comp_entry_mode == "RentCast Live API Fetch":
+    comp_address = col_addr.text_input("Comparable Property Address", value=st.session_state.comp_address, disabled=True)
+    comp_price = col_price.number_input("Comp Sale Price ($)", value=st.session_state.comp_price, disabled=True)
+    comp_heated_sf = col_hsf.number_input("Comp Heated SF", value=st.session_state.comp_heated_sf, disabled=True)
 
 else:
-    comp_address = st.text_input("Comparable Property Address", value=st.session_state.comp_address, placeholder="e.g. 16144 South Bud Broussard Road, Prairieville, LA")
-    
-    c1, c2, c3 = st.columns(3)
-    comp_price = c1.number_input("Comp Sale Price ($)", value=st.session_state.comp_price, step=1000, format="%d")
-    comp_heated_sf = c2.number_input("Comp Heated SF", value=st.session_state.comp_heated_sf, step=50, format="%d")
-    comp_struct_sf = c3.number_input("Comp Aux. SF (Garage/Carport)", value=200, step=25, format="%d")
-    
-    c4, c5, c6 = st.columns(3)
-    comp_front_sf = c4.number_input("Comp Front Porch SF", value=60, step=10, format="%d")
-    comp_back_sf = c5.number_input("Comp Back Porch SF", value=120, step=10, format="%d")
-    comp_storage_sf = c6.number_input("Comp Storage Room SF", value=40, step=5, format="%d")
-    
+    # Manual Entry
+    comp_address = col_addr.text_input("Comparable Property Address", value=st.session_state.comp_address, placeholder="e.g. 16144 South Bud Broussard Road, Prairieville, LA")
+    comp_price = col_price.number_input("Comp Sale Price ($)", value=st.session_state.comp_price, step=1000, format="%d")
+    comp_heated_sf = col_hsf.number_input("Comp Heated SF", value=st.session_state.comp_heated_sf, step=50, format="%d")
+    # Save manual typing to session state
     st.session_state.comp_price = comp_price
     st.session_state.comp_heated_sf = comp_heated_sf
     st.session_state.comp_address = comp_address
+
+st.markdown("##### 2. Comp Auxiliary Spaces (Always Editable)")
+c_aux1, c_aux2, c_aux3, c_aux4 = st.columns(4)
+comp_struct_sf = c_aux1.number_input("Comp Aux. SF (Garage/Carport)", value=200, step=25, format="%d")
+comp_front_sf = c_aux2.number_input("Comp Front Porch SF", value=60, step=10, format="%d")
+comp_back_sf = c_aux3.number_input("Comp Back Porch SF", value=120, step=10, format="%d")
+comp_storage_sf = c_aux4.number_input("Comp Storage Room SF", value=40, step=5, format="%d")
 
 
 # ==========================================
@@ -145,7 +160,6 @@ else:
 # ==========================================
 st.sidebar.header("Master Model Drivers")
 
-# Initialize containers so we can populate them in the UI order, but execute math efficiently
 cont_scale = st.sidebar.container()
 cont_footprint = st.sidebar.container()
 cont_appraisal = st.sidebar.container()
@@ -176,7 +190,6 @@ with cont_footprint:
 
 with cont_finance:
     st.subheader("6. Financing & Operations")
-    # Rent moved down visually, but mathematically accessible globally!
     gross_monthly_rent = st.number_input("Gross Monthly Rental Income per Unit ($)", value=1650, step=50, format="%d")
     target_dscr_rate = st.number_input("Target Lender DSCR Rate", min_value=1.0, max_value=1.5, value=1.20, step=0.05)
     vacancy_rate = st.slider("Vacancy Rate (%)", min_value=0.0, max_value=15.0, value=5.0, step=1.0) / 100.0
@@ -284,11 +297,14 @@ with cont_target:
 # --- MATH AUDIT & RAW DATA PANEL ---
 with st.expander("🧮 View Comp Math Audit & Raw API Data", expanded=False):
     st.markdown("#### The Math Breakdown")
-    st.markdown("**1. Retail Heated Rate (Standard Appraised Rate)**")
+    st.markdown("**1. Raw Retail Heated Rate (Unadjusted)**")
     st.code(f"${comp_price:,.0f} (Sale Price) ÷ {comp_heated_sf:,.0f} (Heated SF) = ${raw_comp_price_sf:.2f} / SF")
     
+    st.markdown("**2. True Isolated Heated Shell Rate (Value-Add Extraction)**")
+    st.code(f"(${comp_price:,.0f} - ${comp_aux_value:,.0f} Aux Value) ÷ {comp_heated_sf:,.0f} SF = ${isolated_heated_rate:.2f} / SF")
+    
     st.markdown("**Total Under-Roof Calculation:**")
-    st.caption(f"• {comp_heated_sf} SF (Heated)\n\n• {comp_struct_sf} SF (Garage/Carport)\n\n• {comp_front_sf} SF (Front Porch)\n\n• {comp_back_sf} SF (Back Porch)\n\n• {comp_storage_sf} SF (Storage)\n\n**= {comp_total_sf} Total SF**")
+    st.caption(f"• {comp_heated_sf} SF (Heated)\n\n• {comp_struct_sf} SF (Garage/Carport)\n\n• {comp_front_sf} SF (Front Porch)\n\n• {comp_back_sf} SF (Back Porch)\n\n• {comp_storage_sf} SF (Storage Room)\n\n**= {comp_total_sf} Total SF**")
 
     if st.session_state.raw_api_data and comp_entry_mode == "RentCast Live API Fetch":
         st.divider()
@@ -418,19 +434,15 @@ p_data = {
     "Component": ["Front Porch", "Back Porch", "Storage Room", "TOTAL AUX/OUTDOOR"],
     "Area (SF)": [f"{front_porch_sqft} SF", f"{back_porch_sqft} SF", f"{storage_sqft} SF", f"{front_porch_sqft + back_porch_sqft + storage_sqft} SF"],
     "Live Cost / SF": [f"${front_porch_cost_sf:.2f}", f"${back_porch_cost_sf:.2f}", f"${storage_cost_sf:.2f}", "-"],
-    "Per Unit Cost": [f"${front_porch_cost:,.0f}", f"${back_porch_cost:,.0f}", f"${storage_cost:,.0f}", f"${front_porch_cost + back_porch_cost + storage_cost:,.0f}"]
+    "Per Unit Cost": [f"${front_porch_cost:,.0f}", f"${back_porch_cost:,.0f}", f"${storage_cost:,.0f}", f"${our_aux_cost_total:,.0f}"]
 }
 st.dataframe(pd.DataFrame(p_data), hide_index=True, use_container_width=True)
 
 st.divider()
 
 # --- PRE-LEDGER MATH (Direct Hard Costs) ---
-total_under_roof_sqft = sqft + struct_sqft + front_porch_sqft + back_porch_sqft + storage_sqft
-
-heated_hard_cost = sqft * direct_cost_sf
-hard_cost_per_unit = heated_hard_cost + struct_total_cost + front_porch_cost + back_porch_cost + storage_cost
-blended_cost_per_sf = hard_cost_per_unit / total_under_roof_sqft if total_under_roof_sqft > 0 else 0
-total_hard_cost = hard_cost_per_unit * units
+blended_cost_per_sf = (heated_hard_cost + our_aux_cost_total) / total_under_roof_sqft if total_under_roof_sqft > 0 else 0
+total_hard_cost = target_total_hard_cost * units if cost_calc_mode == "Reverse-Engineer from Appraisal" else (heated_hard_cost + our_aux_cost_total) * units
 total_arv = arv_per_unit * units
 loan_total = total_arv * refi_ltv
 
