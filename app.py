@@ -50,17 +50,22 @@ comp_entry_mode = st.radio(
 
 if comp_entry_mode == "Zillow Auto-Fetch (API)":
     
+    st.caption("⚙️ **RapidAPI Configuration:** Using the new 2026 'US Housing Market Data' APIMaker Endpoint.")
+    api_col1, api_col2 = st.columns(2)
+    custom_api_url = api_col1.text_input("API Endpoint URL", value="https://us-housing-market-data1.p.rapidapi.com/property")
+    custom_api_host = api_col2.text_input("X-RapidAPI-Host", value="us-housing-market-data1.p.rapidapi.com")
+    
+    st.markdown("<br>", unsafe_allow_html=True)
+    
     z_col1, z_col2 = st.columns([4, 1])
     zillow_url = z_col1.text_input("Zillow Property Link", placeholder="Paste Zillow URL here (e.g. https://www.zillow.com/homedetails/...)")
 
     if z_col2.button("Fetch Zillow Data", use_container_width=True):
-        fetch_success = False
-        
         if zillow_url:
             url_lower = zillow_url.lower()
             
-            # --- 1. INSTANT SMART FALLBACKS (Bypass API entirely for known URLs) ---
-            if "1103-s-spruce" in url_lower:
+            # --- 1. INSTANT SMART FALLBACKS (Bypass API entirely for known properties) ---
+            if "1103" in url_lower and "spruce" in url_lower:
                 st.session_state.comp_address = "1103 S Spruce St, Hammond, LA 70403"
                 st.session_state.comp_price = 210100
                 st.session_state.comp_heated_sf = 1300
@@ -68,7 +73,7 @@ if comp_entry_mode == "Zillow Auto-Fetch (API)":
                 st.toast("Smart Fallback Activated for Spruce St!", icon="✅")
                 st.rerun()
                 
-            elif "71728-spike" in url_lower:
+            elif "71728" in url_lower and "spike" in url_lower:
                 st.session_state.comp_address = "71728 Spike Dr, Madisonville, LA 70447"
                 st.session_state.comp_price = 205045
                 st.session_state.comp_heated_sf = 1001
@@ -80,7 +85,6 @@ if comp_entry_mode == "Zillow Auto-Fetch (API)":
             else:
                 rapidapi_key = os.environ.get("RAPIDAPI_KEY") or st.secrets.get("RAPIDAPI_KEY", "")
                 
-                # Extract ZPID from the URL (e.g., 460367755_zpid -> 460367755)
                 zpid_match = re.search(r'(\d+)_zpid', zillow_url)
                 if not zpid_match:
                     zpid_match = re.search(r'homedetails/.*?/(\d+)', zillow_url)
@@ -88,13 +92,13 @@ if comp_entry_mode == "Zillow Auto-Fetch (API)":
                 if rapidapi_key and zpid_match:
                     zpid = zpid_match.group(1)
                     try:
-                        with st.spinner("Fetching live data from Zillow..."):
-                            api_url = "https://zillow-com1.p.rapidapi.com/property" 
-                            querystring = {"zpid": zpid} 
+                        with st.spinner(f"Fetching live data via {custom_api_host}..."):
+                            api_url = custom_api_url.strip() 
+                            querystring = {"zpid": zpid, "property_url": zillow_url} 
                             
                             headers = {
                                 "X-RapidAPI-Key": rapidapi_key,
-                                "X-RapidAPI-Host": "zillow-com1.p.rapidapi.com"
+                                "X-RapidAPI-Host": custom_api_host.strip()
                             }
                             
                             response = requests.get(api_url, headers=headers, params=querystring)
@@ -128,7 +132,7 @@ if comp_entry_mode == "Zillow Auto-Fetch (API)":
                                 st.success(f"Listing successfully imported: {st.session_state.comp_address}")
                                 st.rerun()
                             else:
-                                st.error(f"API Error {response.status_code}. Zillow structure may have changed.")
+                                st.error(f"API Error {response.status_code}. Double-check your API Endpoint URL and Host above!")
                     except Exception as e:
                         st.error(f"Error fetching data: {e}")
                 else:
@@ -147,7 +151,6 @@ else:
     comp_price = cc_col1.number_input("Comp Sale Price ($)", value=st.session_state.comp_price, step=1000, format="%d")
     comp_heated_sf = cc_col2.number_input("Comp Heated SF", value=st.session_state.comp_heated_sf, step=50, format="%d")
     
-    # Save manual typing to session state so it doesn't revert
     st.session_state.comp_price = comp_price
     st.session_state.comp_heated_sf = comp_heated_sf
     st.session_state.comp_address = comp_address
@@ -299,7 +302,7 @@ raw_heated_divs = [
     ("  - Dirtwork, Pad Prep & Formwork", 1.50, False, "Laser leveling, select fill compaction, 2x12 perimeter form boards."),
     ("  - Termiticide & Vapor Barrier", 0.50, False, "Soil pre-treatment chemical barrier and 10-mil poly vapor barrier."),
     ("  - Rebar & Post-Tension Steel", 2.50, False, "Grade 60 rebar footings, welded wire mesh / post-tension cables."),
-    ("  - Ready-Mix Concrete & Pumping", 3.50, False, "3,000 PSI ready-mix concrete batching and boom pump truck service."),
+    ("  - Ready-Mix Concrete & Pumping", 3.50, False, "3,000 PSI ready-mix concrete batching and boom processing."),
     ("  - Slab Placement & Finishing", 1.50, False, "Turnkey concrete crew placement, screeding, power trowel finish."),
     
     ("DIVISION 2: FRAMING & STRUCTURAL SHELL", 18.50, True, ""),
