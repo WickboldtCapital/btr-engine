@@ -158,12 +158,25 @@ st.info(f"📊 **Project Benchmarks:** Derived Unit ARV: **${arv_per_unit:,.0f}*
 st.divider()
 
 # --- DASHBOARD UI ---
+
+st.markdown("### 🏗️ Project Capital & Valuation Metrics")
 col1, col2, col3, col4 = st.columns(4)
 
 col1.metric("Takeout Loan Proceeds", f"${loan_total:,.0f}", f"{refi_ltv*100:.0f}% LTV")
 col2.metric("Total Project Basis", f"${total_project_basis:,.0f}", f"${total_project_basis/units:,.0f} per door", delta_color="off")
-col3.metric("Actual DSCR Rate", f"{actual_dscr:.2f}x", f"Target: {target_dscr_rate:.2f}x", delta_color="normal" if actual_dscr >= target_dscr_rate else "inverse")
-col4.metric("Monthly Cash Flow", f"${monthly_cash_flow:,.0f} /mo", f"${monthly_cash_flow*12:,.0f} Annual", delta_color="normal" if monthly_cash_flow >= 0 else "inverse")
+col3.metric("Under-Roof Blended Cost", f"${blended_cost_per_sf:.2f} / SF", f"{total_under_roof_sqft:,} Total SF Under Roof")
+if cash_surplus >= 0:
+    col4.metric("Tax-Free Cash Surplus", f"${cash_surplus:,.0f}", "Capital Recovered")
+else:
+    col4.metric("Trapped Seed Capital", f"${cash_surplus:,.0f}", "Loss at Closing")
+
+st.markdown("### 🏢 Operating & DSCR Metrics")
+op1, op2, op3, op4 = st.columns(4)
+
+op1.metric("Derived Unit ARV", f"${arv_per_unit:,.0f}", f"${total_arv:,.0f} Total ARV")
+op2.metric("Actual DSCR Rate", f"{actual_dscr:.2f}x", f"Target: {target_dscr_rate:.2f}x", delta_color="normal" if actual_dscr >= target_dscr_rate else "inverse")
+op3.metric("Monthly Cash Flow", f"${monthly_cash_flow:,.0f} /mo", f"${monthly_cash_flow*12:,.0f} Annual", delta_color="normal" if monthly_cash_flow >= 0 else "inverse")
+op4.metric("Monthly P&I Payment", f"${total_monthly_pi:,.0f} /mo", f"{refi_term_years}Yr @ {net_refi_rate*100:.3f}%")
 
 st.divider()
 
@@ -171,13 +184,14 @@ row2_col1, row2_col2 = st.columns(2)
 
 with row2_col1:
     st.markdown("### 📊 Detailed Construction Cost & Capital Ledger")
+    # Note: All arrays are now exactly 19 elements long to prevent DataFrame crash
     ledger_data = {
         "Cost Category / Sub-Level": [
             "--- DIRECT HARD COSTS ---",
-            f"Heated Living Area (Sub-Level)", 
+            "Heated Living Area (Sub-Level)", 
             f"{structure_type} (Sub-Level)",
-            f"Front Porch (Sub-Level)",
-            f"Back Porch (Sub-Level)",
+            "Front Porch (Sub-Level)",
+            "Back Porch (Sub-Level)",
             "SUBTOTAL DIRECT HARD COSTS",
             "--- INDIRECT & OVERHEAD HARD COSTS ---",
             "General Conditions (5% of Direct)", 
@@ -188,7 +202,7 @@ with row2_col1:
             "Land Acquisition Basis",
             "Soft Costs & Permitting",
             "Construction Loan Closing Fee",
-            f"Accrued Construction Interest ({build_months} Mos)",
+            f"Accrued Const. Interest ({build_months} Mos)",
             "Takeout Refinance Closing Fee",
             "Rate Buydown Points Cost",
             "TOTAL PROJECT BASIS"
@@ -205,6 +219,7 @@ with row2_col1:
             "10% or Flat",
             "5.0% Basis",
             f"{total_under_roof_sqft:,.0f} Total SF",
+            "",
             f"{units:,.0f} Lot(s)",
             "Per Unit Basis",
             "Flat Fee",
@@ -221,7 +236,7 @@ with row2_col1:
             f"${back_porch_cost_sf:.2f} /SF",
             f"${blended_cost_per_sf:.2f} /SF (Blended)",
             "",
-            "-", "-", "-", "-", "-", "-", "-", "-", "-", "-", "-", "-"
+            "-", "-", "-", "-", "", "-", "-", "-", "-", "-", "-", "-"
         ],
         "Total Amount ($)": [
             "",
@@ -246,7 +261,6 @@ with row2_col1:
         ]
     }
     df_ledger = pd.DataFrame(ledger_data)
-    # Format numeric amounts where applicable
     df_ledger['Total Amount ($)'] = df_ledger['Total Amount ($)'].apply(lambda x: f"${x:,.0f}" if isinstance(x, (int, float)) else x)
     st.dataframe(df_ledger, hide_index=True, use_container_width=True)
 
@@ -276,17 +290,17 @@ with row2_col2:
         st.error(f"**Capital Trapped:** You are leaving ${abs(cash_surplus):,.0f} of your seed capital in the deal to close the takeout loan. Try lowering your Direct Build Cost / SF or reducing the construction timeline.")
 
     st.markdown("---")
-    st.markdown("### 🏢 Operating & DSCR Performance Summary")
+    st.markdown("### 🏢 Operating Performance Summary")
     dscr_summary_data = {
         "Metric Item": [
             "Gross Monthly Rental Income", "Effective Gross Income (EGI - Annual)", 
             "Operating Expenses (OpEx - Annual)", "Net Operating Income (NOI - Annual)", 
-            "Total Debt Service (P&I - Annual)", "Monthly Net Cash Flow", "Actual DSCR Rate"
+            "Total Debt Service (P&I - Annual)"
         ],
         "Value": [
             f"${total_gross_monthly_income:,.2f} /mo", f"${annual_egi:,.2f}", 
             f"${annual_opex:,.2f} ({opex_rate*100:.0f}%)", f"${annual_noi:,.2f}", 
-            f"${annual_debt_service:,.2f}", f"${monthly_cash_flow:,.2f} /mo", f"{actual_dscr:.2f}x (Target: {target_dscr_rate:.2f}x)"
+            f"${annual_debt_service:,.2f}"
         ]
     }
     df_dscr = pd.DataFrame(dscr_summary_data)
