@@ -293,13 +293,24 @@ st.divider()
 st.markdown("### 🏢 Operating Performance Summary")
 dscr_summary_data = {
     "Metric Item": [
-        "Gross Monthly Rental Income", "Effective Gross Income (EGI - Annual)", 
-        "Operating Expenses (OpEx - Annual)", "Net Operating Income (NOI - Annual)", 
-        "Total Debt Service (P&I - Annual)"
+        "Gross Rental Income", 
+        "Effective Gross Income (EGI)", 
+        f"Operating Expenses (OpEx) @ {opex_rate*100:.0f}%", 
+        "Net Operating Income (NOI)", 
+        "Total Debt Service (P&I)"
     ],
-    "Value": [
-        f"${total_gross_monthly_income:,.2f} /mo", f"${annual_egi:,.2f}", 
-        f"${annual_opex:,.2f} ({opex_rate*100:.0f}%)", f"${annual_noi:,.2f}", 
+    "Monthly ($)": [
+        f"${total_gross_monthly_income:,.2f}", 
+        f"${annual_egi / 12:,.2f}", 
+        f"${annual_opex / 12:,.2f}", 
+        f"${monthly_noi:,.2f}", 
+        f"${total_monthly_pi:,.2f}"
+    ],
+    "Annual ($)": [
+        f"${total_gross_monthly_income * 12:,.2f}", 
+        f"${annual_egi:,.2f}", 
+        f"${annual_opex:,.2f}", 
+        f"${annual_noi:,.2f}", 
         f"${annual_debt_service:,.2f}"
     ]
 }
