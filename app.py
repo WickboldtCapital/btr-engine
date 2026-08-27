@@ -54,13 +54,15 @@ if comp_entry_mode == "Zillow Auto-Fetch (API)":
     zillow_url = z_col1.text_input("Zillow Property Link", placeholder="Paste Zillow URL here (e.g. https://www.zillow.com/homedetails/...)")
 
     if z_col2.button("Fetch Zillow Data", use_container_width=True):
+        fetch_success = False
+        
         if zillow_url:
             url_lower = zillow_url.lower()
             
             # --- 1. INSTANT SMART FALLBACKS (Bypass API entirely for known URLs) ---
             if "1103-s-spruce" in url_lower:
                 st.session_state.comp_address = "1103 S Spruce St, Hammond, LA 70403"
-                st.session_state.comp_price = 210100  # Pulling exact Zestimate from your notes
+                st.session_state.comp_price = 210100
                 st.session_state.comp_heated_sf = 1300
                 st.session_state.raw_zillow_data = {"Status": "Interceptor Activated", "Note": "Bypassed API and injected hardcoded data for 1103 S Spruce St."}
                 st.toast("Smart Fallback Activated for Spruce St!", icon="✅")
@@ -459,7 +461,12 @@ hard_cost_per_unit = heated_hard_cost + struct_total_cost + front_porch_cost + b
 blended_cost_per_sf = hard_cost_per_unit / total_under_roof_sqft if total_under_roof_sqft > 0 else 0
 
 total_hard_cost = hard_cost_per_unit * units
-arv_per_unit = comp_retail_heated_rate * total_under_roof_sqft
+
+# UPDATE: Proper Appraisal Math. Heated footprint valued at market rate. Aux structures valued at cost to build.
+appraised_heated_value = comp_retail_heated_rate * sqft
+appraised_aux_value = struct_total_cost + front_porch_cost + back_porch_cost
+arv_per_unit = appraised_heated_value + appraised_aux_value
+
 total_arv = arv_per_unit * units
 
 loan_total = total_arv * refi_ltv
