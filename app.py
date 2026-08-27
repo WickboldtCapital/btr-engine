@@ -125,13 +125,15 @@ comp_struct_sf = cc_col3.number_input("Comp Aux. SF (Garage)", value=200, step=2
 comp_front_sf = cc_col4.number_input("Comp Front Porch SF", value=60, step=10, format="%d")
 comp_back_sf = cc_col5.number_input("Comp Back Porch SF", value=120, step=10, format="%d")
 
+# Fixed Calculations: We now calculate both the standard Retail Heated rate and the Blended Under-Roof rate.
+comp_retail_heated_rate = comp_price / comp_heated_sf if comp_heated_sf > 0 else 0
 comp_total_sf = comp_heated_sf + comp_struct_sf + comp_front_sf + comp_back_sf
 comp_blended_cost = comp_price / comp_total_sf if comp_total_sf > 0 else 0
 
 if comp_address:
-    st.caption(f"📍 **Active Comp:** {comp_address} | Comp Retail Blended Rate: **${comp_blended_cost:.2f} / SF**")
+    st.caption(f"📍 **Active Comp:** {comp_address} | Retail Price: **${comp_retail_heated_rate:.2f} / Heated SF** | *(Blended Under-Roof: ${comp_blended_cost:.2f} / SF)*")
 else:
-    st.caption(f"📊 Comp Retail Blended Rate: **${comp_blended_cost:.2f} / SF**")
+    st.caption(f"📊 Retail Price: **${comp_retail_heated_rate:.2f} / Heated SF** | *(Blended Under-Roof: ${comp_blended_cost:.2f} / SF)*")
 
 st.divider()
 
@@ -163,9 +165,10 @@ cost_calc_mode = st.sidebar.radio(
 if cost_calc_mode == "Manual Set (Heated SF)":
     base_direct_cost_sf = st.sidebar.slider("Direct Build Cost / SF ($)", min_value=40.0, max_value=150.0, value=74.0, step=1.0)
 else:
-    st.sidebar.caption("Retail Price / SF is dynamically derived from your Market Comp inputs.")
-    retail_price_sf = comp_blended_cost
-    st.sidebar.markdown(f"**Comp Retail Price:** `${retail_price_sf:.2f} / SF`")
+    st.sidebar.caption("Retail Price / Heated SF is dynamically derived from your Market Comp inputs.")
+    # Now using the correct Heated Rate for the reverse engineering!
+    retail_price_sf = comp_retail_heated_rate
+    st.sidebar.markdown(f"**Comp Retail Price:** `${retail_price_sf:.2f} / Heated SF`")
     
     st.sidebar.markdown("**Adjustable Deductions:**")
     lot_cost_pct = st.sidebar.slider("Finished Lot Cost (%)", min_value=0.0, max_value=30.0, value=18.0, step=0.5) / 100.0
@@ -374,7 +377,7 @@ else:
     
     # 2. Structure Area (Manual Editor)
     st.markdown(f"#### 2. {structure_type} Auxiliary ({struct_sqft} SF)")
-    hl_struct = [{"Component Level": name, "Cost / SF": base_struct_cost_sf * (base/31.0)} for name, base, is_h in raw_struct_divs if not is_h]
+    hl_struct = [{"Component Level": name, "Cost / SF": base_struct_cost_sf * (base/31.0)} for name, base, is_h in raw_struct_divs if is_h]
     
     edited_s = st.data_editor(
         pd.DataFrame(hl_struct),
@@ -409,12 +412,15 @@ st.divider()
 struct_total_cost = struct_sqft * struct_cost_sf
 total_under_roof_sqft = sqft + struct_sqft + front_porch_sqft + back_porch_sqft
 
+# Calculate Heated Hard Cost using the correct final direct_cost_sf
 heated_hard_cost = sqft * direct_cost_sf
 hard_cost_per_unit = heated_hard_cost + struct_total_cost + front_porch_cost + back_porch_cost
 blended_cost_per_sf = hard_cost_per_unit / total_under_roof_sqft if total_under_roof_sqft > 0 else 0
 
 total_hard_cost = hard_cost_per_unit * units
-arv_per_unit = comp_blended_cost * total_under_roof_sqft
+
+# ARV is based strictly on Retail Heated Rate across the total Under-Roof to maintain blended valuation
+arv_per_unit = comp_retail_heated_rate * total_under_roof_sqft
 total_arv = arv_per_unit * units
 
 loan_total = total_arv * refi_ltv
