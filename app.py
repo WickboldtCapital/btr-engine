@@ -143,7 +143,6 @@ st.sidebar.subheader("Land & Soft Costs")
 land_basis = st.sidebar.number_input("Land Basis per Lot ($)", value=15000, step=1000, format="%d")
 soft_costs = st.sidebar.number_input("Soft Costs per Unit ($)", value=5500, step=500, format="%d")
 
-
 # --- CORE CALCULATIONS ---
 struct_total_cost = struct_sqft * struct_cost_sf
 front_porch_cost = front_porch_sqft * front_porch_cost_sf
@@ -311,6 +310,36 @@ with download_placeholder:
         use_container_width=True
     )
 
+# --- DASHBOARD UI ---
+
+st.markdown("### 🏗️ Project Capital & Valuation Metrics")
+col1, col2, col3, col4 = st.columns(4)
+
+col1.metric("Takeout Loan Proceeds", f"${loan_total:,.0f}", f"{refi_ltv*100:.0f}% LTV")
+
+if cash_surplus >= 0:
+    deal_health_color = "normal" 
+    surplus_title = "Tax-Free Cash Surplus"
+    surplus_delta = "Capital Recovered"
+else:
+    deal_health_color = "inverse" 
+    surplus_title = "Trapped Seed Capital"
+    surplus_delta = "Loss at Closing"
+
+col2.metric("Total Project Basis", f"${total_project_basis:,.0f}", f"${total_project_basis/units:,.0f} per door", delta_color=deal_health_color)
+col3.metric("Under-Roof Blended Cost", f"${blended_cost_per_sf:.2f} / SF", f"{total_under_roof_sqft:,} Total SF Under Roof")
+col4.metric(surplus_title, f"${cash_surplus:,.0f}", surplus_delta, delta_color=deal_health_color)
+
+st.markdown("### 🏢 Operating & DSCR Metrics")
+op1, op2, op3, op4 = st.columns(4)
+
+op1.metric("Derived Unit ARV", f"${arv_per_unit:,.0f}", f"${total_arv:,.0f} Total ARV")
+op2.metric("Actual DSCR Rate", f"{actual_dscr:.2f}x", f"Target: {target_dscr_rate:.2f}x", delta_color="normal" if actual_dscr >= target_dscr_rate else "inverse")
+op3.metric("Monthly Cash Flow", f"${monthly_cash_flow:,.0f} /mo", f"${monthly_cash_flow*12:,.0f} Annual", delta_color="normal" if monthly_cash_flow >= 0 else "inverse")
+op4.metric("Monthly P&I Payment", f"${total_monthly_pi:,.0f} /mo", f"{refi_term_years}Yr @ {net_refi_rate*100:.3f}%")
+
+st.divider()
+
 # --- REVERSE ENGINEER UI BLOCKS ---
 if cost_calc_mode == "Reverse-Engineer from Comp (Adjustable Breakdown)":
     st.markdown("### 🔄 Retail Price Reverse-Engineering Breakdown")
@@ -352,36 +381,6 @@ if cost_calc_mode == "Reverse-Engineer from Comp (Adjustable Breakdown)":
     }
     st.dataframe(pd.DataFrame(breakdown_data), hide_index=True, use_container_width=True)
     st.divider()
-
-# --- DASHBOARD UI ---
-
-st.markdown("### 🏗️ Project Capital & Valuation Metrics")
-col1, col2, col3, col4 = st.columns(4)
-
-col1.metric("Takeout Loan Proceeds", f"${loan_total:,.0f}", f"{refi_ltv*100:.0f}% LTV")
-
-if cash_surplus >= 0:
-    deal_health_color = "normal" 
-    surplus_title = "Tax-Free Cash Surplus"
-    surplus_delta = "Capital Recovered"
-else:
-    deal_health_color = "inverse" 
-    surplus_title = "Trapped Seed Capital"
-    surplus_delta = "Loss at Closing"
-
-col2.metric("Total Project Basis", f"${total_project_basis:,.0f}", f"${total_project_basis/units:,.0f} per door", delta_color=deal_health_color)
-col3.metric("Under-Roof Blended Cost", f"${blended_cost_per_sf:.2f} / SF", f"{total_under_roof_sqft:,} Total SF Under Roof")
-col4.metric(surplus_title, f"${cash_surplus:,.0f}", surplus_delta, delta_color=deal_health_color)
-
-st.markdown("### 🏢 Operating & DSCR Metrics")
-op1, op2, op3, op4 = st.columns(4)
-
-op1.metric("Derived Unit ARV", f"${arv_per_unit:,.0f}", f"${total_arv:,.0f} Total ARV")
-op2.metric("Actual DSCR Rate", f"{actual_dscr:.2f}x", f"Target: {target_dscr_rate:.2f}x", delta_color="normal" if actual_dscr >= target_dscr_rate else "inverse")
-op3.metric("Monthly Cash Flow", f"${monthly_cash_flow:,.0f} /mo", f"${monthly_cash_flow*12:,.0f} Annual", delta_color="normal" if monthly_cash_flow >= 0 else "inverse")
-op4.metric("Monthly P&I Payment", f"${total_monthly_pi:,.0f} /mo", f"{refi_term_years}Yr @ {net_refi_rate*100:.3f}%")
-
-st.divider()
 
 # --- VERTICAL STACK FOR TABLES ---
 
