@@ -140,7 +140,6 @@ st.sidebar.subheader("Land & Soft Costs")
 land_basis = st.sidebar.number_input("Land Basis per Lot ($)", value=15000, step=1000, format="%d")
 soft_costs = st.sidebar.number_input("Soft Costs per Unit ($)", value=5500, step=500, format="%d")
 
-
 # --- CORE CALCULATIONS ---
 struct_total_cost = struct_sqft * struct_cost_sf
 front_porch_cost = front_porch_sqft * front_porch_cost_sf
@@ -152,7 +151,6 @@ hard_cost_per_unit = heated_hard_cost + struct_total_cost + front_porch_cost + b
 blended_cost_per_sf = hard_cost_per_unit / total_under_roof_sqft if total_under_roof_sqft > 0 else 0
 
 total_hard_cost = hard_cost_per_unit * units
-
 arv_per_unit = comp_blended_cost * total_under_roof_sqft
 total_arv = arv_per_unit * units
 
@@ -202,26 +200,61 @@ cash_surplus = loan_total - total_project_basis
 retained_equity = total_arv - loan_total
 day1_wealth = gc_fee + max(0, cash_surplus) + retained_equity
 
-# --- GRANULAR COST BUILDUP LOGIC (DYNAMIC SCALING) ---
-# Heated Area Weights derived from $74/SF Document Baseline
-heated_divs = [
-    ("Div 1: Foundation & Concrete", 9.50/74.00, "Laser leveling, select fill, rebar, 3000 PSI concrete, turnkey labor."),
-    ("Div 2: Framing & Structural Shell", 18.50/74.00, "Lumber package, trusses, OSB sheathing, hardware, turnkey labor."),
-    ("Div 3: Exterior Envelope & Roofing", 10.00/74.00, "Architectural shingles, vinyl siding/soffit, Low-E windows, exterior doors."),
-    ("Div 4: Mechanical, Electrical, Plumbing", 15.50/74.00, "PEX/PVC rough-in, 14.3 SEER2 heat pump, 200A panel, LED lighting."),
-    ("Div 5: Insulation & Drywall", 6.50/74.00, "R-13/R-15 wall batts, R-38 attic blown, 1/2in drywall, finish & texture."),
-    ("Div 6: Interior Finishes & Cabinets", 10.50/74.00, "Doors/trim, shaker cabinets, laminate/granite, LVP/carpet, interior paint."),
-    ("Div 7: Appliances & Specialties", 1.50/74.00, "Electric range, microwave, dishwasher, bath hardware, shelving."),
-    ("Div 8: Exterior Flatwork & Site Finish", 2.00/74.00, "Concrete driveway/walk, final grading, starter sod.")
+
+# --- GRANULAR COST BUILDUP DATA (DOCUMENT MATCHING) ---
+raw_heated_divs = [
+    ("DIVISION 1: FOUNDATION & CONCRETE", 9.50, True, ""),
+    ("  • Dirtwork, Pad Prep & Formwork", 1.50, False, "Laser leveling, select fill compaction, 2x12 perimeter form boards."),
+    ("  • Termiticide & Vapor Barrier", 0.50, False, "Soil pre-treatment chemical barrier and 10-mil poly vapor barrier."),
+    ("  • Rebar & Post-Tension Steel", 2.50, False, "Grade 60 rebar footings, welded wire mesh / post-tension cables."),
+    ("  • Ready-Mix Concrete & Pumping", 3.50, False, "3,000 PSI ready-mix concrete batching and boom pump truck service."),
+    ("  • Slab Placement & Finishing", 1.50, False, "Turnkey concrete crew placement, screeding, power trowel finish."),
+    
+    ("DIVISION 2: FRAMING & STRUCTURAL SHELL", 18.50, True, ""),
+    ("  • Wall Framing Lumber Package", 5.50, False, "2x4 studs @ 16\" OC, treated sole plates, double top plates, LVL headers."),
+    ("  • Pre-Engineered Roof Trusses", 4.50, False, "Manufactured gang-nail roof truss package, gable ends, bracing."),
+    ("  • Sheathing (Walls & Roof)", 2.50, False, "7/16\" OSB wall sheathing and 7/16\" radiant barrier roof decking."),
+    ("  • Structural Hardware & Fasteners", 1.00, False, "Simpson Strong-Tie clips, anchor bolts, framing nails."),
+    ("  • Turnkey Framing Labor", 5.00, False, "Piece-rate crew framing walls, setting trusses, sheathing, drying-in."),
+    
+    ("DIVISION 3: EXTERIOR ENVELOPE & ROOFING", 10.00, True, ""),
+    ("  • Architectural Shingle Roofing", 3.25, False, "Lifetime architectural shingles, synthetic underlayment, drip edge."),
+    ("  • Vinyl Lap Siding, Soffit & Fascia", 3.00, False, "0.042\" vinyl lap siding, vented vinyl soffits, aluminum fascia wrap."),
+    ("  • Windows & Exterior Doors", 2.50, False, "Low-E vinyl single-hung windows; fiberglass insulated exterior doors."),
+    ("  • Weatherization & Exterior Labor", 1.25, False, "Housewrap, flashing tape, window/door install, exterior caulk."),
+
+    ("DIVISION 4: MECHANICAL, ELECTRICAL, PLUMBING", 15.50, True, ""),
+    ("  • Plumbing Complete (Rough & Trim)", 5.00, False, "Underground PVC, PEX supply, 50-gal water heater, tub/shower, faucets."),
+    ("  • HVAC Heat Pump System", 6.00, False, "14.3+ SEER2 heat pump & air handler, R-6 flex ducting, thermostat."),
+    ("  • Electrical Rough & Trim", 4.50, False, "200A main service panel, Romex wiring, LED recessed lighting, smoke/CO."),
+
+    ("DIVISION 5: INSULATION & DRYWALL", 6.50, True, ""),
+    ("  • Thermal Insulation Package", 2.25, False, "R-13/R-15 kraft-faced wall batts, R-38 blown attic cellulose/fiberglass."),
+    ("  • Drywall Materials", 1.75, False, "1/2\" drywall boards (moisture-resistant in wet areas), mud, beads."),
+    ("  • Drywall Hanging & Finishing", 2.50, False, "Hang, tape, 3-coat float, sand, spray light texture."),
+
+    ("DIVISION 6: INTERIOR FINISHES & CABINETS", 10.50, True, ""),
+    ("  • Interior Doors & Trim Package", 2.50, False, "Hollow-core 6-panel doors, MDF baseboards, casing, hardware."),
+    ("  • Cabinetry & Countertops", 4.00, False, "Pre-fab flat panel shaker cabinets, Level 1 laminate/granite."),
+    ("  • Flooring (LVP & Carpet)", 2.75, False, "Waterproof click LVP in living/kitchen/baths; carpet in bedrooms."),
+    ("  • Interior Paint Labor & Paint", 1.25, False, "Production spray: 1-coat PVA primer, 2-coat wall/ceiling latex."),
+
+    ("DIVISION 7: APPLIANCES & SPECIALTIES", 1.50, True, ""),
+    ("  • Kitchen Appliance Suite", 1.10, False, "Stainless/black electric range, microwave, built-in dishwasher."),
+    ("  • Bath Hardware & Shelving", 0.40, False, "Wire closet shelving, vanity mirrors, towel bars, paper holders."),
+
+    ("DIVISION 8: EXTERIOR FLATWORK & SITE", 2.00, True, ""),
+    ("  • Driveway & Entry Flatwork", 1.25, False, "Broom-finished concrete lead walk and 2-car parking apron."),
+    ("  • Final Grading & Starter Sod", 0.75, False, "Tractor rough/finish grade, silt fence, front pallet sod.")
 ]
 
-# Structure Weights derived from $31/SF Document Baseline
-struct_divs = [
-    ("Slab & Turned-Down Footings", 7.00/31.00),
-    ("Framing & Columns", 12.00/31.00),
-    ("Roofing & Exterior Trim", 8.00/31.00),
-    ("Electrical & Lighting", 2.50/31.00),
-    ("Paint & Column Wrap", 1.50/31.00)
+raw_struct_divs = [
+    ("AUXILIARY: CARPORT / GARAGE", 31.00, True),
+    ("  • Slab & Turned-Down Footings", 7.00, False),
+    ("  • Framing & Columns", 12.00, False),
+    ("  • Roofing & Exterior Trim", 8.00, False),
+    ("  • Electrical & Lighting", 2.50, False),
+    ("  • Paint & Column Wrap", 1.50, False)
 ]
 
 # --- PDF GENERATION ENGINE ---
@@ -313,27 +346,36 @@ def create_pdf():
     pdf.cell(100, 7, "Total Soft Costs & Closing Fees:", 0, 0)
     pdf.cell(90, 7, f"${total_soft_costs + const_closing_fee + refi_closing_fee + total_buydown_cost:,.0f}", 0, 1, 'R')
     
-    # NEW PDF SECTION 4: Granular Hard Cost Buildup
+    # PDF SECTION 4: Sub-Level Breakdown (Added for Enterprise Report)
     pdf.ln(5)
     pdf.set_font("Arial", 'B', 12)
     pdf.set_fill_color(220, 220, 220)
-    pdf.cell(0, 8, " 4. Granular Direct Hard Cost Buildup (Heated Area)", ln=1, fill=True)
+    pdf.cell(0, 8, " 4. Granular Direct Hard Cost Buildup", ln=1, fill=True)
     pdf.set_font("Arial", 'B', 9)
     
-    pdf.cell(70, 6, "Division / Trade", 1, 0, 'C')
-    pdf.cell(40, 6, "Live Cost / SF", 1, 0, 'C')
-    pdf.cell(40, 6, f"Per Unit ({sqft} SF)", 1, 0, 'C')
-    pdf.cell(40, 6, "Project Total", 1, 1, 'C')
+    pdf.cell(90, 6, "Division / Trade Sub-Level", 1, 0, 'C')
+    pdf.cell(30, 6, "Live Cost / SF", 1, 0, 'C')
+    pdf.cell(35, 6, f"Per Unit ({sqft} SF)", 1, 0, 'C')
+    pdf.cell(35, 6, "Project Total", 1, 1, 'C')
     
-    pdf.set_font("Arial", '', 9)
-    for name, weight, _ in heated_divs:
-        div_sf = direct_cost_sf * weight
+    for name, base_val, is_header, scope in raw_heated_divs:
+        div_sf = direct_cost_sf * (base_val / 74.0)
         div_unit = div_sf * sqft
         div_proj = div_unit * units
-        pdf.cell(70, 6, f" {name}", 1)
-        pdf.cell(40, 6, f"${div_sf:.2f}", 1, 0, 'R')
-        pdf.cell(40, 6, f"${div_unit:,.0f}", 1, 0, 'R')
-        pdf.cell(40, 6, f"${div_proj:,.0f}", 1, 1, 'R')
+        
+        if is_header:
+            pdf.set_font("Arial", 'B', 9)
+            pdf.set_fill_color(240, 240, 240)
+            pdf.cell(90, 6, name, 1, 0, 'L', fill=True)
+            pdf.cell(30, 6, f"${div_sf:.2f}", 1, 0, 'R', fill=True)
+            pdf.cell(35, 6, f"${div_unit:,.0f}", 1, 0, 'R', fill=True)
+            pdf.cell(35, 6, f"${div_proj:,.0f}", 1, 1, 'R', fill=True)
+        else:
+            pdf.set_font("Arial", '', 9)
+            pdf.cell(90, 6, name, 1, 0, 'L')
+            pdf.cell(30, 6, f"${div_sf:.2f}", 1, 0, 'R')
+            pdf.cell(35, 6, f"${div_unit:,.0f}", 1, 0, 'R')
+            pdf.cell(35, 6, f"${div_proj:,.0f}", 1, 1, 'R')
     
     with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as tmp:
         pdf.output(tmp.name)
@@ -423,8 +465,53 @@ if cost_calc_mode == "Reverse-Engineer from Comp (Adjustable Breakdown)":
     st.dataframe(pd.DataFrame(breakdown_data), hide_index=True, use_container_width=True)
     st.divider()
 
-# --- VERTICAL STACK FOR TABLES ---
 
+# --- TOGGLE EXPANDER FOR SUB-LEVEL BREAKDOWN ---
+with st.expander("🧱 View Granular Direct Hard Cost Buildup (Trade Divisions)", expanded=False):
+    st.markdown("This budget dynamically scales proportionally based on your active Direct Cost / SF and the Wickboldt Capital baseline document weightings.")
+    
+    # 1. HEATED AREA STACK
+    st.markdown(f"#### 1. Heated Living Area ({sqft} SF @ ${direct_cost_sf:.2f} / SF)")
+    h_data = {
+        "Division / Trade Sub-Level": [],
+        "Live Cost / SF": [],
+        f"Per Unit Cost": [],
+        "Scope Specifications": []
+    }
+    for name, base_val, is_header, scope in raw_heated_divs:
+        live_sf = direct_cost_sf * (base_val / 74.0)
+        h_data["Division / Trade Sub-Level"].append(name)
+        h_data["Live Cost / SF"].append(f"${live_sf:.2f}")
+        h_data[f"Per Unit Cost"].append(f"${live_sf * sqft:,.0f}")
+        h_data["Scope Specifications"].append(scope)
+    st.dataframe(pd.DataFrame(h_data), hide_index=True, use_container_width=True)
+    
+    # 2. CARPORT / GARAGE STACK
+    st.markdown(f"#### 2. {structure_type} Auxiliary ({struct_sqft} SF @ ${struct_cost_sf:.2f} / SF)")
+    s_data = {
+        "Component Sub-Level": [],
+        "Live Cost / SF": [],
+        f"Per Unit Cost": []
+    }
+    for name, base_val, is_header in raw_struct_divs:
+        live_sf = struct_cost_sf * (base_val / 31.0)
+        s_data["Component Sub-Level"].append(name)
+        s_data["Live Cost / SF"].append(f"${live_sf:.2f}")
+        s_data[f"Per Unit Cost"].append(f"${live_sf * struct_sqft:,.0f}")
+    st.dataframe(pd.DataFrame(s_data), hide_index=True, use_container_width=True)
+
+    # 3. PORCHES STACK
+    st.markdown(f"#### 3. Porches & Outdoor Living ({front_porch_sqft + back_porch_sqft} Total SF)")
+    p_data = {
+        "Component": ["Front Porch", "Back Porch", "TOTAL PORCHES"],
+        "Area (SF)": [f"{front_porch_sqft} SF", f"{back_porch_sqft} SF", f"{front_porch_sqft + back_porch_sqft} SF"],
+        "Live Cost / SF": [f"${front_porch_cost_sf:.2f}", f"${back_porch_cost_sf:.2f}", "-"],
+        "Per Unit Cost": [f"${front_porch_cost:,.0f}", f"${back_porch_cost:,.0f}", f"${front_porch_cost + back_porch_cost:,.0f}"]
+    }
+    st.dataframe(pd.DataFrame(p_data), hide_index=True, use_container_width=True)
+
+
+# --- VERTICAL STACK FOR MAIN TABLES ---
 st.markdown("### 📊 Detailed Construction Cost & Capital Ledger")
 ledger_data = {
     "Cost Category / Sub-Level": [
@@ -504,46 +591,6 @@ ledger_data = {
 df_ledger = pd.DataFrame(ledger_data)
 df_ledger['Total Amount ($)'] = df_ledger['Total Amount ($)'].apply(lambda x: f"${x:,.0f}" if isinstance(x, (int, float)) else x)
 st.dataframe(df_ledger, hide_index=True, use_container_width=True)
-
-st.divider()
-
-# --- GRANULAR HARD COST BUILDUP SECTION ---
-st.markdown("### 🧱 Granular Direct Hard Cost Buildup (Trade Divisions)")
-st.caption("Budget dynamically scales proportionally based on your active Direct Cost / SF and the Wickboldt Capital baseline document weightings.")
-
-g_col1, g_col2 = st.columns([3, 2])
-
-with g_col1:
-    st.markdown(f"**Heated Living Area ({sqft} SF @ ${direct_cost_sf:.2f} / SF)**")
-    h_data = {
-        "Division / Trade": [],
-        "Weight (%)": [],
-        "Live Cost / SF": [],
-        f"Per Unit ({sqft} SF)": [],
-        "Scope Specifications": []
-    }
-    for name, weight, scope in heated_divs:
-        h_data["Division / Trade"].append(name)
-        h_data["Weight (%)"].append(f"{weight*100:.1f}%")
-        h_data["Live Cost / SF"].append(f"${direct_cost_sf * weight:.2f}")
-        h_data[f"Per Unit ({sqft} SF)"].append(f"${(direct_cost_sf * weight) * sqft:,.0f}")
-        h_data["Scope Specifications"].append(scope)
-    st.dataframe(pd.DataFrame(h_data), hide_index=True, use_container_width=True)
-
-with g_col2:
-    st.markdown(f"**{structure_type} ({struct_sqft} SF @ ${struct_cost_sf:.2f} / SF)**")
-    s_data = {
-        "Component": [],
-        "Weight (%)": [],
-        "Live Cost / SF": [],
-        f"Per Unit ({struct_sqft} SF)": []
-    }
-    for name, weight in struct_divs:
-        s_data["Component"].append(name)
-        s_data["Weight (%)"].append(f"{weight*100:.1f}%")
-        s_data["Live Cost / SF"].append(f"${struct_cost_sf * weight:.2f}")
-        s_data[f"Per Unit ({struct_sqft} SF)"].append(f"${(struct_cost_sf * weight) * struct_sqft:,.0f}")
-    st.dataframe(pd.DataFrame(s_data), hide_index=True, use_container_width=True)
 
 st.divider()
 
