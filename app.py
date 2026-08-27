@@ -28,14 +28,76 @@ st.divider()
 st.markdown("### 🔍 Market Comp Valuation & Blended Rate Benchmark")
 st.markdown("Input market comparable data below. This dynamically sets the Appraised Value (ARV) and drives the Retail Reverse-Engineering cost basis.")
 
-comp_address = st.text_input("Comparable Property Address (Optional)", placeholder="e.g. 16144 South Bud Broussard Road, Prairieville, LA")
+# 1. Initialize session state variables so the Zillow button can automatically update them
+if "comp_address" not in st.session_state:
+    st.session_state.comp_address = ""
+if "comp_price" not in st.session_state:
+    st.session_state.comp_price = 182600
+if "comp_heated_sf" not in st.session_state:
+    st.session_state.comp_heated_sf = 1150
+
+# 2. Zillow Auto-Fetch UI
+z_col1, z_col2 = st.columns([4, 1])
+zillow_url = z_col1.text_input("Auto-Fill from Zillow URL (Requires API Key)", placeholder="Paste Zillow URL here (e.g. https://www.zillow.com/homedetails/...)")
+
+if z_col2.button("Fetch Zillow Data", use_container_width=True):
+    if zillow_url:
+        # -------------------------------------------------------------------------
+        # LIVE API CODE: 
+        # When you add your RapidAPI key to Railway, delete the triple quotes (''') 
+        # around this block and delete the MOCK DATA block below.
+        # -------------------------------------------------------------------------
+        '''
+        import requests
+        rapidapi_key = st.secrets.get("RAPIDAPI_KEY", "")
+        if rapidapi_key:
+            try:
+                url = "https://zillow-com1.p.rapidapi.com/property"
+                querystring = {"property_url": zillow_url}
+                headers = {
+                    "X-RapidAPI-Key": rapidapi_key,
+                    "X-RapidAPI-Host": "zillow-com1.p.rapidapi.com"
+                }
+                response = requests.get(url, headers=headers, params=querystring)
+                if response.status_code == 200:
+                    data = response.json()
+                    st.session_state.comp_price = data.get("price", 182600)
+                    st.session_state.comp_heated_sf = data.get("livingArea", 1150)
+                    addr = data.get("address", {})
+                    st.session_state.comp_address = f"{addr.get('streetAddress', '')}, {addr.get('city', '')}, {addr.get('state', '')}"
+                    st.success("Listing successfully imported!")
+                    st.rerun()
+                else:
+                    st.error("Failed to fetch data. Check API Key or URL.")
+            except Exception as e:
+                st.error(f"Error fetching data: {e}")
+        else:
+            st.error("Missing RAPIDAPI_KEY in environment variables.")
+        '''
+
+        # MOCK DATA FOR DEMONSTRATION (Shows you how the UI dynamically reacts)
+        st.toast("Zillow API Key not detected. Injecting simulated listing data...")
+        st.session_state.comp_address = "123 Simulated Zillow Listing, Hammond, LA"
+        st.session_state.comp_price = 245000
+        st.session_state.comp_heated_sf = 1450
+        st.rerun()
+
+st.markdown("<br>", unsafe_allow_html=True)
+
+# 3. Dynamic Inputs linked to Session State
+comp_address = st.text_input("Comparable Property Address", value=st.session_state.comp_address, placeholder="e.g. 16144 South Bud Broussard Road, Prairieville, LA")
 
 cc_col1, cc_col2, cc_col3, cc_col4, cc_col5 = st.columns(5)
-comp_price = cc_col1.number_input("Comp Total Sale Price / Value ($)", value=182600, step=1000, format="%d")
-comp_heated_sf = cc_col2.number_input("Comp Heated SF", value=1150, step=50, format="%d")
+comp_price = cc_col1.number_input("Comp Total Sale Price / Value ($)", value=st.session_state.comp_price, step=1000, format="%d")
+comp_heated_sf = cc_col2.number_input("Comp Heated SF", value=st.session_state.comp_heated_sf, step=50, format="%d")
 comp_struct_sf = cc_col3.number_input("Comp Garage/Carport SF", value=200, step=25, format="%d")
 comp_front_sf = cc_col4.number_input("Comp Front Porch SF", value=60, step=10, format="%d")
 comp_back_sf = cc_col5.number_input("Comp Back Porch SF", value=120, step=10, format="%d")
+
+# If user types manually, update session state so it doesn't revert
+st.session_state.comp_price = comp_price
+st.session_state.comp_heated_sf = comp_heated_sf
+st.session_state.comp_address = comp_address
 
 comp_total_sf = comp_heated_sf + comp_struct_sf + comp_front_sf + comp_back_sf
 comp_blended_cost = comp_price / comp_total_sf if comp_total_sf > 0 else 0
@@ -145,7 +207,6 @@ pdf_include_sublevels = st.sidebar.checkbox("Include Detailed Sub-Levels in PDF 
 
 
 # --- UI PLACEHOLDERS FOR TOP METRICS ---
-# We create empty containers here so they render at the top, but we fill them LATER after all calculations.
 ui_top_metrics = st.container()
 ui_op_metrics = st.container()
 st.divider()
