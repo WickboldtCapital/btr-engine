@@ -2,6 +2,7 @@ import streamlit as st
 import pandas as pd
 from fpdf import FPDF
 import tempfile
+import requests
 from datetime import datetime
 
 # Page Configuration
@@ -28,13 +29,15 @@ st.divider()
 st.markdown("### 🔍 Market Comp Valuation & Blended Rate Benchmark")
 st.markdown("Input market comparable data below. This dynamically sets the Appraised Value (ARV) and drives the Retail Reverse-Engineering cost basis.")
 
-# 1. Initialize session state variables so the Zillow button can automatically update them
+# 1. Initialize session state variables
 if "comp_address" not in st.session_state:
     st.session_state.comp_address = ""
 if "comp_price" not in st.session_state:
     st.session_state.comp_price = 182600
 if "comp_heated_sf" not in st.session_state:
     st.session_state.comp_heated_sf = 1150
+if "raw_zillow_data" not in st.session_state:
+    st.session_state.raw_zillow_data = None
 
 # 2. Toggle Mode
 comp_entry_mode = st.radio(
@@ -49,58 +52,54 @@ if comp_entry_mode == "Zillow Auto-Fetch (API)":
 
     if z_col2.button("Fetch Zillow Data", use_container_width=True):
         if zillow_url:
-            # -------------------------------------------------------------------------
-            # LIVE API CODE: 
-            # When you add your RapidAPI key to Railway, delete the triple quotes (''') 
-            # around this block and delete the MOCK DATA block below.
-            # -------------------------------------------------------------------------
-            '''
-            import requests
-            import json
-            
             rapidapi_key = st.secrets.get("RAPIDAPI_KEY", "")
             if rapidapi_key:
                 try:
-                    # ---> 1. REPLACE THIS URL WITH THE ONE FROM YOUR RAPIDAPI SNIPPET <---
-                    api_url = "https://zillow-com-realtime-scraper.p.rapidapi.com/property" 
-                    
-                    querystring = {"url": zillow_url} 
-                    
-                    headers = {
-                        "X-RapidAPI-Key": rapidapi_key,
-                        # ---> 2. REPLACE THIS HOST WITH THE ONE FROM YOUR RAPIDAPI SNIPPET <---
-                        "X-RapidAPI-Host": "zillow-com-realtime-scraper.p.rapidapi.com"
-                    }
-                    
-                    response = requests.get(api_url, headers=headers, params=querystring)
-                    if response.status_code == 200:
-                        data = response.json()
+                    with st.spinner("Fetching live data from Zillow..."):
+                        api_url = "https://zillow-com-realtime-scraper.p.rapidapi.com/property" 
+                        querystring = {"url": zillow_url, "property_url": zillow_url} 
                         
-                        st.session_state.comp_price = data.get("price") or data.get("zestimate") or 182600
-                        st.session_state.comp_heated_sf = data.get("livingArea") or data.get("livingAreaValue") or data.get("sqft") or 1150
+                        headers = {
+                            "X-RapidAPI-Key": rapidapi_key,
+                            "X-RapidAPI-Host": "zillow-com-realtime-scraper.p.rapidapi.com"
+                        }
                         
-                        addr = data.get("address", {})
-                        if isinstance(addr, dict):
-                            st.session_state.comp_address = f"{addr.get('streetAddress', '')}, {addr.get('city', '')}, {addr.get('state', '')}"
-                        else:
-                            st.session_state.comp_address = str(addr)
+                        response = requests.get(api_url, headers=headers, params=querystring)
+                        
+                        if response.status_code == 200:
+                            data = response.json()
+                            st.session_state.raw_zillow_data = data # Save the raw feed for the audit panel
                             
-                        st.success("Listing successfully imported!")
-                        st.rerun()
-                    else:
-                        st.error(f"Failed to fetch data. Code: {response.status_code}")
+                            # Universal Parser
+                            def get_val(d, keys):
+                                for k in keys:
+                                    if k in d and d[k] is not None: return d[k]
+                                for v in d.values():
+                                    if isinstance(v, dict):
+                                        for k in keys:
+                                            if k in v and v[k] is not None: return v[k]
+                                return None
+
+                            fetched_price = get_val(data, ["price", "zestimate"])
+                            fetched_sf = get_val(data, ["livingArea", "livingAreaValue", "sqft"])
+                            fetched_addr = get_val(data, ["address"])
+                            
+                            if fetched_price: st.session_state.comp_price = int(fetched_price)
+                            if fetched_sf: st.session_state.comp_heated_sf = int(fetched_sf)
+                            
+                            if isinstance(fetched_addr, dict):
+                                st.session_state.comp_address = f"{fetched_addr.get('streetAddress', '')}, {fetched_addr.get('city', '')}, {fetched_addr.get('state', '')}"
+                            elif fetched_addr:
+                                st.session_state.comp_address = str(fetched_addr)
+                                
+                            st.success(f"Listing successfully imported: {st.session_state.comp_address}")
+                            st.rerun()
+                        else:
+                            st.error(f"Failed to fetch data. API returned Code: {response.status_code}")
                 except Exception as e:
                     st.error(f"Error fetching data: {e}")
             else:
-                st.error("Missing RAPIDAPI_KEY in environment variables.")
-            '''
-
-            # MOCK DATA FOR DEMONSTRATION (Delete this block when you uncomment the live code above)
-            st.toast("Zillow API Key not detected. Injecting simulated listing data...")
-            st.session_state.comp_address = "123 Simulated Zillow Listing, Hammond, LA"
-            st.session_state.comp_price = 245000
-            st.session_state.comp_heated_sf = 1450
-            st.rerun()
+                st.error("Missing RAPIDAPI_KEY. Please ensure you added it to your Railway Variables.")
             
     st.info("💡 Zillow Mode is active. Address, Price, and Heated SF are locked to the scraped data. Switch to 'Manual Entry' to edit them.")
     
@@ -125,7 +124,7 @@ comp_struct_sf = cc_col3.number_input("Comp Aux. SF (Garage)", value=200, step=2
 comp_front_sf = cc_col4.number_input("Comp Front Porch SF", value=60, step=10, format="%d")
 comp_back_sf = cc_col5.number_input("Comp Back Porch SF", value=120, step=10, format="%d")
 
-# Fixed Calculations: We now calculate both the standard Retail Heated rate and the Blended Under-Roof rate.
+# Fixed Calculations
 comp_retail_heated_rate = comp_price / comp_heated_sf if comp_heated_sf > 0 else 0
 comp_total_sf = comp_heated_sf + comp_struct_sf + comp_front_sf + comp_back_sf
 comp_blended_cost = comp_price / comp_total_sf if comp_total_sf > 0 else 0
@@ -134,6 +133,26 @@ if comp_address:
     st.caption(f"📍 **Active Comp:** {comp_address} | Retail Price: **${comp_retail_heated_rate:.2f} / Heated SF** | *(Blended Under-Roof: ${comp_blended_cost:.2f} / SF)*")
 else:
     st.caption(f"📊 Retail Price: **${comp_retail_heated_rate:.2f} / Heated SF** | *(Blended Under-Roof: ${comp_blended_cost:.2f} / SF)*")
+
+
+# --- MATH AUDIT & RAW DATA PANEL ---
+with st.expander("🧮 View Comp Math Audit & Raw Zillow Data", expanded=False):
+    st.markdown("#### The Math Breakdown")
+    st.markdown("**1. Retail Heated Rate (Standard Appraised Rate)**")
+    st.code(f"${comp_price:,.0f} (Sale Price) ÷ {comp_heated_sf:,.0f} (Heated SF) = ${comp_retail_heated_rate:.2f} / SF")
+    
+    st.markdown("**2. Blended Under-Roof Rate (Wickboldt Standard)**")
+    st.code(f"${comp_price:,.0f} (Sale Price) ÷ {comp_total_sf:,.0f} (Total Under-Roof SF) = ${comp_blended_cost:.2f} / SF")
+    
+    st.markdown("**Total Under-Roof Calculation:**")
+    st.caption(f"• {comp_heated_sf} SF (Heated)\n\n• {comp_struct_sf} SF (Garage/Carport)\n\n• {comp_front_sf} SF (Front Porch)\n\n• {comp_back_sf} SF (Back Porch)\n\n**= {comp_total_sf} Total SF**")
+
+    if st.session_state.raw_zillow_data:
+        st.divider()
+        st.markdown("#### 🔍 Raw Zillow API Feed")
+        st.caption("This is the exact raw data extracted from Zillow. You can expand it to verify dates, Zestimates, and scraped square footages.")
+        st.json(st.session_state.raw_zillow_data)
+
 
 st.divider()
 
@@ -165,8 +184,7 @@ cost_calc_mode = st.sidebar.radio(
 if cost_calc_mode == "Manual Set (Heated SF)":
     base_direct_cost_sf = st.sidebar.slider("Direct Build Cost / SF ($)", min_value=40.0, max_value=150.0, value=74.0, step=1.0)
 else:
-    st.sidebar.caption("Retail Price / Heated SF is dynamically derived from your Market Comp inputs.")
-    # Now using the correct Heated Rate for the reverse engineering!
+    st.sidebar.caption("Retail Price / SF is dynamically derived from your Market Comp inputs.")
     retail_price_sf = comp_retail_heated_rate
     st.sidebar.markdown(f"**Comp Retail Price:** `${retail_price_sf:.2f} / Heated SF`")
     
@@ -808,7 +826,6 @@ def create_pdf(include_sublevels):
     pdf.cell(35, 6, "Project Total", 1, 1, 'C')
     
     for name, live_sf, unit_cost, proj_cost, is_header in pdf_granular_data:
-        # Check conditional toggle logic if we are running Auto mode
         if granular_mode == "Auto-Proportional (Linked to Master Model)":
             if not include_sublevels and not is_header:
                 continue
