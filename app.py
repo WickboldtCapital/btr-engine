@@ -36,83 +36,94 @@ if "comp_price" not in st.session_state:
 if "comp_heated_sf" not in st.session_state:
     st.session_state.comp_heated_sf = 1150
 
-# 2. Zillow Auto-Fetch UI
-z_col1, z_col2 = st.columns([4, 1])
-zillow_url = z_col1.text_input("Auto-Fill from Zillow URL (Requires API Key)", placeholder="Paste Zillow URL here (e.g. https://www.zillow.com/homedetails/...)")
+# 2. Toggle Mode
+comp_entry_mode = st.radio(
+    "Comparable Data Entry Mode", 
+    ["Manual Entry", "Zillow Auto-Fetch (API)"], 
+    horizontal=True
+)
 
-if z_col2.button("Fetch Zillow Data", use_container_width=True):
-    if zillow_url:
-        # -------------------------------------------------------------------------
-        # LIVE API CODE: 
-        # When you add your RapidAPI key to Railway, delete the triple quotes (''') 
-        # around this block and delete the MOCK DATA block below.
-        # -------------------------------------------------------------------------
-        '''
-        import requests
-        import json
-        
-        rapidapi_key = st.secrets.get("RAPIDAPI_KEY", "")
-        if rapidapi_key:
-            try:
-                # ---> 1. REPLACE THIS URL WITH THE ONE FROM YOUR RAPIDAPI SNIPPET <---
-                api_url = "https://zillow-com-realtime-scraper.p.rapidapi.com/property" 
-                
-                # Check your specific API snippet to see if it uses 'url', 'property_url', or 'zpid'
-                querystring = {"url": zillow_url} 
-                
-                headers = {
-                    "X-RapidAPI-Key": rapidapi_key,
-                    # ---> 2. REPLACE THIS HOST WITH THE ONE FROM YOUR RAPIDAPI SNIPPET <---
-                    "X-RapidAPI-Host": "zillow-com-realtime-scraper.p.rapidapi.com"
-                }
-                
-                response = requests.get(api_url, headers=headers, params=querystring)
-                if response.status_code == 200:
-                    data = response.json()
+if comp_entry_mode == "Zillow Auto-Fetch (API)":
+    z_col1, z_col2 = st.columns([4, 1])
+    zillow_url = z_col1.text_input("Zillow Listing URL (Requires API Key)", placeholder="Paste Zillow URL here (e.g. https://www.zillow.com/homedetails/...)")
+
+    if z_col2.button("Fetch Zillow Data", use_container_width=True):
+        if zillow_url:
+            # -------------------------------------------------------------------------
+            # LIVE API CODE: 
+            # When you add your RapidAPI key to Railway, delete the triple quotes (''') 
+            # around this block and delete the MOCK DATA block below.
+            # -------------------------------------------------------------------------
+            '''
+            import requests
+            import json
+            
+            rapidapi_key = st.secrets.get("RAPIDAPI_KEY", "")
+            if rapidapi_key:
+                try:
+                    # ---> 1. REPLACE THIS URL WITH THE ONE FROM YOUR RAPIDAPI SNIPPET <---
+                    api_url = "https://zillow-com-realtime-scraper.p.rapidapi.com/property" 
                     
-                    # Universal Auto-Parser: Hunts for data regardless of how EZ formats the JSON
-                    st.session_state.comp_price = data.get("price") or data.get("zestimate") or 182600
-                    st.session_state.comp_heated_sf = data.get("livingArea") or data.get("livingAreaValue") or data.get("sqft") or 1150
+                    querystring = {"url": zillow_url} 
                     
-                    addr = data.get("address", {})
-                    if isinstance(addr, dict):
-                        st.session_state.comp_address = f"{addr.get('streetAddress', '')}, {addr.get('city', '')}, {addr.get('state', '')}"
-                    else:
-                        st.session_state.comp_address = str(addr)
+                    headers = {
+                        "X-RapidAPI-Key": rapidapi_key,
+                        # ---> 2. REPLACE THIS HOST WITH THE ONE FROM YOUR RAPIDAPI SNIPPET <---
+                        "X-RapidAPI-Host": "zillow-com-realtime-scraper.p.rapidapi.com"
+                    }
+                    
+                    response = requests.get(api_url, headers=headers, params=querystring)
+                    if response.status_code == 200:
+                        data = response.json()
                         
-                    st.success("Listing successfully imported!")
-                    st.rerun()
-                else:
-                    st.error(f"Failed to fetch data. Code: {response.status_code}")
-            except Exception as e:
-                st.error(f"Error fetching data: {e}")
-        else:
-            st.error("Missing RAPIDAPI_KEY in environment variables.")
-        '''
+                        st.session_state.comp_price = data.get("price") or data.get("zestimate") or 182600
+                        st.session_state.comp_heated_sf = data.get("livingArea") or data.get("livingAreaValue") or data.get("sqft") or 1150
+                        
+                        addr = data.get("address", {})
+                        if isinstance(addr, dict):
+                            st.session_state.comp_address = f"{addr.get('streetAddress', '')}, {addr.get('city', '')}, {addr.get('state', '')}"
+                        else:
+                            st.session_state.comp_address = str(addr)
+                            
+                        st.success("Listing successfully imported!")
+                        st.rerun()
+                    else:
+                        st.error(f"Failed to fetch data. Code: {response.status_code}")
+                except Exception as e:
+                    st.error(f"Error fetching data: {e}")
+            else:
+                st.error("Missing RAPIDAPI_KEY in environment variables.")
+            '''
 
-        # MOCK DATA FOR DEMONSTRATION (Delete this block when you uncomment the live code above)
-        st.toast("Zillow API Key not detected. Injecting simulated listing data...")
-        st.session_state.comp_address = "123 Simulated Zillow Listing, Hammond, LA"
-        st.session_state.comp_price = 245000
-        st.session_state.comp_heated_sf = 1450
-        st.rerun()
+            # MOCK DATA FOR DEMONSTRATION (Delete this block when you uncomment the live code above)
+            st.toast("Zillow API Key not detected. Injecting simulated listing data...")
+            st.session_state.comp_address = "123 Simulated Zillow Listing, Hammond, LA"
+            st.session_state.comp_price = 245000
+            st.session_state.comp_heated_sf = 1450
+            st.rerun()
+            
+    st.info("💡 Zillow Mode is active. Address, Price, and Heated SF are locked to the scraped data. Switch to 'Manual Entry' to edit them.")
+    
+    comp_address = st.text_input("Comparable Property Address", value=st.session_state.comp_address, disabled=True)
+    cc_col1, cc_col2, cc_col3, cc_col4, cc_col5 = st.columns(5)
+    comp_price = cc_col1.number_input("Comp Sale Price ($)", value=st.session_state.comp_price, disabled=True)
+    comp_heated_sf = cc_col2.number_input("Comp Heated SF", value=st.session_state.comp_heated_sf, disabled=True)
 
-st.markdown("<br>", unsafe_allow_html=True)
+else:
+    comp_address = st.text_input("Comparable Property Address", value=st.session_state.comp_address, placeholder="e.g. 16144 South Bud Broussard Road, Prairieville, LA")
+    cc_col1, cc_col2, cc_col3, cc_col4, cc_col5 = st.columns(5)
+    comp_price = cc_col1.number_input("Comp Sale Price ($)", value=st.session_state.comp_price, step=1000, format="%d")
+    comp_heated_sf = cc_col2.number_input("Comp Heated SF", value=st.session_state.comp_heated_sf, step=50, format="%d")
+    
+    # Save manual typing to session state so it doesn't revert
+    st.session_state.comp_price = comp_price
+    st.session_state.comp_heated_sf = comp_heated_sf
+    st.session_state.comp_address = comp_address
 
-# 3. Dynamic Inputs linked to Session State
-comp_address = st.text_input("Comparable Property Address", value=st.session_state.comp_address, placeholder="e.g. 16144 South Bud Broussard Road, Prairieville, LA")
-
-cc_col1, cc_col2, cc_col3, cc_col4, cc_col5 = st.columns(5)
-comp_price = cc_col1.number_input("Comp Total Sale Price / Value ($)", value=st.session_state.comp_price, step=1000, format="%d")
-comp_heated_sf = cc_col2.number_input("Comp Heated SF", value=st.session_state.comp_heated_sf, step=50, format="%d")
-comp_struct_sf = cc_col3.number_input("Comp Garage/Carport SF", value=200, step=25, format="%d")
+# Auxiliary details are always editable because Zillow doesn't provide them reliably
+comp_struct_sf = cc_col3.number_input("Comp Aux. SF (Garage)", value=200, step=25, format="%d")
 comp_front_sf = cc_col4.number_input("Comp Front Porch SF", value=60, step=10, format="%d")
 comp_back_sf = cc_col5.number_input("Comp Back Porch SF", value=120, step=10, format="%d")
-
-# If user types manually, update session state so it doesn't revert
-st.session_state.comp_price = comp_price
-st.session_state.comp_heated_sf = comp_heated_sf
-st.session_state.comp_address = comp_address
 
 comp_total_sf = comp_heated_sf + comp_struct_sf + comp_front_sf + comp_back_sf
 comp_blended_cost = comp_price / comp_total_sf if comp_total_sf > 0 else 0
@@ -363,7 +374,7 @@ else:
     
     # 2. Structure Area (Manual Editor)
     st.markdown(f"#### 2. {structure_type} Auxiliary ({struct_sqft} SF)")
-    hl_struct = [{"Component Level": name, "Cost / SF": base_struct_cost_sf * (base/31.0)} for name, base, is_h in raw_struct_divs if is_h]
+    hl_struct = [{"Component Level": name, "Cost / SF": base_struct_cost_sf * (base/31.0)} for name, base, is_h in raw_struct_divs if not is_h]
     
     edited_s = st.data_editor(
         pd.DataFrame(hl_struct),
