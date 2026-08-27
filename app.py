@@ -238,7 +238,7 @@ if comp_address:
 else:
     st.caption(f"📊 Isolated Heated Rate: **${isolated_heated_rate:.2f} / SF** *(Raw Price/SF: ${raw_comp_price_sf:.2f})*")
 
-# 1. MODULAR TAKEOUT APPRAISAL METHODOLOGY (Strictly drives Loan Sizing & ARV)
+# 1. MODULAR TAKEOUT APPRAISAL METHODOLOGY
 with cont_appraisal:
     st.subheader("3. Takeout Appraisal Methodology")
     appraisal_mode = st.radio("Valuation Mode", ["Sales Comp (Price/SF)", "Income Approach (GRM)"])
@@ -252,7 +252,7 @@ with cont_appraisal:
         arv_per_unit = appraised_heated_value + our_aux_cost_total
         st.success(f"📈 **Calculated Unit ARV (Sales Comp):** ${arv_per_unit:,.0f}")
 
-# 2. MODULAR COST TARGET MODE (Strictly drives Construction Budget & Reverse Engineering)
+# 2. MODULAR COST TARGET MODE
 with cont_target:
     st.subheader("4. Cost Target Mode (Reverse Engineer)")
     cost_calc_mode = st.radio(
@@ -297,6 +297,7 @@ with st.expander("🧮 View Comp Math Audit & Raw API Data", expanded=False):
         st.json(st.session_state.raw_api_data)
 
 st.divider()
+
 
 # --- RAW GRANULAR DATA ---
 raw_heated_divs = [
@@ -532,6 +533,11 @@ retained_equity = total_arv - loan_total
 day1_wealth = gc_fee + max(0, cash_surplus) + retained_equity
 
 
+# --- UI CONTAINERS INITIALIZATION (Fixes NameError) ---
+ui_top_metrics = st.container()
+ui_op_metrics = st.container()
+
+
 # ==========================================
 # --- GO/NO-GO INVESTMENT DECISION DASHBOARD ---
 # ==========================================
@@ -595,43 +601,46 @@ with ui_op_metrics:
     op3.metric("Monthly Cash Flow", f"${monthly_cash_flow:,.0f} /mo", f"${monthly_cash_flow*12:,.0f} Annual", delta_color="normal" if monthly_cash_flow >= 0 else "inverse")
     op4.metric("Monthly P&I Payment", f"${total_monthly_pi:,.0f} /mo", f"{refi_term_years}Yr @ {net_refi_rate*100:.3f}%")
 
-with ui_rev_eng:
-    if cost_calc_mode == "Reverse-Engineer from Appraisal":
-        st.markdown("### 🔄 Retail Appraisal Reverse-Engineering Breakdown")
-        st.caption(f"Extracting true Heated Construction budget by applying custom standard deductions to your Appraised Unit Value of **${arv_per_unit:,.0f}**, and isolating fixed auxiliary costs.")
-        breakdown_data = {
-            "Cost Category": [
-                f"Target Appraised Value (ARV) per Unit",
-                "(-) Finished Lot Cost",
-                "(-) Gross Margin (O&P)",
-                "(-) Sales & Marketing",
-                "(-) Soft Costs & Finance",
-                "= Total Hard Cost Budget",
-                "(-) Fixed Auxiliary Costs (Carport/Porches/Storage)",
-                "= Available Budget for Heated Shell"
-            ],
-            "Value ($)": [
-                f"${arv_per_unit:,.0f}",
-                f"-${arv_per_unit * lot_cost_pct:,.0f}",
-                f"-${arv_per_unit * margin_pct:,.0f}",
-                f"-${arv_per_unit * sales_pct:,.0f}",
-                f"-${arv_per_unit * finance_pct:,.0f}",
-                f"${target_total_hard_cost:,.0f}",
-                f"-${our_aux_cost_total:,.0f}",
-                f"${target_heated_hard_cost:,.0f}"
-            ],
-            "Description": [
-                "Based on your selected Appraisal Methodology.",
-                "Raw land, engineering, road paving, wet/dry utility infrastructure.",
-                "Builder gross overhead and corporate net margin.",
-                "Realtor commissions, internal sales reps, buyer closing concessions.",
-                "Impact fees, plan design, municipal permits, and loan interest carry.",
-                "Total budget available for all physical construction.",
-                "Locked budget required for your specific outdoor/auxiliary footprint.",
-                f"Yields exactly ${base_direct_cost_sf:.2f} / SF across {sqft} Heated SF."
-            ]
-        }
-        st.dataframe(pd.DataFrame(breakdown_data), hide_index=True, use_container_width=True)
+st.divider()
+
+# --- REVERSE ENGINEERING BREAKDOWN ---
+if cost_calc_mode == "Reverse-Engineer from Appraisal":
+    st.markdown("### 🔄 Retail Appraisal Reverse-Engineering Breakdown")
+    st.caption(f"Extracting true Heated Construction budget by applying custom standard deductions to your Appraised Unit Value of **${arv_per_unit:,.0f}**, and isolating fixed auxiliary costs.")
+    breakdown_data = {
+        "Cost Category": [
+            f"Target Appraised Value (ARV) per Unit",
+            "(-) Finished Lot Cost",
+            "(-) Gross Margin (O&P)",
+            "(-) Sales & Marketing",
+            "(-) Soft Costs & Finance",
+            "= Total Hard Cost Budget",
+            "(-) Fixed Auxiliary Costs (Carport/Porches/Storage)",
+            "= Available Budget for Heated Shell"
+        ],
+        "Value ($)": [
+            f"${arv_per_unit:,.0f}",
+            f"-${arv_per_unit * lot_cost_pct:,.0f}",
+            f"-${arv_per_unit * margin_pct:,.0f}",
+            f"-${arv_per_unit * sales_pct:,.0f}",
+            f"-${arv_per_unit * finance_pct:,.0f}",
+            f"${target_total_hard_cost:,.0f}",
+            f"-${our_aux_cost_total:,.0f}",
+            f"${target_heated_hard_cost:,.0f}"
+        ],
+        "Description": [
+            "Based on your selected Appraisal Methodology.",
+            "Raw land, engineering, road paving, wet/dry utility infrastructure.",
+            "Builder gross overhead and corporate net margin.",
+            "Realtor commissions, internal sales reps, buyer closing concessions.",
+            "Impact fees, plan design, municipal permits, and loan interest carry.",
+            "Total budget available for all physical construction.",
+            "Locked budget required for your specific outdoor/auxiliary footprint.",
+            f"Yields exactly ${base_direct_cost_sf:.2f} / SF across {sqft} Heated SF."
+        ]
+    }
+    st.dataframe(pd.DataFrame(breakdown_data), hide_index=True, use_container_width=True)
+    st.divider()
 
 
 # --- WEALTH & DSCR SECTIONS ---
@@ -668,7 +677,7 @@ with ui_dscr:
         ],
         "Annual": [
             f"${total_gross_monthly_income * 12:,.2f}", f"-${annual_vacancy_loss:,.2f}", f"${annual_egi:,.2f}", 
-            f"-${annual_opex / 12:,.2f}", f"${annual_noi:,.2f}", f"${annual_debt_service:,.2f}", f"${monthly_cash_flow * 12:,.2f}",
+            f"-${annual_opex:,.2f}", f"${annual_noi:,.2f}", f"${annual_debt_service:,.2f}", f"${monthly_cash_flow * 12:,.2f}",
             "---", f"{actual_dscr:.2f}x", f"{target_dscr_rate:.2f}x", f"{dscr_variance:+.2f}x"
         ]
     }
