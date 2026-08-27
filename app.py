@@ -32,7 +32,6 @@ st.divider()
 # ==========================================
 # --- TOP-OF-PAGE METRIC CONTAINERS ---
 # ==========================================
-# Declared here so they physically render at the top of the screen
 ui_top_metrics = st.container()
 ui_op_metrics = st.container()
 ui_decision_dashboard = st.container()
@@ -71,6 +70,9 @@ with cont_footprint:
     
     storage_sqft = st.number_input("Storage Room SqFt", value=40, step=5, format="%d")
     storage_cost_sf = st.slider("Storage Room Cost / SF ($)", min_value=15.0, max_value=90.0, value=45.0, step=1.0)
+    
+    # NEW INPUT FOR ELEVATION / ADDITIONAL FOUNDATION COSTS
+    additional_foundation_cost = st.number_input("Additional Foundation / Elevation Cost ($ per unit)", value=0, step=500, format="%d")
 
 with cont_finance:
     st.subheader("6. Financing & Operations")
@@ -170,20 +172,10 @@ if comp_entry_mode == "RentCast Live API Fetch":
                                 if fetched_addr: st.session_state.comp_address = str(fetched_addr)
                                 st.success(f"Property successfully imported: {st.session_state.comp_address}")
                                 st.rerun()
-                            else:
-                                st.error("No exact match found. Make sure the address includes city, state, and zip.")
-                        elif response.status_code == 400:
-                            st.error("Error 400 (Bad Request): RentCast could not parse this address format.")
-                        elif response.status_code == 404:
-                            st.error("Error 404: RentCast found no property records for this address in public tax rolls.")
-                        elif response.status_code in [401, 403]:
-                            st.error(f"Error {response.status_code}: Unauthorized. Your API Key is invalid or missing.")
                         else:
                             st.error(f"RentCast API Error {response.status_code}.")
                 except Exception as e:
                     st.error(f"Error fetching data: {e}")
-            else:
-                st.error("Missing API Key. Paste it in the Configuration box or add RENTCAST_API_KEY to Railway Variables.")
 
 st.markdown("##### 1. Primary Comp Metrics")
 col_addr, col_price, col_hsf = st.columns([2, 1, 1])
@@ -216,7 +208,8 @@ struct_total_cost = struct_sqft * base_struct_cost_sf
 front_porch_cost = front_porch_sqft * front_porch_cost_sf
 back_porch_cost = back_porch_sqft * back_porch_cost_sf
 storage_cost = storage_sqft * storage_cost_sf
-our_aux_cost_total = struct_total_cost + front_porch_cost + back_porch_cost + storage_cost
+# Include additional foundation/elevation cost in our total auxiliary footprint cost
+our_aux_cost_total = struct_total_cost + front_porch_cost + back_porch_cost + storage_cost + additional_foundation_cost
 
 comp_total_sf = comp_heated_sf + comp_struct_sf + comp_front_sf + comp_back_sf + comp_storage_sf
 raw_comp_price_sf = comp_price / comp_heated_sf if comp_heated_sf > 0 else 0
@@ -229,7 +222,6 @@ if comp_address:
 else:
     st.caption(f"📊 Isolated Heated Rate: **${isolated_heated_rate:.2f} / SF** *(Raw Price/SF: ${raw_comp_price_sf:.2f})*")
 
-# 1. MODULAR TAKEOUT APPRAISAL METHODOLOGY
 with cont_appraisal:
     st.subheader("3. Takeout Appraisal Methodology")
     appraisal_mode = st.radio("Valuation Mode", ["Sales Comp (Price/SF)", "Income Approach (GRM)"])
@@ -243,7 +235,6 @@ with cont_appraisal:
         arv_per_unit = appraised_heated_value + our_aux_cost_total
         st.success(f"📈 **Calculated Unit ARV (Sales Comp):** ${arv_per_unit:,.0f}")
 
-# 2. MODULAR COST TARGET MODE
 with cont_target:
     st.subheader("4. Cost Target Mode (Reverse Engineer)")
     cost_calc_mode = st.radio(
@@ -268,7 +259,6 @@ with cont_target:
         base_direct_cost_sf = target_heated_hard_cost / sqft if sqft > 0 else 0
         st.success(f"**Target Heated Cost:**\n${base_direct_cost_sf:.2f} / SF")
 
-# Initialize direct cost variables safely
 direct_cost_sf = base_direct_cost_sf
 struct_cost_sf = base_struct_cost_sf
 
@@ -398,12 +388,12 @@ else:
     edited_s = st.data_editor(pd.DataFrame(hl_struct), column_config={"Component Level": st.column_config.TextColumn(disabled=True), "Cost / SF": st.column_config.NumberColumn(format="$%.2f", min_value=0.0, step=0.5)}, hide_index=True, use_container_width=True, key="manual_struct_editor")
     struct_cost_sf = edited_s["Cost / SF"].sum()
 
-st.markdown(f"#### 3. Auxiliary & Outdoor Living ({front_porch_sqft + back_porch_sqft + storage_sqft} Total SF)")
+st.markdown(f"#### 3. Auxiliary, Foundation & Outdoor Living")
 p_data = {
-    "Component": ["Front Porch", "Back Porch", "Storage Room", "TOTAL AUX/OUTDOOR"],
-    "Area (SF)": [f"{front_porch_sqft} SF", f"{back_porch_sqft} SF", f"{storage_sqft} SF", f"{front_porch_sqft + back_porch_sqft + storage_sqft} SF"],
-    "Live Cost / SF": [f"${front_porch_cost_sf:.2f}", f"${back_porch_cost_sf:.2f}", f"${storage_cost_sf:.2f}", "-"],
-    "Per Unit Cost": [f"${front_porch_cost:,.0f}", f"${back_porch_cost:,.0f}", f"${storage_cost:,.0f}", f"${our_aux_cost_total:,.0f}"]
+    "Component": ["Front Porch", "Back Porch", "Storage Room", "Addit. Foundation / Elevation", "TOTAL AUX/OUTDOOR"],
+    "Area (SF) / Metric": [f"{front_porch_sqft} SF", f"{back_porch_sqft} SF", f"{storage_sqft} SF", "Site Specific", f"{front_porch_sqft + back_porch_sqft + storage_sqft} SF + Site"],
+    "Live Cost / SF": [f"${front_porch_cost_sf:.2f}", f"${back_porch_cost_sf:.2f}", f"${storage_cost_sf:.2f}", "-", "-"],
+    "Per Unit Cost": [f"${front_porch_cost:,.0f}", f"${back_porch_cost:,.0f}", f"${storage_cost:,.0f}", f"${additional_foundation_cost:,.0f}", f"${our_aux_cost_total:,.0f}"]
 }
 st.dataframe(pd.DataFrame(p_data), hide_index=True, use_container_width=True)
 
@@ -426,10 +416,10 @@ ledger_mode = st.radio("Ledger Input Mode", ["Sync with Global Parameters", "Man
 
 st.markdown("#### 1. Direct Hard Costs (Driven by Granular Builder)")
 direct_data = {
-    "Cost Category": ["Heated Living Area", f"{structure_type} Auxiliary", "Front Porch", "Back Porch", "Storage Room", "TOTAL DIRECT HARD COSTS"],
-    "Area / Metric": [f"{sqft:,.0f} SF", f"{struct_sqft:,.0f} SF", f"{front_porch_sqft:,.0f} SF", f"{back_porch_sqft:,.0f} SF", f"{storage_sqft:,.0f} SF", f"{total_under_roof_sqft:,.0f} SF Under Roof"],
-    "Cost / SF": [f"${direct_cost_sf:.2f}", f"${struct_cost_sf:.2f}", f"${front_porch_cost_sf:.2f}", f"${back_porch_cost_sf:.2f}", f"${storage_cost_sf:.2f}", f"${blended_cost_per_sf:.2f} (Blended)"],
-    "Total Amount ($)": [heated_hard_cost * units, struct_total_cost * units, front_porch_cost * units, back_porch_cost * units, storage_cost * units, total_hard_cost]
+    "Cost Category": ["Heated Living Area", f"{structure_type} Auxiliary", "Front Porch", "Back Porch", "Storage Room", "Addit. Foundation / Elevation", "TOTAL DIRECT HARD COSTS"],
+    "Area / Metric": [f"{sqft:,.0f} SF", f"{struct_sqft:,.0f} SF", f"{front_porch_sqft:,.0f} SF", f"{back_porch_sqft:,.0f} SF", f"{storage_sqft:,.0f} SF", "Site Specific", f"{total_under_roof_sqft:,.0f} SF Under Roof"],
+    "Cost / SF": [f"${direct_cost_sf:.2f}", f"${struct_cost_sf:.2f}", f"${front_porch_cost_sf:.2f}", f"${back_porch_cost_sf:.2f}", f"${storage_cost_sf:.2f}", "-", f"${blended_cost_per_sf:.2f} (Blended)"],
+    "Total Amount ($)": [heated_hard_cost * units, struct_total_cost * units, front_porch_cost * units, back_porch_cost * units, storage_cost * units, additional_foundation_cost * units, total_hard_cost]
 }
 st.dataframe(pd.DataFrame(direct_data).style.format({"Total Amount ($)": "${:,.0f}"}), hide_index=True, use_container_width=True)
 
@@ -580,7 +570,7 @@ if cost_calc_mode == "Reverse-Engineer from Appraisal":
         "Cost Category": [
             f"Target Appraised Value (ARV) per Unit", "(-) Finished Lot Cost", "(-) Gross Margin (O&P)", 
             "(-) Sales & Marketing", "(-) Soft Costs & Finance", "= Total Hard Cost Budget", 
-            "(-) Fixed Auxiliary Costs (Carport/Porches/Storage)", "= Available Budget for Heated Shell"
+            "(-) Fixed Auxiliary Costs (Carport/Porches/Storage/Elevation)", "= Available Budget for Heated Shell"
         ],
         "Value ($)": [
             f"${arv_per_unit:,.0f}", f"-${arv_per_unit * lot_cost_pct:,.0f}", f"-${arv_per_unit * margin_pct:,.0f}", 
@@ -594,7 +584,7 @@ if cost_calc_mode == "Reverse-Engineer from Appraisal":
             "Realtor commissions, internal sales reps, buyer closing concessions.",
             "Impact fees, plan design, municipal permits, and loan interest carry.",
             "Total budget available for all physical construction.",
-            "Locked budget required for your specific outdoor/auxiliary footprint.",
+            "Locked budget required for your specific outdoor/auxiliary footprint and elevation.",
             f"Yields exactly ${base_direct_cost_sf:.2f} / SF across {sqft} Heated SF."
         ]
     }
@@ -630,12 +620,11 @@ dscr_summary_data = {
     ],
     "Annual": [
         f"${total_gross_monthly_income * 12:,.2f}", f"-${annual_vacancy_loss:,.2f}", f"${annual_egi:,.2f}", 
-        f"-${annual_opex:,.2f}", f"${annual_noi:,.2f}", f"-${annual_debt_service:,.2f}", f"${monthly_cash_flow * 12:,.2f}",
+        f"-${annual_opex / 12:,.2f}", f"${annual_noi:,.2f}", f"${annual_debt_service:,.2f}", f"${monthly_cash_flow * 12:,.2f}",
         "---", f"{actual_dscr:.2f}x", f"{target_dscr_rate:.2f}x", f"{dscr_variance:+.2f}x"
     ]
 }
-df_dscr = pd.DataFrame(dscr_summary_data)
-st.dataframe(df_dscr, hide_index=True, use_container_width=True)
+st.dataframe(pd.DataFrame(dscr_summary_data), hide_index=True, use_container_width=True)
 
 
 # --- PDF GENERATION ENGINE ---
@@ -766,7 +755,6 @@ def create_pdf(include_sublevels):
         with open(tmp.name, "rb") as f:
             return f.read()
 
-# Render download button at top header
 with download_placeholder:
     st.markdown("<br>", unsafe_allow_html=True)
     st.download_button(
