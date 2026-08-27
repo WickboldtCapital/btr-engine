@@ -53,7 +53,6 @@ st.sidebar.header("Master Model Drivers")
 st.sidebar.subheader("Project Scale & GC Fee Structure")
 units = st.sidebar.number_input("Number of Units (Doors)", min_value=1, value=1, step=1, format="%d")
 
-# Fixed GC Fee Structure Toggle
 gc_fee_mode = st.sidebar.radio("GC Fee Structure", ["Percentage of Hard Costs (%)", "Consolidated Flat Fee ($ Total)"])
 if gc_fee_mode == "Percentage of Hard Costs (%)":
     gc_fee_pct = st.sidebar.number_input("GC Management Fee (%)", min_value=0.0, max_value=50.0, value=10.0, step=0.5) / 100.0
@@ -65,7 +64,6 @@ else:
 st.sidebar.subheader("Construction Costs (Heated Area)")
 sqft = st.sidebar.number_input("Heated SqFt per Unit", value=1150, step=50, format="%d")
 
-# Streamlined Cost Calculation Mode
 cost_calc_mode = st.sidebar.radio(
     "Cost Calculation Mode", 
     [
@@ -77,7 +75,6 @@ cost_calc_mode = st.sidebar.radio(
 if cost_calc_mode == "Manual Set (Heated SF)":
     direct_cost_sf = st.sidebar.slider("Direct Build Cost / SF ($)", min_value=40.0, max_value=150.0, value=74.0, step=1.0)
 else:
-    # Fully Automated Top-Down Retail Price Reverse Engineering with adjustable sliders
     st.sidebar.caption("Retail Price / SF is dynamically derived from your Market Comp inputs.")
     retail_price_sf = comp_blended_cost
     st.sidebar.markdown(f"**Comp Retail Price:** `${retail_price_sf:.2f} / SF`")
@@ -143,13 +140,13 @@ st.sidebar.subheader("Land & Soft Costs")
 land_basis = st.sidebar.number_input("Land Basis per Lot ($)", value=15000, step=1000, format="%d")
 soft_costs = st.sidebar.number_input("Soft Costs per Unit ($)", value=5500, step=500, format="%d")
 
+
 # --- CORE CALCULATIONS ---
 struct_total_cost = struct_sqft * struct_cost_sf
 front_porch_cost = front_porch_sqft * front_porch_cost_sf
 back_porch_cost = back_porch_sqft * back_porch_cost_sf
 total_under_roof_sqft = sqft + struct_sqft + front_porch_sqft + back_porch_sqft
 
-# Calculate Heated Hard Cost identically regardless of mode
 heated_hard_cost = sqft * direct_cost_sf
 hard_cost_per_unit = heated_hard_cost + struct_total_cost + front_porch_cost + back_porch_cost
 blended_cost_per_sf = hard_cost_per_unit / total_under_roof_sqft if total_under_roof_sqft > 0 else 0
@@ -204,6 +201,28 @@ total_project_basis = total_project_costs_ex_interest + carry_int + refi_closing
 cash_surplus = loan_total - total_project_basis
 retained_equity = total_arv - loan_total
 day1_wealth = gc_fee + max(0, cash_surplus) + retained_equity
+
+# --- GRANULAR COST BUILDUP LOGIC (DYNAMIC SCALING) ---
+# Heated Area Weights derived from $74/SF Document Baseline
+heated_divs = [
+    ("Div 1: Foundation & Concrete", 9.50/74.00, "Laser leveling, select fill, rebar, 3000 PSI concrete, turnkey labor."),
+    ("Div 2: Framing & Structural Shell", 18.50/74.00, "Lumber package, trusses, OSB sheathing, hardware, turnkey labor."),
+    ("Div 3: Exterior Envelope & Roofing", 10.00/74.00, "Architectural shingles, vinyl siding/soffit, Low-E windows, exterior doors."),
+    ("Div 4: Mechanical, Electrical, Plumbing", 15.50/74.00, "PEX/PVC rough-in, 14.3 SEER2 heat pump, 200A panel, LED lighting."),
+    ("Div 5: Insulation & Drywall", 6.50/74.00, "R-13/R-15 wall batts, R-38 attic blown, 1/2in drywall, finish & texture."),
+    ("Div 6: Interior Finishes & Cabinets", 10.50/74.00, "Doors/trim, shaker cabinets, laminate/granite, LVP/carpet, interior paint."),
+    ("Div 7: Appliances & Specialties", 1.50/74.00, "Electric range, microwave, dishwasher, bath hardware, shelving."),
+    ("Div 8: Exterior Flatwork & Site Finish", 2.00/74.00, "Concrete driveway/walk, final grading, starter sod.")
+]
+
+# Structure Weights derived from $31/SF Document Baseline
+struct_divs = [
+    ("Slab & Turned-Down Footings", 7.00/31.00),
+    ("Framing & Columns", 12.00/31.00),
+    ("Roofing & Exterior Trim", 8.00/31.00),
+    ("Electrical & Lighting", 2.50/31.00),
+    ("Paint & Column Wrap", 1.50/31.00)
+]
 
 # --- PDF GENERATION ENGINE ---
 class EnterpriseReport(FPDF):
@@ -293,6 +312,28 @@ def create_pdf():
     pdf.cell(90, 7, f"${carry_int:,.0f}", 0, 1, 'R')
     pdf.cell(100, 7, "Total Soft Costs & Closing Fees:", 0, 0)
     pdf.cell(90, 7, f"${total_soft_costs + const_closing_fee + refi_closing_fee + total_buydown_cost:,.0f}", 0, 1, 'R')
+    
+    # NEW PDF SECTION 4: Granular Hard Cost Buildup
+    pdf.ln(5)
+    pdf.set_font("Arial", 'B', 12)
+    pdf.set_fill_color(220, 220, 220)
+    pdf.cell(0, 8, " 4. Granular Direct Hard Cost Buildup (Heated Area)", ln=1, fill=True)
+    pdf.set_font("Arial", 'B', 9)
+    
+    pdf.cell(70, 6, "Division / Trade", 1, 0, 'C')
+    pdf.cell(40, 6, "Live Cost / SF", 1, 0, 'C')
+    pdf.cell(40, 6, f"Per Unit ({sqft} SF)", 1, 0, 'C')
+    pdf.cell(40, 6, "Project Total", 1, 1, 'C')
+    
+    pdf.set_font("Arial", '', 9)
+    for name, weight, _ in heated_divs:
+        div_sf = direct_cost_sf * weight
+        div_unit = div_sf * sqft
+        div_proj = div_unit * units
+        pdf.cell(70, 6, f" {name}", 1)
+        pdf.cell(40, 6, f"${div_sf:.2f}", 1, 0, 'R')
+        pdf.cell(40, 6, f"${div_unit:,.0f}", 1, 0, 'R')
+        pdf.cell(40, 6, f"${div_proj:,.0f}", 1, 1, 'R')
     
     with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as tmp:
         pdf.output(tmp.name)
@@ -463,6 +504,46 @@ ledger_data = {
 df_ledger = pd.DataFrame(ledger_data)
 df_ledger['Total Amount ($)'] = df_ledger['Total Amount ($)'].apply(lambda x: f"${x:,.0f}" if isinstance(x, (int, float)) else x)
 st.dataframe(df_ledger, hide_index=True, use_container_width=True)
+
+st.divider()
+
+# --- GRANULAR HARD COST BUILDUP SECTION ---
+st.markdown("### 🧱 Granular Direct Hard Cost Buildup (Trade Divisions)")
+st.caption("Budget dynamically scales proportionally based on your active Direct Cost / SF and the Wickboldt Capital baseline document weightings.")
+
+g_col1, g_col2 = st.columns([3, 2])
+
+with g_col1:
+    st.markdown(f"**Heated Living Area ({sqft} SF @ ${direct_cost_sf:.2f} / SF)**")
+    h_data = {
+        "Division / Trade": [],
+        "Weight (%)": [],
+        "Live Cost / SF": [],
+        f"Per Unit ({sqft} SF)": [],
+        "Scope Specifications": []
+    }
+    for name, weight, scope in heated_divs:
+        h_data["Division / Trade"].append(name)
+        h_data["Weight (%)"].append(f"{weight*100:.1f}%")
+        h_data["Live Cost / SF"].append(f"${direct_cost_sf * weight:.2f}")
+        h_data[f"Per Unit ({sqft} SF)"].append(f"${(direct_cost_sf * weight) * sqft:,.0f}")
+        h_data["Scope Specifications"].append(scope)
+    st.dataframe(pd.DataFrame(h_data), hide_index=True, use_container_width=True)
+
+with g_col2:
+    st.markdown(f"**{structure_type} ({struct_sqft} SF @ ${struct_cost_sf:.2f} / SF)**")
+    s_data = {
+        "Component": [],
+        "Weight (%)": [],
+        "Live Cost / SF": [],
+        f"Per Unit ({struct_sqft} SF)": []
+    }
+    for name, weight in struct_divs:
+        s_data["Component"].append(name)
+        s_data["Weight (%)"].append(f"{weight*100:.1f}%")
+        s_data["Live Cost / SF"].append(f"${struct_cost_sf * weight:.2f}")
+        s_data[f"Per Unit ({struct_sqft} SF)"].append(f"${(struct_cost_sf * weight) * struct_sqft:,.0f}")
+    st.dataframe(pd.DataFrame(s_data), hide_index=True, use_container_width=True)
 
 st.divider()
 
