@@ -180,128 +180,128 @@ op4.metric("Monthly P&I Payment", f"${total_monthly_pi:,.0f} /mo", f"{refi_term_
 
 st.divider()
 
-row2_col1, row2_col2 = st.columns(2)
+# --- VERTICAL STACK FOR TABLES ---
 
-with row2_col1:
-    st.markdown("### 📊 Detailed Construction Cost & Capital Ledger")
-    # Note: All arrays are now exactly 19 elements long to prevent DataFrame crash
-    ledger_data = {
-        "Cost Category / Sub-Level": [
-            "--- DIRECT HARD COSTS ---",
-            "Heated Living Area (Sub-Level)", 
-            f"{structure_type} (Sub-Level)",
-            "Front Porch (Sub-Level)",
-            "Back Porch (Sub-Level)",
-            "SUBTOTAL DIRECT HARD COSTS",
-            "--- INDIRECT & OVERHEAD HARD COSTS ---",
-            "General Conditions (5% of Direct)", 
-            "GC Management Fee", 
-            "BTR Buying Power Premium (5% of Direct)", 
-            "TOTAL HARD COSTS",
-            "--- LAND, SOFT & FINANCING COSTS ---",
-            "Land Acquisition Basis",
-            "Soft Costs & Permitting",
-            "Construction Loan Closing Fee",
-            f"Accrued Const. Interest ({build_months} Mos)",
-            "Takeout Refinance Closing Fee",
-            "Rate Buydown Points Cost",
-            "TOTAL PROJECT BASIS"
-        ],
-        "Area (SF) / Metric": [
-            "",
-            f"{sqft:,.0f} SF",
-            f"{struct_sqft:,.0f} SF",
-            f"{front_porch_sqft:,.0f} SF",
-            f"{back_porch_sqft:,.0f} SF",
-            f"{total_under_roof_sqft:,.0f} SF Under Roof",
-            "",
-            "5.0% Basis",
-            "10% or Flat",
-            "5.0% Basis",
-            f"{total_under_roof_sqft:,.0f} Total SF",
-            "",
-            f"{units:,.0f} Lot(s)",
-            "Per Unit Basis",
-            "Flat Fee",
-            f"{avg_draw_pct*100:.0f}% Avg Draw",
-            "Flat Fee",
-            f"{buydown_pts} Points",
-            f"${total_project_basis/units:,.0f} / Door"
-        ],
-        "Cost / SF ($)": [
-            "",
-            f"${direct_cost_sf:.2f} /SF",
-            f"${struct_cost_sf:.2f} /SF",
-            f"${front_porch_cost_sf:.2f} /SF",
-            f"${back_porch_cost_sf:.2f} /SF",
-            f"${blended_cost_per_sf:.2f} /SF (Blended)",
-            "",
-            "-", "-", "-", "-", "", "-", "-", "-", "-", "-", "-", "-"
-        ],
-        "Total Amount ($)": [
-            "",
-            heated_hard_cost * units,
-            struct_total_cost * units,
-            front_porch_cost * units,
-            back_porch_cost * units,
-            total_hard_cost,
-            "",
-            gcond,
-            gc_fee,
-            premium,
-            total_const,
-            "",
-            total_land,
-            total_soft_costs,
-            const_closing_fee,
-            carry_int,
-            refi_closing_fee,
-            total_buydown_cost,
-            total_project_basis
-        ]
-    }
-    df_ledger = pd.DataFrame(ledger_data)
-    df_ledger['Total Amount ($)'] = df_ledger['Total Amount ($)'].apply(lambda x: f"${x:,.0f}" if isinstance(x, (int, float)) else x)
-    st.dataframe(df_ledger, hide_index=True, use_container_width=True)
+st.markdown("### 📊 Detailed Construction Cost & Capital Ledger")
+ledger_data = {
+    "Cost Category / Sub-Level": [
+        "--- DIRECT HARD COSTS ---",
+        "Heated Living Area (Sub-Level)", 
+        f"{structure_type} (Sub-Level)",
+        "Front Porch (Sub-Level)",
+        "Back Porch (Sub-Level)",
+        "SUBTOTAL DIRECT HARD COSTS",
+        "--- INDIRECT & OVERHEAD HARD COSTS ---",
+        "General Conditions (5% of Direct)", 
+        "GC Management Fee", 
+        "BTR Buying Power Premium (5% of Direct)", 
+        "TOTAL HARD COSTS",
+        "--- LAND, SOFT & FINANCING COSTS ---",
+        "Land Acquisition Basis",
+        "Soft Costs & Permitting",
+        "Construction Loan Closing Fee",
+        f"Accrued Const. Interest ({build_months} Mos)",
+        "Takeout Refinance Closing Fee",
+        "Rate Buydown Points Cost",
+        "TOTAL PROJECT BASIS"
+    ],
+    "Area (SF) / Metric": [
+        "",
+        f"{sqft:,.0f} SF",
+        f"{struct_sqft:,.0f} SF",
+        f"{front_porch_sqft:,.0f} SF",
+        f"{back_porch_sqft:,.0f} SF",
+        f"{total_under_roof_sqft:,.0f} SF Under Roof",
+        "",
+        "5.0% Basis",
+        "10% or Flat",
+        "5.0% Basis",
+        f"{total_under_roof_sqft:,.0f} Total SF",
+        "",
+        f"{units:,.0f} Lot(s)",
+        "Per Unit Basis",
+        "Flat Fee",
+        f"{avg_draw_pct*100:.0f}% Avg Draw",
+        "Flat Fee",
+        f"{buydown_pts} Points",
+        f"${total_project_basis/units:,.0f} / Door"
+    ],
+    "Cost / SF ($)": [
+        "",
+        f"${direct_cost_sf:.2f} /SF",
+        f"${struct_cost_sf:.2f} /SF",
+        f"${front_porch_cost_sf:.2f} /SF",
+        f"${back_porch_cost_sf:.2f} /SF",
+        f"${blended_cost_per_sf:.2f} /SF (Blended)",
+        "",
+        "-", "-", "-", "-", "", "-", "-", "-", "-", "-", "-", "-"
+    ],
+    "Total Amount ($)": [
+        "",
+        heated_hard_cost * units,
+        struct_total_cost * units,
+        front_porch_cost * units,
+        back_porch_cost * units,
+        total_hard_cost,
+        "",
+        gcond,
+        gc_fee,
+        premium,
+        total_const,
+        "",
+        total_land,
+        total_soft_costs,
+        const_closing_fee,
+        carry_int,
+        refi_closing_fee,
+        total_buydown_cost,
+        total_project_basis
+    ]
+}
+df_ledger = pd.DataFrame(ledger_data)
+df_ledger['Total Amount ($)'] = df_ledger['Total Amount ($)'].apply(lambda x: f"${x:,.0f}" if isinstance(x, (int, float)) else x)
+st.dataframe(df_ledger, hide_index=True, use_container_width=True)
 
-with row2_col2:
-    st.markdown("### 💰 Day-1 Wealth Creation")
-    wealth_data = {
-        "Pocket Component": [
-            "Pocket 1: Active GC Fee Revenue", 
-            "Pocket 2: Tax-Free Cash Surplus at Close",
-            "Pocket 3: Retained Asset Equity", 
-            "TOTAL DAY-1 CREATED VALUE"
-        ],
-        "Value ($)": [
-            gc_fee, 
-            cash_surplus, 
-            retained_equity, 
-            day1_wealth
-        ]
-    }
-    df_wealth = pd.DataFrame(wealth_data)
-    df_wealth['Value ($)'] = df_wealth['Value ($)'].apply(lambda x: f"${x:,.0f}")
-    st.dataframe(df_wealth, hide_index=True, use_container_width=True)
+st.divider()
 
-    if cash_surplus >= 0:
-        st.success(f"**Infinite Cash-on-Cash Return Achieved:** You have recovered 100% of your seed capital plus an additional ${cash_surplus:,.0f} in liquid cash.")
-    else:
-        st.error(f"**Capital Trapped:** You are leaving ${abs(cash_surplus):,.0f} of your seed capital in the deal to close the takeout loan. Try lowering your Direct Build Cost / SF or reducing the construction timeline.")
+st.markdown("### 💰 Day-1 Wealth Creation")
+wealth_data = {
+    "Pocket Component": [
+        "Pocket 1: Active GC Fee Revenue", 
+        "Pocket 2: Tax-Free Cash Surplus at Close",
+        "Pocket 3: Retained Asset Equity", 
+        "TOTAL DAY-1 CREATED VALUE"
+    ],
+    "Value ($)": [
+        gc_fee, 
+        cash_surplus, 
+        retained_equity, 
+        day1_wealth
+    ]
+}
+df_wealth = pd.DataFrame(wealth_data)
+df_wealth['Value ($)'] = df_wealth['Value ($)'].apply(lambda x: f"${x:,.0f}")
+st.dataframe(df_wealth, hide_index=True, use_container_width=True)
 
-    st.markdown("---")
-    st.markdown("### 🏢 Operating Performance Summary")
-    dscr_summary_data = {
-        "Metric Item": [
-            "Gross Monthly Rental Income", "Effective Gross Income (EGI - Annual)", 
-            "Operating Expenses (OpEx - Annual)", "Net Operating Income (NOI - Annual)", 
-            "Total Debt Service (P&I - Annual)"
-        ],
-        "Value": [
-            f"${total_gross_monthly_income:,.2f} /mo", f"${annual_egi:,.2f}", 
-            f"${annual_opex:,.2f} ({opex_rate*100:.0f}%)", f"${annual_noi:,.2f}", 
-            f"${annual_debt_service:,.2f}"
-        ]
-    }
-    df_dscr = pd.DataFrame(dscr_summary_data)
-    st.dataframe(df_dscr, hide_index=True, use_container_width=True)
+if cash_surplus >= 0:
+    st.success(f"**Infinite Cash-on-Cash Return Achieved:** You have recovered 100% of your seed capital plus an additional ${cash_surplus:,.0f} in liquid cash.")
+else:
+    st.error(f"**Capital Trapped:** You are leaving ${abs(cash_surplus):,.0f} of your seed capital in the deal to close the takeout loan. Try lowering your Direct Build Cost / SF or reducing the construction timeline.")
+
+st.divider()
+
+st.markdown("### 🏢 Operating Performance Summary")
+dscr_summary_data = {
+    "Metric Item": [
+        "Gross Monthly Rental Income", "Effective Gross Income (EGI - Annual)", 
+        "Operating Expenses (OpEx - Annual)", "Net Operating Income (NOI - Annual)", 
+        "Total Debt Service (P&I - Annual)"
+    ],
+    "Value": [
+        f"${total_gross_monthly_income:,.2f} /mo", f"${annual_egi:,.2f}", 
+        f"${annual_opex:,.2f} ({opex_rate*100:.0f}%)", f"${annual_noi:,.2f}", 
+        f"${annual_debt_service:,.2f}"
+    ]
+}
+df_dscr = pd.DataFrame(dscr_summary_data)
+st.dataframe(df_dscr, hide_index=True, use_container_width=True)
