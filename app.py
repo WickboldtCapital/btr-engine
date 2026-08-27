@@ -50,13 +50,13 @@ st.divider()
 # --- SIDEBAR: MASTER MODEL DRIVERS ---
 st.sidebar.header("Master Model Drivers")
 
-st.sidebar.subheader("Project Scale & GC Fee")
+st.sidebar.subheader("Project Scale & GC Fee Structure")
 units = st.sidebar.number_input("Number of Units (Doors)", min_value=1, value=1, step=1, format="%d")
 
-# GC Fee Structure Toggle
+# Fixed GC Fee Structure Toggle
 gc_fee_mode = st.sidebar.radio("GC Fee Structure", ["Percentage of Hard Costs (%)", "Consolidated Flat Fee ($ Total)"])
 if gc_fee_mode == "Percentage of Hard Costs (%)":
-    gc_fee_pct = st.sidebar.slider("GC Management Fee (%)", min_value=0.0, max_value=25.0, value=10.0, step=0.5) / 100.0
+    gc_fee_pct = st.sidebar.number_input("GC Management Fee (%)", min_value=0.0, max_value=50.0, value=10.0, step=0.5) / 100.0
     custom_gc_fee = 0
 else:
     custom_gc_fee = st.sidebar.number_input("Total Consolidated GC Fee ($)", value=20000, step=1000, format="%d")
@@ -83,7 +83,6 @@ elif cost_calc_mode == "Reverse-Engineer (Target Blended SF)":
     direct_cost_sf = 0.0 
     st.sidebar.caption("The Heated Build Cost / SF will be back-solved to hit this overall blended rate target.")
 else:
-    # Top-Down Retail Price Reverse Engineering
     st.sidebar.caption("Retail Price / SF is dynamically derived from your Market Comp inputs on the main dashboard.")
     retail_price_sf = comp_blended_cost
     st.sidebar.markdown(f"**Comp Retail Price:** `${retail_price_sf:.2f} / SF`")
@@ -194,10 +193,10 @@ annual_debt_service = total_monthly_pi * 12.0
 actual_dscr = annual_noi / annual_debt_service if annual_debt_service > 0 else 0
 monthly_cash_flow = monthly_noi - total_monthly_pi
 
-# GC Fee and Soft Costs applied
 gcond = total_hard_cost * 0.05
 fee_basis = total_hard_cost + gcond
 
+# Adjusted GC Fee Logic
 if gc_fee_mode == "Consolidated Flat Fee ($ Total)":
     gc_fee = custom_gc_fee
 else:
