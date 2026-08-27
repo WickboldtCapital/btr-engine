@@ -25,7 +25,6 @@ download_placeholder = top_col3.empty()
 st.divider()
 
 # --- COMPARABLE MARKET ANALYSIS (COMP BENCHMARK TOOL) ---
-# Moved to the top so it drives the sidebar cost calculations
 st.markdown("### 🔍 Market Comp Valuation & Blended Rate Benchmark")
 st.markdown("Input market comparable data below. This dynamically sets the Appraised Value (ARV) and drives the Retail Reverse-Engineering cost basis.")
 
@@ -51,12 +50,17 @@ st.divider()
 # --- SIDEBAR: MASTER MODEL DRIVERS ---
 st.sidebar.header("Master Model Drivers")
 
-st.sidebar.subheader("Project Scale")
+st.sidebar.subheader("Project Scale & GC Fee")
 units = st.sidebar.number_input("Number of Units (Doors)", min_value=1, value=1, step=1, format="%d")
-opt_gc = st.sidebar.checkbox("Apply Consolidated Multi-Unit GC Fee?")
-custom_gc_fee = 0
-if opt_gc:
-    custom_gc_fee = st.sidebar.number_input("Flat Consolidated GC Fee ($)", value=20000, step=1000, format="%d")
+
+# GC Fee Structure Toggle
+gc_fee_mode = st.sidebar.radio("GC Fee Structure", ["Percentage of Hard Costs (%)", "Consolidated Flat Fee ($ Total)"])
+if gc_fee_mode == "Percentage of Hard Costs (%)":
+    gc_fee_pct = st.sidebar.slider("GC Management Fee (%)", min_value=0.0, max_value=25.0, value=10.0, step=0.5) / 100.0
+    custom_gc_fee = 0
+else:
+    custom_gc_fee = st.sidebar.number_input("Total Consolidated GC Fee ($)", value=20000, step=1000, format="%d")
+    gc_fee_pct = 0.0
 
 st.sidebar.subheader("Construction Costs (Heated Area)")
 sqft = st.sidebar.number_input("Heated SqFt per Unit", value=1150, step=50, format="%d")
@@ -79,7 +83,7 @@ elif cost_calc_mode == "Reverse-Engineer (Target Blended SF)":
     direct_cost_sf = 0.0 
     st.sidebar.caption("The Heated Build Cost / SF will be back-solved to hit this overall blended rate target.")
 else:
-    # Top-Down Retail Price Reverse Engineering (Dynamically linked to Comp)
+    # Top-Down Retail Price Reverse Engineering
     st.sidebar.caption("Retail Price / SF is dynamically derived from your Market Comp inputs on the main dashboard.")
     retail_price_sf = comp_blended_cost
     st.sidebar.markdown(f"**Comp Retail Price:** `${retail_price_sf:.2f} / SF`")
@@ -145,7 +149,6 @@ st.sidebar.subheader("Land & Soft Costs")
 land_basis = st.sidebar.number_input("Land Basis per Lot ($)", value=15000, step=1000, format="%d")
 soft_costs = st.sidebar.number_input("Soft Costs per Unit ($)", value=5500, step=500, format="%d")
 
-
 # --- CORE CALCULATIONS ---
 struct_total_cost = struct_sqft * struct_cost_sf
 front_porch_cost = front_porch_sqft * front_porch_cost_sf
@@ -191,13 +194,14 @@ annual_debt_service = total_monthly_pi * 12.0
 actual_dscr = annual_noi / annual_debt_service if annual_debt_service > 0 else 0
 monthly_cash_flow = monthly_noi - total_monthly_pi
 
+# GC Fee and Soft Costs applied
 gcond = total_hard_cost * 0.05
 fee_basis = total_hard_cost + gcond
 
-if opt_gc:
+if gc_fee_mode == "Consolidated Flat Fee ($ Total)":
     gc_fee = custom_gc_fee
 else:
-    gc_fee = fee_basis * 0.10
+    gc_fee = fee_basis * gc_fee_pct
 
 premium = total_hard_cost * 0.05
 total_const = fee_basis + gc_fee + premium
@@ -291,8 +295,11 @@ def create_pdf():
     pdf.cell(90, 7, f"${total_hard_cost:,.0f}", 0, 1, 'R')
     pdf.cell(100, 7, "Indirect General Conditions & Premiums:", 0, 0)
     pdf.cell(90, 7, f"${gcond + premium:,.0f}", 0, 1, 'R')
-    pdf.cell(100, 7, "Consolidated GC Management Fee:", 0, 0)
+    
+    gc_label = "Consolidated GC Flat Fee:" if gc_fee_mode == "Consolidated Flat Fee ($ Total)" else f"GC Management Fee ({gc_fee_pct*100:.1f}%):"
+    pdf.cell(100, 7, gc_label, 0, 0)
     pdf.cell(90, 7, f"${gc_fee:,.0f}", 0, 1, 'R')
+    
     pdf.cell(100, 7, "Land Acquisition Basis:", 0, 0)
     pdf.cell(90, 7, f"${total_land:,.0f}", 0, 1, 'R')
     pdf.cell(100, 7, "Accrued Construction Loan Interest:", 0, 0)
@@ -433,7 +440,7 @@ ledger_data = {
         f"{total_under_roof_sqft:,.0f} SF Under Roof",
         "",
         "5.0% Basis",
-        "10% or Flat",
+        "Flat Fee" if gc_fee_mode == "Consolidated Flat Fee ($ Total)" else f"{gc_fee_pct*100:.1f}% Basis",
         "5.0% Basis",
         f"{total_under_roof_sqft:,.0f} Total SF",
         "",
