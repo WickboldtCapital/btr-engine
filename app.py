@@ -29,119 +29,6 @@ download_placeholder = sub_col3.empty()
 
 st.divider()
 
-# --- COMPARABLE MARKET ANALYSIS (COMP BENCHMARK TOOL) ---
-st.markdown("### 🔍 Market Comp Valuation & Blended Rate Benchmark")
-st.markdown("Input market comparable data below. This dynamically sets the Appraised Value (ARV) and drives the Retail Reverse-Engineering cost basis.")
-
-if "comp_address" not in st.session_state:
-    st.session_state.comp_address = ""
-if "comp_price" not in st.session_state:
-    st.session_state.comp_price = 182600
-if "comp_heated_sf" not in st.session_state:
-    st.session_state.comp_heated_sf = 1150
-if "raw_api_data" not in st.session_state:
-    st.session_state.raw_api_data = None
-
-comp_entry_mode = st.radio(
-    "Comparable Data Entry Mode", 
-    [
-        "Manual Entry", 
-        "RentCast Live API Fetch"
-    ], 
-    horizontal=True
-)
-
-# API Logic
-if comp_entry_mode == "RentCast Live API Fetch":
-    rc_col1, rc_col2 = st.columns([4, 1])
-    search_address = rc_col1.text_input("Property Address", placeholder="e.g. 1103 S Spruce St, Hammond, LA 70403")
-    
-    with st.expander("⚙️ API Configuration (Optional)"):
-        st.caption("If Railway hasn't loaded your key yet, paste it here to test immediately.")
-        manual_key = st.text_input("RentCast API Key Override", type="password")
-
-    if rc_col2.button("Fetch Live Data", use_container_width=True):
-        if not search_address or search_address.strip() == "":
-            st.warning("Please enter a valid property address before fetching.")
-        else:
-            rentcast_key = manual_key or os.environ.get("RENTCAST_API_KEY") or st.secrets.get("RENTCAST_API_KEY", "")
-            
-            if rentcast_key:
-                try:
-                    with st.spinner("Fetching live data from RentCast MLS..."):
-                        api_url = "https://api.rentcast.io/v1/properties"
-                        querystring = {"address": search_address.strip()}
-                        headers = {
-                            "X-Api-Key": rentcast_key.strip(),
-                            "accept": "application/json"
-                        }
-                        
-                        response = requests.get(api_url, headers=headers, params=querystring)
-                        
-                        if response.status_code == 200:
-                            data = response.json()
-                            st.session_state.raw_api_data = data 
-                            
-                            if isinstance(data, list) and len(data) > 0:
-                                prop = data[0]
-                                fetched_sf = prop.get("squareFootage")
-                                fetched_price = prop.get("price") or prop.get("lastSalePrice")
-                                fetched_addr = prop.get("formattedAddress")
-                                
-                                if not fetched_price:
-                                    try:
-                                        avm_url = "https://api.rentcast.io/v1/avm/value"
-                                        avm_res = requests.get(avm_url, headers=headers, params={"address": fetched_addr or search_address})
-                                        if avm_res.status_code == 200:
-                                            avm_data = avm_res.json()
-                                            fetched_price = avm_data.get("price")
-                                    except: pass
-                                
-                                if fetched_price: st.session_state.comp_price = int(fetched_price)
-                                if fetched_sf: st.session_state.comp_heated_sf = int(fetched_sf)
-                                if fetched_addr: st.session_state.comp_address = str(fetched_addr)
-                                
-                                st.success(f"Property successfully imported: {st.session_state.comp_address}")
-                                st.rerun()
-                            else:
-                                st.error("No exact match found. Make sure the address includes city, state, and zip.")
-                        elif response.status_code == 400:
-                            st.error("Error 400 (Bad Request): RentCast could not parse this address format.")
-                        elif response.status_code == 404:
-                            st.error("Error 404: RentCast found no property records for this address in public tax rolls.")
-                        elif response.status_code in [401, 403]:
-                            st.error(f"Error {response.status_code}: Unauthorized. Your API Key is invalid or missing.")
-                        else:
-                            st.error(f"RentCast API Error {response.status_code}.")
-                except Exception as e:
-                    st.error(f"Error fetching data: {e}")
-            else:
-                st.error("Missing API Key. Paste it in the Configuration box or add RENTCAST_API_KEY to Railway Variables.")
-
-# --- RENDER COMP INPUT UI ---
-st.markdown("##### 1. Primary Comp Metrics")
-col_addr, col_price, col_hsf = st.columns([2, 1, 1])
-
-if comp_entry_mode == "RentCast Live API Fetch":
-    comp_address = col_addr.text_input("Comparable Property Address", value=st.session_state.comp_address, disabled=True)
-    comp_price = col_price.number_input("Comp Sale Price ($)", value=st.session_state.comp_price, disabled=True)
-    comp_heated_sf = col_hsf.number_input("Comp Heated SF", value=st.session_state.comp_heated_sf, disabled=True)
-else:
-    comp_address = col_addr.text_input("Comparable Property Address", value=st.session_state.comp_address, placeholder="e.g. 16144 South Bud Broussard Road, Prairieville, LA")
-    comp_price = col_price.number_input("Comp Sale Price ($)", value=st.session_state.comp_price, step=1000, format="%d")
-    comp_heated_sf = col_hsf.number_input("Comp Heated SF", value=st.session_state.comp_heated_sf, step=50, format="%d")
-    st.session_state.comp_price = comp_price
-    st.session_state.comp_heated_sf = comp_heated_sf
-    st.session_state.comp_address = comp_address
-
-st.markdown("##### 2. Comp Auxiliary Spaces (Always Editable)")
-c_aux1, c_aux2, c_aux3, c_aux4 = st.columns(4)
-comp_struct_sf = c_aux1.number_input("Comp Aux. SF (Garage/Carport)", value=200, step=25, format="%d")
-comp_front_sf = c_aux2.number_input("Comp Front Porch SF", value=60, step=10, format="%d")
-comp_back_sf = c_aux3.number_input("Comp Back Porch SF", value=120, step=10, format="%d")
-comp_storage_sf = c_aux4.number_input("Comp Storage Room SF", value=40, step=5, format="%d")
-
-
 # ==========================================
 # --- DYNAMIC SIDEBAR CONTAINERS ---
 # ==========================================
@@ -156,11 +43,9 @@ cont_finance = st.sidebar.container()
 cont_export = st.sidebar.container()
 
 with cont_scale:
-    st.subheader("1. Project Scale")
     units = st.number_input("Number of Units (Doors)", min_value=1, value=1, step=1, format="%d")
 
 with cont_footprint:
-    st.subheader("2. Physical Footprint & Aux Costs")
     sqft = st.number_input("Heated SqFt per Unit", value=1150, step=50, format="%d")
     structure_type = st.selectbox("Aux Structure Type", ["Carport", "Garage"])
     struct_sqft = st.number_input(f"{structure_type} SqFt per Unit", value=200, step=25, format="%d")
@@ -176,7 +61,6 @@ with cont_footprint:
     storage_cost_sf = st.slider("Storage Room Cost / SF ($)", min_value=15.0, max_value=90.0, value=45.0, step=1.0)
 
 with cont_finance:
-    st.subheader("6. Financing & Operations")
     gross_monthly_rent = st.number_input("Gross Monthly Rental Income per Unit ($)", value=1650, step=50, format="%d")
     target_dscr_rate = st.number_input("Target Lender DSCR Rate", min_value=1.0, max_value=1.5, value=1.20, step=0.05)
     vacancy_rate = st.slider("Vacancy Rate (%)", min_value=0.0, max_value=15.0, value=5.0, step=1.0) / 100.0
@@ -203,7 +87,6 @@ with cont_finance:
         st.markdown(f"📉 **Buydown Net Rate:** `{net_refi_rate*100:.3f}%`")
 
 with cont_gc:
-    st.subheader("5. GC Fee & Land Costs")
     gc_fee_mode = st.radio("GC Fee Structure", ["Percentage of Hard Costs (%)", "Consolidated Flat Fee ($ Total)"])
     if gc_fee_mode == "Percentage of Hard Costs (%)":
         gc_fee_pct = st.number_input("GC Management Fee (%)", min_value=0.0, max_value=50.0, value=10.0, step=0.5) / 100.0
@@ -214,8 +97,90 @@ with cont_gc:
     land_basis = st.number_input("Land Basis per Lot ($)", value=15000, step=1000, format="%d")
 
 with cont_export:
-    st.subheader("PDF Export Options")
     pdf_include_sublevels = st.checkbox("Include Detailed Sub-Levels in PDF Report", value=True)
+
+
+# --- COMPARABLE MARKET ANALYSIS (COMP BENCHMARK TOOL) ---
+st.markdown("### 🔍 Market Comp Valuation & Blended Rate Benchmark")
+st.markdown("Input market comparable data below. This dynamically sets the Appraised Value (ARV) and drives the Retail Reverse-Engineering cost basis.")
+
+if "comp_address" not in st.session_state:
+    st.session_state.comp_address = ""
+if "comp_price" not in st.session_state:
+    st.session_state.comp_price = 182600
+if "comp_heated_sf" not in st.session_state:
+    st.session_state.comp_heated_sf = 1150
+if "raw_api_data" not in st.session_state:
+    st.session_state.raw_api_data = None
+
+comp_entry_mode = st.radio("Comparable Data Entry Mode", ["Manual Entry", "RentCast Live API Fetch"], horizontal=True)
+
+if comp_entry_mode == "RentCast Live API Fetch":
+    rc_col1, rc_col2 = st.columns([4, 1])
+    search_address = rc_col1.text_input("Property Address", placeholder="e.g. 1103 S Spruce St, Hammond, LA 70403")
+    
+    with st.expander("⚙️ API Configuration (Optional)"):
+        st.caption("If Railway hasn't loaded your key yet, paste it here to test immediately.")
+        manual_key = st.text_input("RentCast API Key Override", type="password")
+
+    if rc_col2.button("Fetch Live Data", use_container_width=True):
+        if not search_address or search_address.strip() == "":
+            st.warning("Please enter a valid property address before fetching.")
+        else:
+            rentcast_key = manual_key or os.environ.get("RENTCAST_API_KEY") or st.secrets.get("RENTCAST_API_KEY", "")
+            if rentcast_key:
+                try:
+                    with st.spinner("Fetching live data from RentCast MLS..."):
+                        api_url = "https://api.rentcast.io/v1/properties"
+                        querystring = {"address": search_address.strip()}
+                        headers = {"X-Api-Key": rentcast_key.strip(), "accept": "application/json"}
+                        response = requests.get(api_url, headers=headers, params=querystring)
+                        if response.status_code == 200:
+                            data = response.json()
+                            st.session_state.raw_api_data = data 
+                            if isinstance(data, list) and len(data) > 0:
+                                prop = data[0]
+                                fetched_sf = prop.get("squareFootage")
+                                fetched_price = prop.get("price") or prop.get("lastSalePrice")
+                                fetched_addr = prop.get("formattedAddress")
+                                if not fetched_price:
+                                    try:
+                                        avm_url = "https://api.rentcast.io/v1/avm/value"
+                                        avm_res = requests.get(avm_url, headers=headers, params={"address": fetched_addr or search_address})
+                                        if avm_res.status_code == 200:
+                                            fetched_price = avm_res.json().get("price")
+                                    except: pass
+                                if fetched_price: st.session_state.comp_price = int(fetched_price)
+                                if fetched_sf: st.session_state.comp_heated_sf = int(fetched_sf)
+                                if fetched_addr: st.session_state.comp_address = str(fetched_addr)
+                                st.success(f"Property successfully imported: {st.session_state.comp_address}")
+                                st.rerun()
+                        else:
+                            st.error(f"RentCast API Error {response.status_code}.")
+                except Exception as e:
+                    st.error(f"Error fetching data: {e}")
+
+st.markdown("##### 1. Primary Comp Metrics")
+col_addr, col_price, col_hsf = st.columns([2, 1, 1])
+
+if comp_entry_mode == "RentCast Live API Fetch":
+    comp_address = col_addr.text_input("Comparable Property Address", value=st.session_state.comp_address, disabled=True)
+    comp_price = col_price.number_input("Comp Sale Price ($)", value=st.session_state.comp_price, disabled=True)
+    comp_heated_sf = col_hsf.number_input("Comp Heated SF", value=st.session_state.comp_heated_sf, disabled=True)
+else:
+    comp_address = col_addr.text_input("Comparable Property Address", value=st.session_state.comp_address, placeholder="e.g. 16144 South Bud Broussard Road, Prairieville, LA")
+    comp_price = col_price.number_input("Comp Sale Price ($)", value=st.session_state.comp_price, step=1000, format="%d")
+    comp_heated_sf = col_hsf.number_input("Comp Heated SF", value=st.session_state.comp_heated_sf, step=50, format="%d")
+    st.session_state.comp_price = comp_price
+    st.session_state.comp_heated_sf = comp_heated_sf
+    st.session_state.comp_address = comp_address
+
+st.markdown("##### 2. Comp Auxiliary Spaces (Always Editable)")
+c_aux1, c_aux2, c_aux3, c_aux4 = st.columns(4)
+comp_struct_sf = c_aux1.number_input("Comp Aux. SF (Garage/Carport)", value=200, step=25, format="%d")
+comp_front_sf = c_aux2.number_input("Comp Front Porch SF", value=60, step=10, format="%d")
+comp_back_sf = c_aux3.number_input("Comp Back Porch SF", value=120, step=10, format="%d")
+comp_storage_sf = c_aux4.number_input("Comp Storage Room SF", value=40, step=5, format="%d")
 
 
 # ==========================================
@@ -239,9 +204,7 @@ if comp_address:
 else:
     st.caption(f"📊 Isolated Heated Rate: **${isolated_heated_rate:.2f} / SF** *(Raw Price/SF: ${raw_comp_price_sf:.2f})*")
 
-# 1. MODULAR TAKEOUT APPRAISAL METHODOLOGY
 with cont_appraisal:
-    st.subheader("3. Takeout Appraisal Methodology")
     appraisal_mode = st.radio("Valuation Mode", ["Sales Comp (Price/SF)", "Income Approach (GRM)"])
     if appraisal_mode == "Income Approach (GRM)":
         target_grm = st.number_input("Gross Rent Multiplier (GRM)", min_value=4.0, max_value=25.0, value=10.5, step=0.1)
@@ -253,13 +216,8 @@ with cont_appraisal:
         arv_per_unit = appraised_heated_value + our_aux_cost_total
         st.success(f"📈 **Calculated Unit ARV (Sales Comp):** ${arv_per_unit:,.0f}")
 
-# 2. MODULAR COST TARGET MODE
 with cont_target:
-    st.subheader("4. Cost Target Mode (Reverse Engineer)")
-    cost_calc_mode = st.radio(
-        "Calculation Logic", 
-        ["Manual Set (Heated SF)", "Reverse-Engineer from Appraisal"]
-    )
+    cost_calc_mode = st.radio("Calculation Logic", ["Manual Set (Heated SF)", "Reverse-Engineer from Appraisal"])
     if cost_calc_mode == "Manual Set (Heated SF)":
         base_direct_cost_sf = st.slider("Direct Build Cost / SF ($)", min_value=40.0, max_value=150.0, value=74.0, step=1.0)
         target_heated_hard_cost = base_direct_cost_sf * sqft
@@ -280,27 +238,112 @@ with cont_target:
 
 st.divider()
 
-# --- MATH AUDIT & RAW DATA PANEL ---
-with st.expander("🧮 View Comp Math Audit & Raw API Data", expanded=False):
-    st.markdown("#### The Math Breakdown")
-    st.markdown("**1. Raw Retail Heated Rate (Unadjusted)**")
-    st.code(f"${comp_price:,.0f} (Sale Price) ÷ {comp_heated_sf:,.0f} (Heated SF) = ${raw_comp_price_sf:.2f} / SF")
-    
-    st.markdown("**2. True Isolated Heated Shell Rate (Value-Add Extraction)**")
-    st.code(f"(${comp_price:,.0f} - ${comp_aux_value:,.0f} Aux Value) ÷ {comp_heated_sf:,.0f} SF = ${isolated_heated_rate:.2f} / SF")
-    
-    st.markdown("**Total Under-Roof Calculation:**")
-    st.caption(f"• {comp_heated_sf} SF (Heated)\n\n• {comp_struct_sf} SF (Garage/Carport)\n\n• {comp_front_sf} SF (Front Porch)\n\n• {comp_back_sf} SF (Back Porch)\n\n• {comp_storage_sf} SF (Storage Room)\n\n**= {comp_total_sf} Total SF**")
+# --- PRE-LEDGER MATH & LEDGER EVALUATION ---
+total_under_roof_sqft = sqft + struct_sqft + front_porch_sqft + back_porch_sqft + storage_sqft
+heated_hard_cost = sqft * direct_cost_sf
 
-    if st.session_state.raw_api_data and comp_entry_mode == "RentCast Live API Fetch":
-        st.divider()
-        st.markdown("#### 🔍 Raw RentCast API Feed")
-        st.json(st.session_state.raw_api_data)
+blended_cost_per_sf = (heated_hard_cost + our_aux_cost_total) / total_under_roof_sqft if total_under_roof_sqft > 0 else 0
+total_hard_cost = target_total_hard_cost * units if cost_calc_mode == "Reverse-Engineer from Appraisal" else (heated_hard_cost + our_aux_cost_total) * units
+total_arv = arv_per_unit * units
+loan_total = total_arv * refi_ltv
+
+default_gcond = total_hard_cost * 0.05
+fee_basis = total_hard_cost + default_gcond
+default_gc_fee = custom_gc_fee if gc_fee_mode == "Consolidated Flat Fee ($ Total)" else fee_basis * gc_fee_pct
+default_premium = total_hard_cost * 0.05
+total_land_default = land_basis * units
+default_soft_cost_per_unit = 5500
+total_soft_default = default_soft_cost_per_unit * units
+
+total_const_default = fee_basis + default_gc_fee + default_premium
+total_project_costs_ex_interest_default = total_land_default + total_const_default + total_soft_default + const_closing_fee
+construction_loan_limit_default = total_project_costs_ex_interest_default * const_ltv
+default_carry_int = construction_loan_limit_default * avg_draw_pct * const_rate * (build_months / 12.0)
+default_buydown_cost = loan_total * (buydown_pts / 100.0) if apply_buydown else 0
+
+# Initial default assumption for ledger totals
+gcond = default_gcond
+gc_fee = default_gc_fee
+premium = default_premium
+total_land = total_land_default
+total_soft_costs = total_soft_default
+final_const_closing = const_closing_fee
+carry_int = default_carry_int
+final_refi_closing = refi_closing_fee
+total_buydown_cost = default_buydown_cost
+
+total_const = total_hard_cost + gcond + gc_fee + premium
+total_project_costs_ex_interest = total_land + total_const + total_soft_costs + final_const_closing
+total_project_basis = total_project_costs_ex_interest + carry_int + final_refi_closing + total_buydown_cost
+
+monthly_interest_rate = net_refi_rate / 12.0
+total_payments = refi_term_years * 12
+if monthly_interest_rate > 0:
+    monthly_pi_per_unit = loan_total / units * (monthly_interest_rate * (1 + monthly_interest_rate)**total_payments) / ((1 + monthly_interest_rate)**total_payments - 1)
+else:
+    monthly_pi_per_unit = (loan_total / units) / total_payments if total_payments > 0 else 0
+
+total_monthly_pi = monthly_pi_per_unit * units
+total_gross_monthly_income = gross_monthly_rent * units
+monthly_vacancy_loss = total_gross_monthly_income * vacancy_rate
+annual_vacancy_loss = monthly_vacancy_loss * 12.0
+effective_gross_monthly_income = total_gross_monthly_income - monthly_vacancy_loss
+annual_egi = effective_gross_monthly_income * 12.0
+annual_opex = annual_egi * opex_rate
+annual_noi = annual_egi - annual_opex
+monthly_noi = annual_noi / 12.0
+
+annual_debt_service = total_monthly_pi * 12.0
+actual_dscr = annual_noi / annual_debt_service if annual_debt_service > 0 else 0
+monthly_cash_flow = monthly_noi - total_monthly_pi
+dscr_variance = actual_dscr - target_dscr_rate
+
+cash_surplus = loan_total - total_project_basis
+retained_equity = total_arv - loan_total
+day1_wealth = gc_fee + max(0, cash_surplus) + retained_equity
+
+
+# ==========================================
+# --- TOP EXECUTIVE METRICS & DASHBOARD ---
+# ==========================================
+st.markdown("### 🏗️ Project Capital & Valuation Metrics")
+col1, col2, col3, col4 = st.columns(4)
+col1.metric("Takeout Loan Proceeds", f"${loan_total:,.0f}", f"{refi_ltv*100:.0f}% LTV")
+if cash_surplus >= 0:
+    deal_health_color = "normal" 
+    surplus_title = "Tax-Free Cash Surplus"
+    surplus_delta = "Capital Recovered"
+else:
+    deal_health_color = "inverse" 
+    surplus_title = "Trapped Seed Capital"
+    surplus_delta = "Loss at Closing"
+col2.metric("Total Project Basis", f"${total_project_basis:,.0f}", f"${total_project_basis/units:,.0f} per door", delta_color=deal_health_color)
+col3.metric("Under-Roof Blended Cost", f"${blended_cost_per_sf:.2f} / SF", f"{total_under_roof_sqft:,} Total SF Under Roof")
+col4.metric(surplus_title, f"${cash_surplus:,.0f}", surplus_delta, delta_color=deal_health_color)
+
+st.markdown("### 🏢 Operating & DSCR Metrics")
+op1, op2, op3, op4 = st.columns(4)
+arv_label = "Derived Unit ARV (Price/SF)" if appraisal_mode == "Sales Comp (Price/SF)" else "Derived Unit ARV (GRM)"
+op1.metric(arv_label, f"${arv_per_unit:,.0f}", f"${total_arv:,.0f} Total ARV")
+op2.metric("Actual DSCR Rate", f"{actual_dscr:.2f}x", f"Target: {target_dscr_rate:.2f}x", delta_color="normal" if actual_dscr >= target_dscr_rate else "inverse")
+op3.metric("Monthly Cash Flow", f"${monthly_cash_flow:,.0f} /mo", f"${monthly_cash_flow*12:,.0f} Annual", delta_color="normal" if monthly_cash_flow >= 0 else "inverse")
+op4.metric("Monthly P&I Payment", f"${total_monthly_pi:,.0f} /mo", f"{refi_term_years}Yr @ {net_refi_rate*100:.3f}%")
+
+st.markdown("### 🚦 Go/No-Go Investment Decision Dashboard")
+dscr_pass = actual_dscr >= target_dscr_rate
+cash_pass = cash_surplus >= 0
+dscr_light = "🟢 GREEN LIGHT" if dscr_pass else "🔴 RED LIGHT"
+cash_light = "🟢 GREEN LIGHT" if cash_pass else "🔴 RED LIGHT"
+
+dash_col1, dash_col2, dash_col3 = st.columns(3)
+dash_col1.metric("DSCR Underwriting Status", dscr_light, f"Actual: {actual_dscr:.2f}x (Target: {target_dscr_rate:.2f}x)", delta_color="normal" if dscr_pass else "inverse")
+dash_col2.metric("Capital Recovery Status", cash_light, f"${cash_surplus:,.0f} at Refi Close", delta_color="normal" if cash_pass else "inverse")
+dash_col3.metric("Day-1 Wealth Creation", f"${day1_wealth:,.0f}", f"${day1_wealth/units:,.0f} per door", delta_color="normal")
 
 st.divider()
 
 
-# --- RAW GRANULAR DATA ---
+# --- GRANULAR HARD COST BUILDUP ---
 raw_heated_divs = [
     ("DIVISION 1: FOUNDATION & CONCRETE", 9.50, True, ""),
     ("  - Dirtwork, Pad Prep & Formwork", 1.50, False, "Laser leveling, select fill compaction, 2x12 perimeter form boards."),
@@ -356,9 +399,7 @@ raw_struct_divs = [
     ("  - Paint & Column Wrap", 1.50, False)
 ]
 
-# --- GRANULAR HARD COST BUILDUP ---
 st.markdown("### 🧱 Granular Direct Hard Cost Buildup (Trade Divisions)")
-
 granular_mode = st.radio("Buildup Entry Mode", ["Auto-Proportional (Linked to Master Model)", "Manual Custom Entry (Bottom-Up)"], horizontal=True)
 
 pdf_granular_data = []
@@ -416,16 +457,6 @@ st.dataframe(pd.DataFrame(p_data), hide_index=True, use_container_width=True)
 st.divider()
 
 
-# --- PRE-LEDGER MATH (Direct Hard Costs) ---
-total_under_roof_sqft = sqft + struct_sqft + front_porch_sqft + back_porch_sqft + storage_sqft
-heated_hard_cost = sqft * direct_cost_sf
-
-blended_cost_per_sf = (heated_hard_cost + our_aux_cost_total) / total_under_roof_sqft if total_under_roof_sqft > 0 else 0
-total_hard_cost = target_total_hard_cost * units if cost_calc_mode == "Reverse-Engineer from Appraisal" else (heated_hard_cost + our_aux_cost_total) * units
-total_arv = arv_per_unit * units
-loan_total = total_arv * refi_ltv
-
-
 # --- DYNAMIC LEDGER UI ---
 st.markdown("### 📊 Detailed Construction Cost & Capital Ledger")
 ledger_mode = st.radio("Ledger Input Mode", ["Sync with Global Parameters", "Manual Ledger Override"], horizontal=True)
@@ -439,22 +470,7 @@ direct_data = {
 }
 st.dataframe(pd.DataFrame(direct_data).style.format({"Total Amount ($)": "${:,.0f}"}), hide_index=True, use_container_width=True)
 
-
 st.markdown("#### 2. Indirect, Land & Capital Costs")
-default_gcond = total_hard_cost * 0.05
-fee_basis = total_hard_cost + default_gcond
-default_gc_fee = custom_gc_fee if gc_fee_mode == "Consolidated Flat Fee ($ Total)" else fee_basis * gc_fee_pct
-default_premium = total_hard_cost * 0.05
-total_land_default = land_basis * units
-default_soft_cost_per_unit = 5500
-total_soft_default = default_soft_cost_per_unit * units
-
-total_const_default = fee_basis + default_gc_fee + default_premium
-total_project_costs_ex_interest_default = total_land_default + total_const_default + total_soft_default + const_closing_fee
-construction_loan_limit_default = total_project_costs_ex_interest_default * const_ltv
-default_carry_int = construction_loan_limit_default * avg_draw_pct * const_rate * (build_months / 12.0)
-default_buydown_cost = loan_total * (buydown_pts / 100.0) if apply_buydown else 0
-
 indirects_data = [
     {"Cost Category": "General Conditions", "Metric / Basis": "5.0% of Direct", "Amount ($)": default_gcond},
     {"Cost Category": "GC Management Fee", "Metric / Basis": "Flat Fee" if gc_fee_mode == "Consolidated Flat Fee ($ Total)" else f"{gc_fee_pct*100:.1f}% Basis", "Amount ($)": default_gc_fee},
@@ -488,15 +504,6 @@ if ledger_mode == "Manual Ledger Override":
     total_buydown_cost = edited_df.loc[8, "Amount ($)"]
 else:
     st.dataframe(df_indirects.style.format({"Amount ($)": "${:,.0f}"}), hide_index=True, use_container_width=True)
-    gcond = default_gcond
-    gc_fee = default_gc_fee
-    premium = default_premium
-    total_land = total_land_default
-    total_soft_costs = total_soft_default
-    final_const_closing = const_closing_fee
-    carry_int = default_carry_int
-    final_refi_closing = refi_closing_fee
-    total_buydown_cost = default_buydown_cost
 
 total_const = total_hard_cost + gcond + gc_fee + premium
 total_project_costs_ex_interest = total_land + total_const + total_soft_costs + final_const_closing
@@ -506,183 +513,59 @@ st.markdown(f"### 🎯 TOTAL PROJECT BASIS: **${total_project_basis:,.0f}** *(${
 st.divider()
 
 
-# --- POST-LEDGER OPERATIONS & DSCR CALCULATIONS ---
-monthly_interest_rate = net_refi_rate / 12.0
-total_payments = refi_term_years * 12
-if monthly_interest_rate > 0:
-    monthly_pi_per_unit = loan_total / units * (monthly_interest_rate * (1 + monthly_interest_rate)**total_payments) / ((1 + monthly_interest_rate)**total_payments - 1)
-else:
-    monthly_pi_per_unit = (loan_total / units) / total_payments if total_payments > 0 else 0
-
-total_monthly_pi = monthly_pi_per_unit * units
-total_gross_monthly_income = gross_monthly_rent * units
-monthly_vacancy_loss = total_gross_monthly_income * vacancy_rate
-annual_vacancy_loss = monthly_vacancy_loss * 12.0
-effective_gross_monthly_income = total_gross_monthly_income - monthly_vacancy_loss
-annual_egi = effective_gross_monthly_income * 12.0
-annual_opex = annual_egi * opex_rate
-annual_noi = annual_egi - annual_opex
-monthly_noi = annual_noi / 12.0
-
-annual_debt_service = total_monthly_pi * 12.0
-actual_dscr = annual_noi / annual_debt_service if annual_debt_service > 0 else 0
-monthly_cash_flow = monthly_noi - total_monthly_pi
-dscr_variance = actual_dscr - target_dscr_rate
-
-cash_surplus = loan_total - total_project_basis
-retained_equity = total_arv - loan_total
-day1_wealth = gc_fee + max(0, cash_surplus) + retained_equity
-
-
-# --- UI CONTAINERS INITIALIZATION ---
-ui_top_metrics = st.container()
-ui_op_metrics = st.container()
-
-
-# ==========================================
-# --- GO/NO-GO INVESTMENT DECISION DASHBOARD ---
-# ==========================================
-st.markdown("### 🚦 Go/No-Go Investment Decision Dashboard")
-
-dscr_pass = actual_dscr >= target_dscr_rate
-cash_pass = cash_surplus >= 0
-
-dscr_light = "🟢 GREEN LIGHT" if dscr_pass else "🔴 RED LIGHT"
-cash_light = "🟢 GREEN LIGHT" if cash_pass else "🔴 RED LIGHT"
-
-dash_col1, dash_col2, dash_col3 = st.columns(3)
-
-dash_col1.metric(
-    "DSCR Underwriting Status", 
-    dscr_light, 
-    f"Actual: {actual_dscr:.2f}x (Target: {target_dscr_rate:.2f}x)",
-    delta_color="normal" if dscr_pass else "inverse"
-)
-
-dash_col2.metric(
-    "Capital Recovery Status", 
-    cash_light, 
-    f"${cash_surplus:,.0f} at Refi Close",
-    delta_color="normal" if cash_pass else "inverse"
-)
-
-dash_col3.metric(
-    "Day-1 Wealth Creation", 
-    f"${day1_wealth:,.0f}", 
-    f"${day1_wealth/units:,.0f} per door",
-    delta_color="normal"
-)
-
-st.divider()
-
-
-# --- RENDER TOP METRICS ---
-with ui_top_metrics:
-    st.markdown("### 🏗️ Project Capital & Valuation Metrics")
-    col1, col2, col3, col4 = st.columns(4)
-    col1.metric("Takeout Loan Proceeds", f"${loan_total:,.0f}", f"{refi_ltv*100:.0f}% LTV")
-    if cash_surplus >= 0:
-        deal_health_color = "normal" 
-        surplus_title = "Tax-Free Cash Surplus"
-        surplus_delta = "Capital Recovered"
-    else:
-        deal_health_color = "inverse" 
-        surplus_title = "Trapped Seed Capital"
-        surplus_delta = "Loss at Closing"
-    col2.metric("Total Project Basis", f"${total_project_basis:,.0f}", f"${total_project_basis/units:,.0f} per door", delta_color=deal_health_color)
-    col3.metric("Under-Roof Blended Cost", f"${blended_cost_per_sf:.2f} / SF", f"{total_under_roof_sqft:,} Total SF Under Roof")
-    col4.metric(surplus_title, f"${cash_surplus:,.0f}", surplus_delta, delta_color=deal_health_color)
-
-with ui_op_metrics:
-    st.markdown("### 🏢 Operating & DSCR Metrics")
-    op1, op2, op3, op4 = st.columns(4)
-    arv_label = "Derived Unit ARV (Price/SF)" if appraisal_mode == "Sales Comp (Price/SF)" else "Derived Unit ARV (GRM)"
-    op1.metric(arv_label, f"${arv_per_unit:,.0f}", f"${total_arv:,.0f} Total ARV")
-    op2.metric("Actual DSCR Rate", f"{actual_dscr:.2f}x", f"Target: {target_dscr_rate:.2f}x", delta_color="normal" if actual_dscr >= target_dscr_rate else "inverse")
-    op3.metric("Monthly Cash Flow", f"${monthly_cash_flow:,.0f} /mo", f"${monthly_cash_flow*12:,.0f} Annual", delta_color="normal" if monthly_cash_flow >= 0 else "inverse")
-    op4.metric("Monthly P&I Payment", f"${total_monthly_pi:,.0f} /mo", f"{refi_term_years}Yr @ {net_refi_rate*100:.3f}%")
-
-st.divider()
-
-# --- REVERSE ENGINEERING BREAKDOWN ---
+# --- REVERSE ENGINEERING BREAKDOWN & BOTTOM SECTIONS ---
 if cost_calc_mode == "Reverse-Engineer from Appraisal":
     st.markdown("### 🔄 Retail Appraisal Reverse-Engineering Breakdown")
     st.caption(f"Extracting true Heated Construction budget by applying custom standard deductions to your Appraised Unit Value of **${arv_per_unit:,.0f}**, and isolating fixed auxiliary costs.")
     breakdown_data = {
         "Cost Category": [
-            f"Target Appraised Value (ARV) per Unit",
-            "(-) Finished Lot Cost",
-            "(-) Gross Margin (O&P)",
-            "(-) Sales & Marketing",
-            "(-) Soft Costs & Finance",
-            "= Total Hard Cost Budget",
-            "(-) Fixed Auxiliary Costs (Carport/Porches/Storage)",
-            "= Available Budget for Heated Shell"
+            f"Target Appraised Value (ARV) per Unit", "(-) Finished Lot Cost", "(-) Gross Margin (O&P)", 
+            "(-) Sales & Marketing", "(-) Soft Costs & Finance", "= Total Hard Cost Budget", 
+            "(-) Fixed Auxiliary Costs (Carport/Porches/Storage)", "= Available Budget for Heated Shell"
         ],
         "Value ($)": [
-            f"${arv_per_unit:,.0f}",
-            f"-${arv_per_unit * lot_cost_pct:,.0f}",
-            f"-${arv_per_unit * margin_pct:,.0f}",
-            f"-${arv_per_unit * sales_pct:,.0f}",
-            f"-${arv_per_unit * finance_pct:,.0f}",
-            f"${target_total_hard_cost:,.0f}",
-            f"-${our_aux_cost_total:,.0f}",
-            f"${target_heated_hard_cost:,.0f}"
-        ],
-        "Description": [
-            "Based on your selected Appraisal Methodology.",
-            "Raw land, engineering, road paving, wet/dry utility infrastructure.",
-            "Builder gross overhead and corporate net margin.",
-            "Realtor commissions, internal sales reps, buyer closing concessions.",
-            "Impact fees, plan design, municipal permits, and loan interest carry.",
-            "Total budget available for all physical construction.",
-            "Locked budget required for your specific outdoor/auxiliary footprint.",
-            f"Yields exactly ${base_direct_cost_sf:.2f} / SF across {sqft} Heated SF."
+            f"${arv_per_unit:,.0f}", f"-${arv_per_unit * lot_cost_pct:,.0f}", f"-${arv_per_unit * margin_pct:,.0f}", 
+            f"-${arv_per_unit * sales_pct:,.0f}", f"-${arv_per_unit * finance_pct:,.0f}", f"${target_total_hard_cost:,.0f}", 
+            f"-${our_aux_cost_total:,.0f}", f"${target_heated_hard_cost:,.0f}"
         ]
     }
     st.dataframe(pd.DataFrame(breakdown_data), hide_index=True, use_container_width=True)
     st.divider()
 
+st.markdown("### 💰 Day-1 Wealth Creation")
+wealth_data = {
+    "Pocket Component": ["Pocket 1: Active GC Fee Revenue", "Pocket 2: Tax-Free Cash Surplus at Close", "Pocket 3: Retained Asset Equity", "TOTAL DAY-1 CREATED VALUE"],
+    "Value ($)": [gc_fee, cash_surplus, retained_equity, day1_wealth]
+}
+df_wealth = pd.DataFrame(wealth_data)
+df_wealth['Value ($)'] = df_wealth['Value ($)'].apply(lambda x: f"${x:,.0f}")
+st.dataframe(df_wealth, hide_index=True, use_container_width=True)
 
-# --- WEALTH & DSCR SECTIONS ---
-ui_wealth = st.container()
-with ui_wealth:
-    st.markdown("### 💰 Day-1 Wealth Creation")
-    wealth_data = {
-        "Pocket Component": ["Pocket 1: Active GC Fee Revenue", "Pocket 2: Tax-Free Cash Surplus at Close", "Pocket 3: Retained Asset Equity", "TOTAL DAY-1 CREATED VALUE"],
-        "Value ($)": [gc_fee, cash_surplus, retained_equity, day1_wealth]
-    }
-    df_wealth = pd.DataFrame(wealth_data)
-    df_wealth['Value ($)'] = df_wealth['Value ($)'].apply(lambda x: f"${x:,.0f}")
-    st.dataframe(df_wealth, hide_index=True, use_container_width=True)
+if cash_surplus >= 0:
+    st.success(f"**Infinite Cash-on-Cash Return Achieved:** You have recovered 100% of your seed capital plus an additional ${cash_surplus:,.0f} in liquid cash.")
+else:
+    st.error(f"**Capital Trapped:** You are leaving ${abs(cash_surplus):,.0f} of your seed capital in the deal to close the takeout loan.")
+st.divider()
 
-    if cash_surplus >= 0:
-        st.success(f"**Infinite Cash-on-Cash Return Achieved:** You have recovered 100% of your seed capital plus an additional ${cash_surplus:,.0f} in liquid cash.")
-    else:
-        st.error(f"**Capital Trapped:** You are leaving ${abs(cash_surplus):,.0f} of your seed capital in the deal to close the takeout loan. Try lowering your Direct Build Cost / SF or reducing the construction timeline.")
-    st.divider()
-
-ui_dscr = st.container()
-with ui_dscr:
-    st.markdown("### 🏢 Operating Performance Summary")
-    dscr_summary_data = {
-        "Pro Forma Line Item": [
-            "Gross Potential Rent (GPR)", f"(-) Vacancy Loss @ {vacancy_rate*100:.1f}%", "= Effective Gross Income (EGI)", 
-            f"(-) Operating Expenses (OpEx) @ {opex_rate*100:.1f}%", "= Net Operating Income (NOI)", "(-) Total Debt Service (P&I)", "= Net Cash Flow",
-            "---", "Actual DSCR Rate", "Target Lender DSCR", "DSCR Variance"
-        ],
-        "Monthly": [
-            f"${total_gross_monthly_income:,.2f}", f"-${monthly_vacancy_loss:,.2f}", f"${annual_egi / 12:,.2f}", 
-            f"-${annual_opex / 12:,.2f}", f"${monthly_noi:,.2f}", f"-${total_monthly_pi:,.2f}", f"${monthly_cash_flow:,.2f}",
-            "---", f"{actual_dscr:.2f}x", f"{target_dscr_rate:.2f}x", f"{dscr_variance:+.2f}x"
-        ],
-        "Annual": [
-            f"${total_gross_monthly_income * 12:,.2f}", f"-${annual_vacancy_loss:,.2f}", f"${annual_egi:,.2f}", 
-            f"-${annual_opex:,.2f}", f"${annual_noi:,.2f}", f"${annual_debt_service:,.2f}", f"${monthly_cash_flow * 12:,.2f}",
-            "---", f"{actual_dscr:.2f}x", f"{target_dscr_rate:.2f}x", f"{dscr_variance:+.2f}x"
-        ]
-    }
-    st.dataframe(pd.DataFrame(dscr_summary_data), hide_index=True, use_container_width=True)
+st.markdown("### 🏢 Operating Performance Summary")
+dscr_summary_data = {
+    "Pro Forma Line Item": [
+        "Gross Potential Rent (GPR)", f"(-) Vacancy Loss @ {vacancy_rate*100:.1f}%", "= Effective Gross Income (EGI)", 
+        f"(-) Operating Expenses (OpEx) @ {opex_rate*100:.1f}%", "= Net Operating Income (NOI)", "(-) Total Debt Service (P&I)", "= Net Cash Flow",
+        "---", "Actual DSCR Rate", "Target Lender DSCR", "DSCR Variance"
+    ],
+    "Monthly": [
+        f"${total_gross_monthly_income:,.2f}", f"-${monthly_vacancy_loss:,.2f}", f"${annual_egi / 12:,.2f}", 
+        f"-${annual_opex / 12:,.2f}", f"${monthly_noi:,.2f}", f"-${total_monthly_pi:,.2f}", f"${monthly_cash_flow:,.2f}",
+        "---", f"{actual_dscr:.2f}x", f"{target_dscr_rate:.2f}x", f"{dscr_variance:+.2f}x"
+    ],
+    "Annual": [
+        f"${total_gross_monthly_income * 12:,.2f}", f"-${annual_vacancy_loss:,.2f}", f"${annual_egi:,.2f}", 
+        f"-${annual_opex / 12:,.2f}", f"${annual_noi:,.2f}", f"${annual_debt_service:,.2f}", f"${monthly_cash_flow * 12:,.2f}",
+        "---", f"{actual_dscr:.2f}x", f"{target_dscr_rate:.2f}x", f"{dscr_variance:+.2f}x"
+    ]
+}
+st.dataframe(pd.DataFrame(dscr_summary_data), hide_index=True, use_container_width=True)
 
 
 # --- PDF GENERATION ENGINE ---
