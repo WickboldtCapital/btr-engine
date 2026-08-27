@@ -1,11 +1,23 @@
 import streamlit as st
 import pandas as pd
+from fpdf import FPDF
+import tempfile
+from datetime import datetime
 
 # Page Configuration
 st.set_page_config(page_title="Wickboldt Capital | BTR Pro Forma Engine", layout="wide")
 
 st.title("🏗️ BTR Pro Forma Engine")
 st.markdown("### Wickboldt Capital — *Today's Foundation. Tomorrow's Legacy.*")
+st.divider()
+
+# --- PROJECT IDENTIFICATION ---
+st.markdown("### 📋 Project Information")
+colA, colB = st.columns(2)
+project_name = colA.text_input("Project Title", placeholder="e.g. Phase 1 - 24-Lot Build-to-Rent")
+project_address = colB.text_input("Project Address", placeholder="e.g. Rogers Moore Parkway, Hammond, LA")
+report_date = datetime.now().strftime("%B %d, %Y")
+
 st.divider()
 
 # --- SIDEBAR: MASTER MODEL DRIVERS ---
@@ -21,7 +33,7 @@ if opt_gc:
 st.sidebar.subheader("Construction Costs (Heated Area)")
 sqft = st.sidebar.number_input("Heated SqFt per Unit", value=1150, step=50, format="%d")
 
-# NEW: Reverse-Engineer Cost Mode
+# Reverse-Engineer Cost Mode
 cost_calc_mode = st.sidebar.radio("Cost Calculation Mode", ["Manual Set (Heated SF)", "Reverse-Engineer (Target Blended SF)"])
 
 if cost_calc_mode == "Manual Set (Heated SF)":
@@ -29,7 +41,7 @@ if cost_calc_mode == "Manual Set (Heated SF)":
     target_blended = 0.0
 else:
     target_blended = st.sidebar.number_input("Target Blended Cost / SF ($)", value=65.0, step=1.0)
-    direct_cost_sf = 0.0 # Will calculate dynamically in core calculations
+    direct_cost_sf = 0.0 
     st.sidebar.caption("The Heated Build Cost / SF will be back-solved to hit this overall blended rate target.")
 
 st.sidebar.subheader("Auxiliary Structure (Carport / Garage)")
@@ -65,7 +77,6 @@ buydown_pts = 0.0
 net_refi_rate = base_refi_rate
 
 if apply_buydown:
-    # 1 Point = 1% of Loan Amount Cost = 0.25% Rate Reduction
     buydown_pts = st.sidebar.number_input("Discount Points (1 pt = 1% of Loan)", min_value=0.0, max_value=5.0, value=2.0, step=0.5)
     rate_reduction = buydown_pts * 0.0025  
     net_refi_rate = max(0.01, base_refi_rate - rate_reduction)
@@ -87,7 +98,6 @@ soft_costs = st.sidebar.number_input("Soft Costs per Unit ($)", value=5500, step
 st.markdown("### 🔍 Market Comp Blended Cost & Valuation Benchmark")
 st.markdown("Input market comparable data below to evaluate blended under-roof costs. This comp valuation automatically drives the project's Appraised Value (ARV).")
 
-# NEW: Comp Address Input
 comp_address = st.text_input("Comparable Property Address (Optional)", placeholder="e.g. 16144 South Bud Broussard Road, Prairieville, LA")
 
 cc_col1, cc_col2, cc_col3, cc_col4, cc_col5 = st.columns(5)
@@ -109,7 +119,6 @@ front_porch_cost = front_porch_sqft * front_porch_cost_sf
 back_porch_cost = back_porch_sqft * back_porch_cost_sf
 total_under_roof_sqft = sqft + struct_sqft + front_porch_sqft + back_porch_sqft
 
-# Reverse-Engineer Logic for Direct Cost / SF
 if cost_calc_mode == "Reverse-Engineer (Target Blended SF)":
     target_hard_cost = target_blended * total_under_roof_sqft
     heated_hard_cost = target_hard_cost - struct_total_cost - front_porch_cost - back_porch_cost
@@ -123,14 +132,10 @@ else:
 hard_cost_per_unit = heated_hard_cost + struct_total_cost + front_porch_cost + back_porch_cost
 total_hard_cost = hard_cost_per_unit * units
 
-# Appraised Value (ARV) derived from Comp's blended cost per SF
 arv_per_unit = comp_blended_cost * total_under_roof_sqft
 total_arv = arv_per_unit * units
 
-# Refinance Loan and P&I Calculations
 loan_total = total_arv * refi_ltv
-
-# 1 Point = 1% of Loan Amount
 total_buydown_cost = loan_total * (buydown_pts / 100.0) if apply_buydown else 0
 
 monthly_interest_rate = net_refi_rate / 12.0
@@ -142,7 +147,6 @@ else:
 
 total_monthly_pi = monthly_pi_per_unit * units
 
-# DSCR & Operating Calculations
 total_gross_monthly_income = gross_monthly_rent * units
 effective_gross_monthly_income = total_gross_monthly_income * (1.0 - vacancy_rate)
 annual_egi = effective_gross_monthly_income * 12.0
@@ -154,7 +158,6 @@ annual_debt_service = total_monthly_pi * 12.0
 actual_dscr = annual_noi / annual_debt_service if annual_debt_service > 0 else 0
 monthly_cash_flow = monthly_noi - total_monthly_pi
 
-# Indirect / Overhead Hard Cost Breakouts
 gcond = total_hard_cost * 0.05
 fee_basis = total_hard_cost + gcond
 
@@ -169,7 +172,6 @@ total_const = fee_basis + gc_fee + premium
 total_soft_costs = soft_costs * units
 total_land = land_basis * units
 
-# Construction Loan sizing and Accrued Interest calculation
 total_project_costs_ex_interest = total_land + total_const + total_soft_costs + const_closing_fee
 construction_loan_limit = total_project_costs_ex_interest * const_ltv
 carry_int = construction_loan_limit * avg_draw_pct * const_rate * (build_months / 12.0)
@@ -179,7 +181,110 @@ cash_surplus = loan_total - total_project_basis
 retained_equity = total_arv - loan_total
 day1_wealth = gc_fee + max(0, cash_surplus) + retained_equity
 
-st.info(f"📊 **Project Benchmarks:** Derived Unit ARV: **${arv_per_unit:,.0f}** | Actual DSCR: **{actual_dscr:.2f}x** (Target: {target_dscr_rate:.2f}x) | Monthly Cash Flow: **${monthly_cash_flow:,.2f}/mo**")
+# --- PDF GENERATION ENGINE ---
+class EnterpriseReport(FPDF):
+    def header(self):
+        self.set_font('Arial', 'B', 16)
+        self.cell(0, 8, 'Wickboldt Capital | BTR Pro Forma Report', border=0, ln=1, align='C')
+        self.set_font('Arial', 'I', 10)
+        self.cell(0, 6, "Today's Foundation. Tomorrow's Legacy.", border=0, ln=1, align='C')
+        self.line(10, 25, 200, 25)
+        self.ln(10)
+
+    def footer(self):
+        self.set_y(-15)
+        self.set_font('Arial', 'I', 8)
+        self.cell(0, 10, f'Page {self.page_no()} | Prepared by: Stephen Wickboldt Jr. - Wickboldt Capital', 0, 0, 'C')
+
+def create_pdf():
+    pdf = EnterpriseReport()
+    pdf.add_page()
+    
+    # Project Info
+    pdf.set_font("Arial", 'B', 12)
+    p_name = project_name if project_name else "Untitled Development"
+    p_address = project_address if project_address else "TBD"
+    pdf.cell(0, 6, f"Project: {p_name}", ln=1)
+    pdf.set_font("Arial", '', 10)
+    pdf.cell(0, 6, f"Address: {p_address}", ln=1)
+    pdf.cell(0, 6, f"Scale: {units} Unit(s) | Under-Roof: {total_under_roof_sqft:,} SF/Unit", ln=1)
+    pdf.cell(0, 6, f"Date: {report_date}", ln=1)
+    pdf.ln(5)
+
+    # Section 1: Executive Summary
+    pdf.set_font("Arial", 'B', 12)
+    pdf.set_fill_color(220, 220, 220)
+    pdf.cell(0, 8, " 1. Executive Summary & Wealth Creation", ln=1, fill=True)
+    pdf.set_font("Arial", '', 10)
+    
+    pdf.cell(100, 7, "Total Project Basis:", 0, 0)
+    pdf.cell(90, 7, f"${total_project_basis:,.0f}", 0, 1, 'R')
+    pdf.cell(100, 7, "Total Appraised Value (ARV):", 0, 0)
+    pdf.cell(90, 7, f"${total_arv:,.0f}", 0, 1, 'R')
+    pdf.cell(100, 7, f"Takeout Loan Proceeds ({refi_ltv*100:.0f}% LTV):", 0, 0)
+    pdf.cell(90, 7, f"${loan_total:,.0f}", 0, 1, 'R')
+    
+    surplus_label = "Tax-Free Cash Surplus (At Closing):" if cash_surplus >= 0 else "Trapped Seed Capital (At Closing):"
+    pdf.set_font("Arial", 'B', 10)
+    pdf.cell(100, 7, surplus_label, 0, 0)
+    pdf.cell(90, 7, f"${cash_surplus:,.0f}", 0, 1, 'R')
+    pdf.cell(100, 7, "Total Day-1 Wealth Created:", 0, 0)
+    pdf.cell(90, 7, f"${day1_wealth:,.0f}", 0, 1, 'R')
+    pdf.ln(5)
+
+    # Section 2: Operating & DSCR
+    pdf.set_font("Arial", 'B', 12)
+    pdf.cell(0, 8, " 2. Operating Performance & DSCR", ln=1, fill=True)
+    pdf.set_font("Arial", '', 10)
+    
+    pdf.cell(100, 7, "Monthly Gross Rent:", 0, 0)
+    pdf.cell(90, 7, f"${total_gross_monthly_income:,.2f}", 0, 1, 'R')
+    pdf.cell(100, 7, f"Annual OpEx ({opex_rate*100:.0f}%):", 0, 0)
+    pdf.cell(90, 7, f"${annual_opex:,.2f}", 0, 1, 'R')
+    pdf.cell(100, 7, "Net Operating Income (NOI - Annual):", 0, 0)
+    pdf.cell(90, 7, f"${annual_noi:,.2f}", 0, 1, 'R')
+    pdf.cell(100, 7, "Total Debt Service (P&I - Annual):", 0, 0)
+    pdf.cell(90, 7, f"${annual_debt_service:,.2f}", 0, 1, 'R')
+    
+    pdf.set_font("Arial", 'B', 10)
+    pdf.cell(100, 7, "Actual DSCR Rate:", 0, 0)
+    pdf.cell(90, 7, f"{actual_dscr:.2f}x (Target: {target_dscr_rate:.2f}x)", 0, 1, 'R')
+    pdf.cell(100, 7, "Monthly Net Cash Flow:", 0, 0)
+    pdf.cell(90, 7, f"${monthly_cash_flow:,.2f} /mo", 0, 1, 'R')
+    pdf.ln(5)
+
+    # Section 3: Cost Breakdowns
+    pdf.set_font("Arial", 'B', 12)
+    pdf.cell(0, 8, " 3. Detailed Construction Cost Breakdown", ln=1, fill=True)
+    pdf.set_font("Arial", '', 10)
+    
+    pdf.cell(100, 7, "Total Direct Hard Costs:", 0, 0)
+    pdf.cell(90, 7, f"${total_hard_cost:,.0f}", 0, 1, 'R')
+    pdf.cell(100, 7, "Indirect General Conditions & Premiums:", 0, 0)
+    pdf.cell(90, 7, f"${gcond + premium:,.0f}", 0, 1, 'R')
+    pdf.cell(100, 7, "Consolidated GC Management Fee:", 0, 0)
+    pdf.cell(90, 7, f"${gc_fee:,.0f}", 0, 1, 'R')
+    pdf.cell(100, 7, "Land Acquisition Basis:", 0, 0)
+    pdf.cell(90, 7, f"${total_land:,.0f}", 0, 1, 'R')
+    pdf.cell(100, 7, "Accrued Construction Loan Interest:", 0, 0)
+    pdf.cell(90, 7, f"${carry_int:,.0f}", 0, 1, 'R')
+    pdf.cell(100, 7, "Total Soft Costs & Closing Fees:", 0, 0)
+    pdf.cell(90, 7, f"${total_soft_costs + const_closing_fee + refi_closing_fee + total_buydown_cost:,.0f}", 0, 1, 'R')
+    
+    with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as tmp:
+        pdf.output(tmp.name)
+        with open(tmp.name, "rb") as f:
+            return f.read()
+
+# Render Export Button
+pdf_bytes = create_pdf()
+st.download_button(
+    label="📄 Download Enterprise Report (PDF)",
+    data=pdf_bytes,
+    file_name=f"Wickboldt_Capital_ProForma_{report_date.replace(' ', '_').replace(',', '')}.pdf",
+    mime="application/pdf",
+    type="primary"
+)
 st.divider()
 
 # --- DASHBOARD UI ---
@@ -189,13 +294,12 @@ col1, col2, col3, col4 = st.columns(4)
 
 col1.metric("Takeout Loan Proceeds", f"${loan_total:,.0f}", f"{refi_ltv*100:.0f}% LTV")
 
-# Dynamic Logic for Conditional Coloring
 if cash_surplus >= 0:
-    deal_health_color = "normal"  # Renders as Green
+    deal_health_color = "normal" 
     surplus_title = "Tax-Free Cash Surplus"
     surplus_delta = "Capital Recovered"
 else:
-    deal_health_color = "inverse" # Renders as Red
+    deal_health_color = "inverse" 
     surplus_title = "Trapped Seed Capital"
     surplus_delta = "Loss at Closing"
 
