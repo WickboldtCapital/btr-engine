@@ -310,12 +310,13 @@ with tab_main:
     comp_price = st.session_state.comp_price
     comp_heated_sf = st.session_state.comp_heated_sf
 
-    st.markdown("##### 2. Comp Auxiliary Spaces")
+    st.markdown("##### 2. Comp Auxiliary Spaces (Always Editable)")
     c_aux1, c_aux2, c_aux3, c_aux4 = st.columns(4)
-    comp_struct_sf = c_aux1.number_input("Comp Aux. SF (Garage/Carport)", value=200, disabled=True)
-    comp_front_sf = c_aux2.number_input("Comp Front Porch SF", value=60, disabled=True)
-    comp_back_sf = c_aux3.number_input("Comp Back Porch SF", value=120, disabled=True)
-    comp_storage_sf = c_aux4.number_input("Comp Storage Room SF", value=40, disabled=True)
+    # Removing 'disabled=True' so you can match the specific comp's auxiliary footprint!
+    comp_struct_sf = c_aux1.number_input("Comp Aux. SF (Garage/Carport)", value=200, step=25, format="%d")
+    comp_front_sf = c_aux2.number_input("Comp Front Porch SF", value=60, step=10, format="%d")
+    comp_back_sf = c_aux3.number_input("Comp Back Porch SF", value=120, step=10, format="%d")
+    comp_storage_sf = c_aux4.number_input("Comp Storage Room SF", value=40, step=5, format="%d")
 
 
     # ==========================================
@@ -708,7 +709,7 @@ with tab_main:
         pdf.ln(5)
 
         pdf.set_font("Arial", 'B', 12)
-        pdf.cell(0, 8, " 3. Detailed Construction Cost Breakdown", ln=1, fill=True)
+        pdf.cell(0, 8, " 3. Detailed Construction Cost Breakdown", fill=True, ln=1)
         pdf.set_font("Arial", '', 10)
         
         pdf.cell(100, 7, "Total Direct Hard Costs:", 0, 0)
@@ -740,7 +741,7 @@ with tab_main:
         
         for name, live_sf, unit_cost, proj_cost, is_header in pdf_granular_data:
             if granular_mode == "Auto-Proportional (Linked to Master Model)":
-                if not st.session_state.pdf_include_sublevels and not is_header:
+                if not st.session_state.get("pdf_include_sublevels", True) and not is_header:
                     continue
             if is_header:
                 pdf.set_font("Arial", 'B', 9)
@@ -765,7 +766,7 @@ with tab_main:
         st.markdown("<br>", unsafe_allow_html=True)
         st.download_button(
             label="📄 Download Enterprise Report (PDF)",
-            data=create_pdf(st.session_state.pdf_include_sublevels),
+            data=create_pdf(st.session_state.get("pdf_include_sublevels", True)),
             file_name=f"Wickboldt_Capital_ProForma_{report_date.replace(' ', '_').replace(',', '')}.pdf",
             mime="application/pdf",
             type="primary",
