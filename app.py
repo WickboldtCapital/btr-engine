@@ -4,7 +4,6 @@ from fpdf import FPDF
 import tempfile
 import requests
 import os
-import re
 from datetime import datetime
 
 # Page Configuration
@@ -38,111 +37,77 @@ if "comp_price" not in st.session_state:
     st.session_state.comp_price = 182600
 if "comp_heated_sf" not in st.session_state:
     st.session_state.comp_heated_sf = 1150
-if "raw_zillow_data" not in st.session_state:
-    st.session_state.raw_zillow_data = None
+if "raw_api_data" not in st.session_state:
+    st.session_state.raw_api_data = None
 
-# 2. Toggle Mode (Updated with Pre-Loaded Comps!)
+# 2. Toggle Mode
 comp_entry_mode = st.radio(
     "Comparable Data Entry Mode", 
-    [
-        "Manual Entry", 
-        "Auto-Load: 1103 S Spruce St (Hammond)", 
-        "Auto-Load: 71728 Spike Dr (Madisonville)",
-        "Zillow Auto-Fetch (Custom API)"
-    ], 
+    ["Manual Entry", "RentCast Auto-Fetch (API)"], 
     horizontal=True
 )
 
-if comp_entry_mode == "Auto-Load: 1103 S Spruce St (Hammond)":
-    st.success("✅ Pre-Loaded Data Activated for Hammond Comp.")
-    st.session_state.comp_address = "1103 S Spruce St, Hammond, LA 70403"
-    st.session_state.comp_price = 210100
-    st.session_state.comp_heated_sf = 1300
+if comp_entry_mode == "RentCast Auto-Fetch (API)":
     
-    comp_address = st.text_input("Comparable Property Address", value=st.session_state.comp_address, disabled=True)
-    cc_col1, cc_col2, cc_col3, cc_col4, cc_col5 = st.columns(5)
-    comp_price = cc_col1.number_input("Comp Sale Price ($)", value=st.session_state.comp_price, disabled=True)
-    comp_heated_sf = cc_col2.number_input("Comp Heated SF", value=st.session_state.comp_heated_sf, disabled=True)
+    rc_col1, rc_col2 = st.columns([4, 1])
+    search_address = rc_col1.text_input("Property Address (Requires RentCast API Key)", placeholder="e.g. 1103 S Spruce St, Hammond, LA")
 
-elif comp_entry_mode == "Auto-Load: 71728 Spike Dr (Madisonville)":
-    st.success("✅ Pre-Loaded Data Activated for Madisonville Comp.")
-    st.session_state.comp_address = "71728 Spike Dr, Madisonville, LA 70447"
-    st.session_state.comp_price = 205045
-    st.session_state.comp_heated_sf = 1001
-    
-    comp_address = st.text_input("Comparable Property Address", value=st.session_state.comp_address, disabled=True)
-    cc_col1, cc_col2, cc_col3, cc_col4, cc_col5 = st.columns(5)
-    comp_price = cc_col1.number_input("Comp Sale Price ($)", value=st.session_state.comp_price, disabled=True)
-    comp_heated_sf = cc_col2.number_input("Comp Heated SF", value=st.session_state.comp_heated_sf, disabled=True)
-
-elif comp_entry_mode == "Zillow Auto-Fetch (Custom API)":
-    st.caption("⚙️ **RapidAPI Configuration:** Using the new 2026 'US Housing Market Data' APIMaker Endpoint.")
-    api_col1, api_col2 = st.columns(2)
-    custom_api_url = api_col1.text_input("API Endpoint URL", value="https://us-housing-market-data1.p.rapidapi.com/property")
-    custom_api_host = api_col2.text_input("X-RapidAPI-Host", value="us-housing-market-data1.p.rapidapi.com")
-    
-    st.markdown("<br>", unsafe_allow_html=True)
-    z_col1, z_col2 = st.columns([4, 1])
-    zillow_url = z_col1.text_input("Zillow Property Link", placeholder="Paste Zillow URL here (e.g. https://www.zillow.com/homedetails/...)")
-
-    if z_col2.button("Fetch Zillow Data", use_container_width=True):
-        if zillow_url:
-            rapidapi_key = os.environ.get("RAPIDAPI_KEY") or st.secrets.get("RAPIDAPI_KEY", "")
+    if rc_col2.button("Fetch Property Data", use_container_width=True):
+        if search_address:
+            rentcast_key = os.environ.get("RENTCAST_API_KEY") or st.secrets.get("RENTCAST_API_KEY", "")
             
-            zpid_match = re.search(r'(\d+)_zpid', zillow_url)
-            if not zpid_match:
-                zpid_match = re.search(r'homedetails/.*?/(\d+)', zillow_url)
-                
-            if rapidapi_key and zpid_match:
-                zpid = zpid_match.group(1)
+            if rentcast_key:
                 try:
-                    with st.spinner(f"Fetching live data via {custom_api_host}..."):
-                        api_url = custom_api_url.strip() 
-                        querystring = {"zpid": zpid, "property_url": zillow_url} 
-                        
+                    with st.spinner("Fetching live data from RentCast..."):
+                        api_url = "https://api.rentcast.io/v1/properties"
+                        querystring = {"address": search_address}
                         headers = {
-                            "X-RapidAPI-Key": rapidapi_key,
-                            "X-RapidAPI-Host": custom_api_host.strip()
+                            "X-Api-Key": rentcast_key,
+                            "accept": "application/json"
                         }
                         
                         response = requests.get(api_url, headers=headers, params=querystring)
                         
                         if response.status_code == 200:
                             data = response.json()
-                            st.session_state.raw_zillow_data = data 
+                            st.session_state.raw_api_data = data 
                             
-                            def get_val(d, keys):
-                                for k in keys:
-                                    if k in d and d[k] is not None: return d[k]
-                                if isinstance(d, dict):
-                                    for v in d.values():
-                                        if isinstance(v, dict):
-                                            for k in keys:
-                                                if k in v and v[k] is not None: return v[k]
-                                return None
-
-                            fetched_price = get_val(data, ["price", "zestimate"])
-                            fetched_sf = get_val(data, ["livingArea", "livingAreaValue", "sqft"])
-                            fetched_addr = get_val(data, ["address"])
-                            
-                            if fetched_price: st.session_state.comp_price = int(fetched_price)
-                            if fetched_sf: st.session_state.comp_heated_sf = int(fetched_sf)
-                            
-                            if isinstance(fetched_addr, dict):
-                                st.session_state.comp_address = f"{fetched_addr.get('streetAddress', '')}, {fetched_addr.get('city', '')}, {fetched_addr.get('state', '')}"
-                            elif fetched_addr:
-                                st.session_state.comp_address = str(fetched_addr)
+                            if isinstance(data, list) and len(data) > 0:
+                                prop = data[0]
                                 
-                            st.success(f"Listing successfully imported: {st.session_state.comp_address}")
-                            st.rerun()
+                                fetched_sf = prop.get("squareFootage")
+                                # Try listing price, then last sale price
+                                fetched_price = prop.get("price") or prop.get("lastSalePrice")
+                                fetched_addr = prop.get("formattedAddress")
+                                
+                                # If no active price or last sale, trigger RentCast AVM Appraiser
+                                if not fetched_price:
+                                    try:
+                                        avm_url = "https://api.rentcast.io/v1/avm/value"
+                                        avm_res = requests.get(avm_url, headers=headers, params={"address": fetched_addr or search_address})
+                                        if avm_res.status_code == 200:
+                                            avm_data = avm_res.json()
+                                            fetched_price = avm_data.get("price")
+                                    except:
+                                        pass
+                                
+                                if fetched_price: st.session_state.comp_price = int(fetched_price)
+                                if fetched_sf: st.session_state.comp_heated_sf = int(fetched_sf)
+                                if fetched_addr: st.session_state.comp_address = str(fetched_addr)
+                                
+                                st.success(f"Property successfully imported: {st.session_state.comp_address}")
+                                st.rerun()
+                            else:
+                                st.error("No data found. Make sure the address is formatted correctly (e.g., '1103 S Spruce St, Hammond, LA 70403').")
                         else:
-                            st.error(f"API Error {response.status_code}. Double-check your API Endpoint URL and Host above!")
+                            st.error(f"RentCast API Error {response.status_code}. Please check your API key.")
                 except Exception as e:
                     st.error(f"Error fetching data: {e}")
             else:
-                st.error("Missing RAPIDAPI_KEY or Invalid Zillow URL.")
+                st.error("Missing RENTCAST_API_KEY. Please ensure you added it to your Railway Variables.")
             
-    st.info("💡 Zillow Mode is active. Address, Price, and Heated SF are locked to the scraped data. Switch to 'Manual Entry' to edit them.")
+    st.info("💡 RentCast Mode is active. Address, Price, and Heated SF are locked to the fetched data. Switch to 'Manual Entry' to edit them.")
+    
     comp_address = st.text_input("Comparable Property Address", value=st.session_state.comp_address, disabled=True)
     cc_col1, cc_col2, cc_col3, cc_col4, cc_col5 = st.columns(5)
     comp_price = cc_col1.number_input("Comp Sale Price ($)", value=st.session_state.comp_price, disabled=True)
@@ -154,11 +119,12 @@ else:
     comp_price = cc_col1.number_input("Comp Sale Price ($)", value=st.session_state.comp_price, step=1000, format="%d")
     comp_heated_sf = cc_col2.number_input("Comp Heated SF", value=st.session_state.comp_heated_sf, step=50, format="%d")
     
+    # Save manual typing to session state so it doesn't revert
     st.session_state.comp_price = comp_price
     st.session_state.comp_heated_sf = comp_heated_sf
     st.session_state.comp_address = comp_address
 
-# Auxiliary details are always editable because Zillow doesn't provide them reliably
+# Auxiliary details are always editable
 comp_struct_sf = cc_col3.number_input("Comp Aux. SF (Garage)", value=200, step=25, format="%d")
 comp_front_sf = cc_col4.number_input("Comp Front Porch SF", value=60, step=10, format="%d")
 comp_back_sf = cc_col5.number_input("Comp Back Porch SF", value=120, step=10, format="%d")
@@ -175,7 +141,7 @@ else:
 
 
 # --- MATH AUDIT & RAW DATA PANEL ---
-with st.expander("🧮 View Comp Math Audit & Raw Zillow Data", expanded=False):
+with st.expander("🧮 View Comp Math Audit & Raw RentCast Data", expanded=False):
     st.markdown("#### The Math Breakdown")
     st.markdown("**1. Retail Heated Rate (Standard Appraised Rate)**")
     st.code(f"${comp_price:,.0f} (Sale Price) ÷ {comp_heated_sf:,.0f} (Heated SF) = ${comp_retail_heated_rate:.2f} / SF")
@@ -186,11 +152,11 @@ with st.expander("🧮 View Comp Math Audit & Raw Zillow Data", expanded=False):
     st.markdown("**Total Under-Roof Calculation:**")
     st.caption(f"• {comp_heated_sf} SF (Heated)\n\n• {comp_struct_sf} SF (Garage/Carport)\n\n• {comp_front_sf} SF (Front Porch)\n\n• {comp_back_sf} SF (Back Porch)\n\n**= {comp_total_sf} Total SF**")
 
-    if st.session_state.raw_zillow_data and comp_entry_mode == "Zillow Auto-Fetch (Custom API)":
+    if st.session_state.raw_api_data:
         st.divider()
-        st.markdown("#### 🔍 Raw Zillow API Feed")
-        st.caption("This is the exact raw data extracted from Zillow. You can expand it to verify dates, Zestimates, and scraped square footages.")
-        st.json(st.session_state.raw_zillow_data)
+        st.markdown("#### 🔍 Raw RentCast API Feed")
+        st.caption("This is the exact raw data extracted from the MLS via RentCast. You can expand it to verify historical sales, year built, and property features.")
+        st.json(st.session_state.raw_api_data)
 
 
 st.divider()
