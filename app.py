@@ -11,12 +11,18 @@ st.title("🏗️ BTR Pro Forma Engine")
 st.markdown("### Wickboldt Capital — *Today's Foundation. Tomorrow's Legacy.*")
 st.divider()
 
-# --- PROJECT IDENTIFICATION ---
+# --- PROJECT IDENTIFICATION & EXPORT ---
 st.markdown("### 📋 Project Information")
-colA, colB = st.columns(2)
-project_name = colA.text_input("Project Title", placeholder="e.g. Phase 1 - 24-Lot Build-to-Rent")
-project_address = colB.text_input("Project Address", placeholder="e.g. Rogers Moore Parkway, Hammond, LA")
+
+# We create a placeholder layout to put the download button at the top
+top_col1, top_col2, top_col3 = st.columns([2, 2, 1])
+
+project_name = top_col1.text_input("Project Title", placeholder="e.g. Phase 1 - 24-Lot Build-to-Rent")
+project_address = top_col2.text_input("Project Address", placeholder="e.g. Rogers Moore Parkway, Hammond, LA")
 report_date = datetime.now().strftime("%B %d, %Y")
+
+# Create an empty placeholder for the download button so we can inject it here AFTER calculations are done
+download_placeholder = top_col3.empty()
 
 st.divider()
 
@@ -276,16 +282,18 @@ def create_pdf():
         with open(tmp.name, "rb") as f:
             return f.read()
 
-# Render Export Button
+# Render Export Button into the Placeholder at the top
 pdf_bytes = create_pdf()
-st.download_button(
-    label="📄 Download Enterprise Report (PDF)",
-    data=pdf_bytes,
-    file_name=f"Wickboldt_Capital_ProForma_{report_date.replace(' ', '_').replace(',', '')}.pdf",
-    mime="application/pdf",
-    type="primary"
-)
-st.divider()
+with download_placeholder:
+    st.markdown("<br>", unsafe_allow_html=True) # Adds a little vertical spacing to align with text inputs
+    st.download_button(
+        label="📄 Download Enterprise Report (PDF)",
+        data=pdf_bytes,
+        file_name=f"Wickboldt_Capital_ProForma_{report_date.replace(' ', '_').replace(',', '')}.pdf",
+        mime="application/pdf",
+        type="primary",
+        use_container_width=True
+    )
 
 # --- DASHBOARD UI ---
 
