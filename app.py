@@ -14,15 +14,37 @@ st.divider()
 # --- PROJECT IDENTIFICATION & EXPORT ---
 st.markdown("### 📋 Project Information")
 
-# We create a placeholder layout to put the download button at the top
 top_col1, top_col2, top_col3 = st.columns([2, 2, 1])
 
 project_name = top_col1.text_input("Project Title", placeholder="e.g. Phase 1 - 24-Lot Build-to-Rent")
 project_address = top_col2.text_input("Project Address", placeholder="e.g. Rogers Moore Parkway, Hammond, LA")
 report_date = datetime.now().strftime("%B %d, %Y")
 
-# Create an empty placeholder for the download button so we can inject it here AFTER calculations are done
 download_placeholder = top_col3.empty()
+
+st.divider()
+
+# --- COMPARABLE MARKET ANALYSIS (COMP BENCHMARK TOOL) ---
+# Moved to the top so it drives the sidebar cost calculations
+st.markdown("### 🔍 Market Comp Valuation & Blended Rate Benchmark")
+st.markdown("Input market comparable data below. This dynamically sets the Appraised Value (ARV) and drives the Retail Reverse-Engineering cost basis.")
+
+comp_address = st.text_input("Comparable Property Address (Optional)", placeholder="e.g. 16144 South Bud Broussard Road, Prairieville, LA")
+
+cc_col1, cc_col2, cc_col3, cc_col4, cc_col5 = st.columns(5)
+comp_price = cc_col1.number_input("Comp Total Sale Price / Value ($)", value=182600, step=1000, format="%d")
+comp_heated_sf = cc_col2.number_input("Comp Heated SF", value=1150, step=50, format="%d")
+comp_struct_sf = cc_col3.number_input("Comp Garage/Carport SF", value=200, step=25, format="%d")
+comp_front_sf = cc_col4.number_input("Comp Front Porch SF", value=60, step=10, format="%d")
+comp_back_sf = cc_col5.number_input("Comp Back Porch SF", value=120, step=10, format="%d")
+
+comp_total_sf = comp_heated_sf + comp_struct_sf + comp_front_sf + comp_back_sf
+comp_blended_cost = comp_price / comp_total_sf if comp_total_sf > 0 else 0
+
+if comp_address:
+    st.caption(f"📍 **Active Comp:** {comp_address} | Comp Retail Blended Rate: **${comp_blended_cost:.2f} / SF**")
+else:
+    st.caption(f"📊 Comp Retail Blended Rate: **${comp_blended_cost:.2f} / SF**")
 
 st.divider()
 
@@ -39,16 +61,39 @@ if opt_gc:
 st.sidebar.subheader("Construction Costs (Heated Area)")
 sqft = st.sidebar.number_input("Heated SqFt per Unit", value=1150, step=50, format="%d")
 
-# Reverse-Engineer Cost Mode
-cost_calc_mode = st.sidebar.radio("Cost Calculation Mode", ["Manual Set (Heated SF)", "Reverse-Engineer (Target Blended SF)"])
+# 3-Way Cost Calculation Mode
+cost_calc_mode = st.sidebar.radio(
+    "Cost Calculation Mode", 
+    [
+        "Manual Set (Heated SF)", 
+        "Reverse-Engineer (Target Blended SF)", 
+        "Reverse-Engineer (Retail Price Breakdown)"
+    ]
+)
 
 if cost_calc_mode == "Manual Set (Heated SF)":
     direct_cost_sf = st.sidebar.slider("Direct Build Cost / SF ($)", min_value=40.0, max_value=150.0, value=74.0, step=1.0)
     target_blended = 0.0
-else:
+elif cost_calc_mode == "Reverse-Engineer (Target Blended SF)":
     target_blended = st.sidebar.number_input("Target Blended Cost / SF ($)", value=65.0, step=1.0)
     direct_cost_sf = 0.0 
     st.sidebar.caption("The Heated Build Cost / SF will be back-solved to hit this overall blended rate target.")
+else:
+    # Top-Down Retail Price Reverse Engineering (Dynamically linked to Comp)
+    st.sidebar.caption("Retail Price / SF is dynamically derived from your Market Comp inputs on the main dashboard.")
+    retail_price_sf = comp_blended_cost
+    st.sidebar.markdown(f"**Comp Retail Price:** `${retail_price_sf:.2f} / SF`")
+    
+    st.sidebar.caption("Deductions (% of Price):")
+    lot_cost_pct = st.sidebar.slider("Finished Lot Cost (%)", min_value=0.0, max_value=30.0, value=18.0, step=0.5) / 100.0
+    margin_pct = st.sidebar.slider("Gross Margin (O&P) (%)", min_value=0.0, max_value=30.0, value=20.0, step=0.5) / 100.0
+    sales_pct = st.sidebar.slider("Sales & Marketing (%)", min_value=0.0, max_value=15.0, value=8.0, step=0.5) / 100.0
+    finance_pct = st.sidebar.slider("Soft Costs & Finance (%)", min_value=0.0, max_value=15.0, value=4.0, step=0.5) / 100.0
+    
+    target_hard_cost_pct = 1.0 - (lot_cost_pct + margin_pct + sales_pct + finance_pct)
+    direct_cost_sf = retail_price_sf * target_hard_cost_pct
+    st.sidebar.success(f"**Target Direct Hard Cost:** ${direct_cost_sf:.2f} / SF ({target_hard_cost_pct*100:.1f}%)")
+    target_blended = 0.0
 
 st.sidebar.subheader("Auxiliary Structure (Carport / Garage)")
 structure_type = st.sidebar.selectbox("Structure Type", ["Carport", "Garage"])
@@ -100,24 +145,6 @@ st.sidebar.subheader("Land & Soft Costs")
 land_basis = st.sidebar.number_input("Land Basis per Lot ($)", value=15000, step=1000, format="%d")
 soft_costs = st.sidebar.number_input("Soft Costs per Unit ($)", value=5500, step=500, format="%d")
 
-# --- COMPARABLE MARKET ANALYSIS (COMP BENCHMARK TOOL) ---
-st.markdown("### 🔍 Market Comp Blended Cost & Valuation Benchmark")
-st.markdown("Input market comparable data below to evaluate blended under-roof costs. This comp valuation automatically drives the project's Appraised Value (ARV).")
-
-comp_address = st.text_input("Comparable Property Address (Optional)", placeholder="e.g. 16144 South Bud Broussard Road, Prairieville, LA")
-
-cc_col1, cc_col2, cc_col3, cc_col4, cc_col5 = st.columns(5)
-comp_price = cc_col1.number_input("Comp Total Value / Price ($)", value=182600, step=1000, format="%d")
-comp_heated_sf = cc_col2.number_input("Comp Heated SF", value=1150, step=50, format="%d")
-comp_struct_sf = cc_col3.number_input("Comp Garage/Carport SF", value=200, step=25, format="%d")
-comp_front_sf = cc_col4.number_input("Comp Front Porch SF", value=60, step=10, format="%d")
-comp_back_sf = cc_col5.number_input("Comp Back Porch SF", value=120, step=10, format="%d")
-
-comp_total_sf = comp_heated_sf + comp_struct_sf + comp_front_sf + comp_back_sf
-comp_blended_cost = comp_price / comp_total_sf if comp_total_sf > 0 else 0
-
-if comp_address:
-    st.caption(f"📍 **Active Comp:** {comp_address} | Comp Blended Rate: **${comp_blended_cost:.2f} / SF**")
 
 # --- CORE CALCULATIONS ---
 struct_total_cost = struct_sqft * struct_cost_sf
@@ -206,7 +233,6 @@ def create_pdf():
     pdf = EnterpriseReport()
     pdf.add_page()
     
-    # Project Info
     pdf.set_font("Arial", 'B', 12)
     p_name = project_name if project_name else "Untitled Development"
     p_address = project_address if project_address else "TBD"
@@ -217,7 +243,6 @@ def create_pdf():
     pdf.cell(0, 6, f"Date: {report_date}", ln=1)
     pdf.ln(5)
 
-    # Section 1: Executive Summary
     pdf.set_font("Arial", 'B', 12)
     pdf.set_fill_color(220, 220, 220)
     pdf.cell(0, 8, " 1. Executive Summary & Wealth Creation", ln=1, fill=True)
@@ -238,7 +263,6 @@ def create_pdf():
     pdf.cell(90, 7, f"${day1_wealth:,.0f}", 0, 1, 'R')
     pdf.ln(5)
 
-    # Section 2: Operating & DSCR
     pdf.set_font("Arial", 'B', 12)
     pdf.cell(0, 8, " 2. Operating Performance & DSCR", ln=1, fill=True)
     pdf.set_font("Arial", '', 10)
@@ -259,7 +283,6 @@ def create_pdf():
     pdf.cell(90, 7, f"${monthly_cash_flow:,.2f} /mo", 0, 1, 'R')
     pdf.ln(5)
 
-    # Section 3: Cost Breakdowns
     pdf.set_font("Arial", 'B', 12)
     pdf.cell(0, 8, " 3. Detailed Construction Cost Breakdown", ln=1, fill=True)
     pdf.set_font("Arial", '', 10)
@@ -282,18 +305,69 @@ def create_pdf():
         with open(tmp.name, "rb") as f:
             return f.read()
 
-# Render Export Button into the Placeholder at the top
-pdf_bytes = create_pdf()
 with download_placeholder:
-    st.markdown("<br>", unsafe_allow_html=True) # Adds a little vertical spacing to align with text inputs
+    st.markdown("<br>", unsafe_allow_html=True)
     st.download_button(
         label="📄 Download Enterprise Report (PDF)",
-        data=pdf_bytes,
+        data=create_pdf(),
         file_name=f"Wickboldt_Capital_ProForma_{report_date.replace(' ', '_').replace(',', '')}.pdf",
         mime="application/pdf",
         type="primary",
         use_container_width=True
     )
+
+# --- REVERSE ENGINEER UI BLOCKS ---
+if cost_calc_mode == "Reverse-Engineer (Target Blended SF)":
+    st.markdown("### 🔄 Blended Rate Reverse-Engineer Math Breakdown")
+    st.caption("How your required Heated Build Cost / SF is derived from your Target Blended Cost.")
+    re_col1, re_col2, re_col3, re_col4 = st.columns(4)
+    re_col1.metric("1. Target Total Hard Cost", f"${target_hard_cost:,.0f}", f"${target_blended:.2f} × {total_under_roof_sqft} SF")
+    aux_total = struct_total_cost + front_porch_cost + back_porch_cost
+    re_col2.metric("2. Less Auxiliary Costs", f"-${aux_total:,.0f}", f"Carport/Garage + Porches")
+    re_col3.metric("3. Heated Budget Remaining", f"${heated_hard_cost:,.0f}", "Target Cost - Aux Costs")
+    re_col4.metric("4. Required Direct Cost / SF", f"${direct_cost_sf:,.2f} / SF", f"${heated_hard_cost:,.0f} ÷ {sqft} SF", delta_color="off")
+    st.divider()
+
+elif cost_calc_mode == "Reverse-Engineer (Retail Price Breakdown)":
+    st.markdown("### 🔄 Retail Price Reverse-Engineering Breakdown")
+    st.caption(f"Isolating Target Direct Hard Costs by reverse-engineering your Comp's Retail Price of **${retail_price_sf:.2f} / SF**.")
+    
+    breakdown_data = {
+        "Cost Category": [
+            "Retail Listing / Comp Price",
+            "(-) Finished Lot Cost",
+            "(-) Gross Margin (O&P)",
+            "(-) Sales & Marketing",
+            "(-) Soft Costs & Finance",
+            "Target Direct Hard Costs"
+        ],
+        "Typical % of Price": [
+            "100.0%",
+            f"{lot_cost_pct*100:.1f}%",
+            f"{margin_pct*100:.1f}%",
+            f"{sales_pct*100:.1f}%",
+            f"{finance_pct*100:.1f}%",
+            f"{target_hard_cost_pct*100:.1f}%"
+        ],
+        "Cost / SF ($)": [
+            f"${retail_price_sf:.2f}",
+            f"-${retail_price_sf * lot_cost_pct:.2f}",
+            f"-${retail_price_sf * margin_pct:.2f}",
+            f"-${retail_price_sf * sales_pct:.2f}",
+            f"-${retail_price_sf * finance_pct:.2f}",
+            f"${direct_cost_sf:.2f}"
+        ],
+        "Description": [
+            "MLS listing price / retail takeout appraisal.",
+            "Raw land, engineering, road paving, wet/dry utility infrastructure.",
+            "Builder gross overhead and corporate net margin.",
+            "Realtor commissions, internal sales reps, buyer closing concessions.",
+            "Impact fees, plan design, municipal permits, and loan interest carry.",
+            "Sticks, bricks, equipment, and turnkey subcontractor labor."
+        ]
+    }
+    st.dataframe(pd.DataFrame(breakdown_data), hide_index=True, use_container_width=True)
+    st.divider()
 
 # --- DASHBOARD UI ---
 
