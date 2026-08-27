@@ -17,7 +17,6 @@ st.divider()
 # --- PROJECT IDENTIFICATION & EXPORT ---
 st.markdown("### 📋 Project Information")
 
-# Updated Layout with Beds & Baths
 top_col1, top_col2 = st.columns([2, 2])
 project_name = top_col1.text_input("Project Title", placeholder="e.g. Phase 1 - 24-Lot Build-to-Rent")
 project_address = top_col2.text_input("Project Address", placeholder="e.g. Rogers Moore Parkway, Hammond, LA")
@@ -102,7 +101,7 @@ if comp_entry_mode == "RentCast Live API Fetch":
                                 st.success(f"Property successfully imported: {st.session_state.comp_address}")
                                 st.rerun()
                             else:
-                                st.error("No exact match found. Make sure the address is formatted perfectly (e.g., '1103 S Spruce St, Hammond, LA').")
+                                st.error("No exact match found. Make sure the address is formatted perfectly.")
                         else:
                             st.error(f"RentCast API Error {response.status_code}. Your API Key may be invalid.")
                 except Exception as e:
@@ -110,7 +109,7 @@ if comp_entry_mode == "RentCast Live API Fetch":
             else:
                 st.error("Missing API Key. Paste it in the Configuration box or add RENTCAST_API_KEY to Railway Variables.")
 
-# --- RENDER COMP INPUT UI (Cleanly, once!) ---
+# --- RENDER COMP INPUT UI ---
 st.markdown("##### 1. Primary Comp Metrics")
 col_addr, col_price, col_hsf = st.columns([2, 1, 1])
 
@@ -118,13 +117,10 @@ if comp_entry_mode == "RentCast Live API Fetch":
     comp_address = col_addr.text_input("Comparable Property Address", value=st.session_state.comp_address, disabled=True)
     comp_price = col_price.number_input("Comp Sale Price ($)", value=st.session_state.comp_price, disabled=True)
     comp_heated_sf = col_hsf.number_input("Comp Heated SF", value=st.session_state.comp_heated_sf, disabled=True)
-
 else:
-    # Manual Entry
     comp_address = col_addr.text_input("Comparable Property Address", value=st.session_state.comp_address, placeholder="e.g. 16144 South Bud Broussard Road, Prairieville, LA")
     comp_price = col_price.number_input("Comp Sale Price ($)", value=st.session_state.comp_price, step=1000, format="%d")
     comp_heated_sf = col_hsf.number_input("Comp Heated SF", value=st.session_state.comp_heated_sf, step=50, format="%d")
-    # Save manual typing to session state
     st.session_state.comp_price = comp_price
     st.session_state.comp_heated_sf = comp_heated_sf
     st.session_state.comp_address = comp_address
@@ -172,7 +168,6 @@ with cont_footprint:
 
 with cont_finance:
     st.subheader("6. Financing & Operations")
-    # Rent moved down visually, but mathematically accessible globally!
     gross_monthly_rent = st.number_input("Gross Monthly Rental Income per Unit ($)", value=1650, step=50, format="%d")
     target_dscr_rate = st.number_input("Target Lender DSCR Rate", min_value=1.0, max_value=1.5, value=1.20, step=0.05)
     vacancy_rate = st.slider("Vacancy Rate (%)", min_value=0.0, max_value=15.0, value=5.0, step=1.0) / 100.0
@@ -218,14 +213,12 @@ with cont_export:
 # --- PRE-LEDGER MATH TRANSACTIONS ---
 # ==========================================
 
-# 1. Our Aux Costs
 struct_total_cost = struct_sqft * base_struct_cost_sf
 front_porch_cost = front_porch_sqft * front_porch_cost_sf
 back_porch_cost = back_porch_sqft * back_porch_cost_sf
 storage_cost = storage_sqft * storage_cost_sf
 our_aux_cost_total = struct_total_cost + front_porch_cost + back_porch_cost + storage_cost
 
-# 2. Comp Math Extraction
 comp_total_sf = comp_heated_sf + comp_struct_sf + comp_front_sf + comp_back_sf + comp_storage_sf
 raw_comp_price_sf = comp_price / comp_heated_sf if comp_heated_sf > 0 else 0
 comp_aux_value = (comp_struct_sf * base_struct_cost_sf) + (comp_front_sf * front_porch_cost_sf) + (comp_back_sf * back_porch_cost_sf) + (comp_storage_sf * storage_cost_sf)
@@ -237,8 +230,6 @@ if comp_address:
 else:
     st.caption(f"📊 Isolated Heated Rate: **${isolated_heated_rate:.2f} / SF** *(Raw Price/SF: ${raw_comp_price_sf:.2f})*")
 
-
-# 3. Populate Logic-Dependent Sidebar Containers
 with cont_appraisal:
     st.subheader("3. Takeout Appraisal Methodology")
     appraisal_mode = st.radio("Valuation Mode", ["Sales Comp (Price/SF)", "Income Approach (GRM)"])
@@ -276,33 +267,7 @@ with cont_target:
         base_direct_cost_sf = target_heated_hard_cost / sqft if sqft > 0 else 0
         st.success(f"**Target Heated Cost:**\n${base_direct_cost_sf:.2f} / SF")
 
-
-# --- MATH AUDIT & RAW DATA PANEL ---
-with st.expander("🧮 View Comp Math Audit & Raw API Data", expanded=False):
-    st.markdown("#### The Math Breakdown")
-    st.markdown("**1. Raw Retail Heated Rate (Unadjusted)**")
-    st.code(f"${comp_price:,.0f} (Sale Price) ÷ {comp_heated_sf:,.0f} (Heated SF) = ${raw_comp_price_sf:.2f} / SF")
-    
-    st.markdown("**2. True Isolated Heated Shell Rate (Value-Add Extraction)**")
-    st.code(f"(${comp_price:,.0f} - ${comp_aux_value:,.0f} Aux Value) ÷ {comp_heated_sf:,.0f} SF = ${isolated_heated_rate:.2f} / SF")
-    
-    st.markdown("**Total Under-Roof Calculation:**")
-    st.caption(f"• {comp_heated_sf} SF (Heated)\n\n• {comp_struct_sf} SF (Garage/Carport)\n\n• {comp_front_sf} SF (Front Porch)\n\n• {comp_back_sf} SF (Back Porch)\n\n• {comp_storage_sf} SF (Storage Room)\n\n**= {comp_total_sf} Total SF**")
-
-    if st.session_state.raw_api_data and comp_entry_mode == "RentCast Live API Fetch":
-        st.divider()
-        st.markdown("#### 🔍 Raw RentCast API Feed")
-        st.json(st.session_state.raw_api_data)
-
 st.divider()
-
-# --- DYNAMIC UI PLACEHOLDERS ---
-ui_top_metrics = st.container()
-ui_op_metrics = st.container()
-st.divider()
-ui_rev_eng = st.container()
-st.divider()
-
 
 # --- RAW GRANULAR DATA ---
 raw_heated_divs = [
@@ -360,18 +325,14 @@ raw_struct_divs = [
     ("  - Paint & Column Wrap", 1.50, False)
 ]
 
-# --- GRANULAR HARD COST BUILDUP ---
 st.markdown("### 🧱 Granular Direct Hard Cost Buildup (Trade Divisions)")
-
 granular_mode = st.radio("Buildup Entry Mode", ["Auto-Proportional (Linked to Master Model)", "Manual Custom Entry (Bottom-Up)"], horizontal=True)
 
 pdf_granular_data = []
 
 if granular_mode == "Auto-Proportional (Linked to Master Model)":
-    st.caption("Budget dynamically scales proportionally based on your active Direct Cost / SF and the Wickboldt Capital baseline document weightings.")
     direct_cost_sf = base_direct_cost_sf
     struct_cost_sf = base_struct_cost_sf
-
     show_sub_items = st.toggle("Show Detailed Sub-Level Trade Itemization", value=False)
     
     st.markdown(f"#### 1. Heated Living Area ({sqft} SF @ ${direct_cost_sf:.2f} / SF)")
@@ -397,12 +358,10 @@ if granular_mode == "Auto-Proportional (Linked to Master Model)":
     st.dataframe(pd.DataFrame(s_data), hide_index=True, use_container_width=True)
 
 else:
-    st.caption("Enter your custom $ / SF for each trade division below. Your inputs will sum together to automatically override the Master Model.")
     st.markdown(f"#### 1. Heated Living Area ({sqft} SF)")
     hl_heated = [{"Division / Trade Level": name, "Cost / SF": base_direct_cost_sf * (base/74.0), "Scope": scope} for name, base, is_h, scope in raw_heated_divs if is_h]
     edited_h = st.data_editor(pd.DataFrame(hl_heated), column_config={"Division / Trade Level": st.column_config.TextColumn(disabled=True), "Cost / SF": st.column_config.NumberColumn(format="$%.2f", min_value=0.0, step=0.5), "Scope": st.column_config.TextColumn(disabled=True)}, hide_index=True, use_container_width=True, key="manual_heated_editor")
     direct_cost_sf = edited_h["Cost / SF"].sum()
-    st.success(f"**Calculated Manual Direct Cost:** ${direct_cost_sf:.2f} / SF")
     for index, row in edited_h.iterrows():
         live_sf = row["Cost / SF"]
         pdf_granular_data.append((row["Division / Trade Level"], live_sf, live_sf * sqft, live_sf * sqft * units, True))
@@ -424,6 +383,9 @@ st.dataframe(pd.DataFrame(p_data), hide_index=True, use_container_width=True)
 st.divider()
 
 # --- PRE-LEDGER MATH (Direct Hard Costs) ---
+total_under_roof_sqft = sqft + struct_sqft + front_porch_sqft + back_porch_sqft + storage_sqft
+heated_hard_cost = sqft * direct_cost_sf
+
 blended_cost_per_sf = (heated_hard_cost + our_aux_cost_total) / total_under_roof_sqft if total_under_roof_sqft > 0 else 0
 total_hard_cost = target_total_hard_cost * units if cost_calc_mode == "Reverse-Engineer from Appraisal" else (heated_hard_cost + our_aux_cost_total) * units
 total_arv = arv_per_unit * units
@@ -445,7 +407,6 @@ st.dataframe(pd.DataFrame(direct_data).style.format({"Total Amount ($)": "${:,.0
 
 
 st.markdown("#### 2. Indirect, Land & Capital Costs")
-# Pre-calculate Master Model defaults
 default_gcond = total_hard_cost * 0.05
 fee_basis = total_hard_cost + default_gcond
 default_gc_fee = custom_gc_fee if gc_fee_mode == "Consolidated Flat Fee ($ Total)" else fee_basis * gc_fee_pct
@@ -503,7 +464,6 @@ else:
     final_refi_closing = refi_closing_fee
     total_buydown_cost = default_buydown_cost
 
-# Finalize the TRUE Project Basis with whatever values came out of the Ledger UI above!
 total_const = total_hard_cost + gcond + gc_fee + premium
 total_project_costs_ex_interest = total_land + total_const + total_soft_costs + final_const_closing
 total_project_basis = total_project_costs_ex_interest + carry_int + final_refi_closing + total_buydown_cost
@@ -540,7 +500,45 @@ retained_equity = total_arv - loan_total
 day1_wealth = gc_fee + max(0, cash_surplus) + retained_equity
 
 
-# --- RENDER TOP PLACEHOLDERS (Now populated with post-ledger calculations) ---
+# ==========================================
+# --- GO/NO-GO INVESTMENT DECISION DASHBOARD ---
+# ==========================================
+st.markdown("### 🚦 Go/No-Go Investment Decision Dashboard")
+
+# Evaluate metrics against institutional thresholds
+dscr_pass = actual_dscr >= target_dscr_rate
+cash_pass = cash_surplus >= 0
+
+dscr_light = "🟢 GREEN LIGHT" if dscr_pass else "🔴 RED LIGHT"
+cash_light = "🟢 GREEN LIGHT" if cash_pass else "🔴 RED LIGHT"
+
+dash_col1, dash_col2, dash_col3 = st.columns(3)
+
+dash_col1.metric(
+    "DSCR Underwriting Status", 
+    dscr_light, 
+    f"Actual: {actual_dscr:.2f}x (Target: {target_dscr_rate:.2f}x)",
+    delta_color="normal" if dscr_pass else "inverse"
+)
+
+dash_col2.metric(
+    "Capital Recovery Status", 
+    cash_light, 
+    f"${cash_surplus:,.0f} at Refi Close",
+    delta_color="normal" if cash_pass else "inverse"
+)
+
+dash_col3.metric(
+    "Day-1 Wealth Creation", 
+    f"${day1_wealth:,.0f}", 
+    f"${day1_wealth/units:,.0f} per door",
+    delta_color="normal"
+)
+
+st.divider()
+
+
+# --- RENDER TOP METRICS ---
 with ui_top_metrics:
     st.markdown("### 🏗️ Project Capital & Valuation Metrics")
     col1, col2, col3, col4 = st.columns(4)
@@ -605,7 +603,7 @@ with ui_rev_eng:
         st.dataframe(pd.DataFrame(breakdown_data), hide_index=True, use_container_width=True)
 
 
-# --- WEALTH & DSCR SECTIONS (Rendered at the bottom) ---
+# --- WEALTH & DSCR SECTIONS ---
 ui_wealth = st.container()
 with ui_wealth:
     st.markdown("### 💰 Day-1 Wealth Creation")
@@ -639,7 +637,7 @@ with ui_dscr:
         ],
         "Annual": [
             f"${total_gross_monthly_income * 12:,.2f}", f"-${annual_vacancy_loss:,.2f}", f"${annual_egi:,.2f}", 
-            f"-${annual_opex:,.2f}", f"${annual_noi:,.2f}", f"-${annual_debt_service:,.2f}", f"${monthly_cash_flow * 12:,.2f}",
+            f"-${annual_opex:,.2f}", f"${annual_noi:,.2f}", f"${annual_debt_service:,.2f}", f"${monthly_cash_flow * 12:,.2f}",
             "---", f"{actual_dscr:.2f}x", f"{target_dscr_rate:.2f}x", f"{dscr_variance:+.2f}x"
         ]
     }
