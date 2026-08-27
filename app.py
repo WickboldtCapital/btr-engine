@@ -166,8 +166,11 @@ else:
 
 total_monthly_pi = monthly_pi_per_unit * units
 
+# Advanced Operating Calculations
 total_gross_monthly_income = gross_monthly_rent * units
-effective_gross_monthly_income = total_gross_monthly_income * (1.0 - vacancy_rate)
+monthly_vacancy_loss = total_gross_monthly_income * vacancy_rate
+annual_vacancy_loss = monthly_vacancy_loss * 12.0
+effective_gross_monthly_income = total_gross_monthly_income - monthly_vacancy_loss
 annual_egi = effective_gross_monthly_income * 12.0
 annual_opex = annual_egi * opex_rate
 annual_noi = annual_egi - annual_opex
@@ -176,6 +179,7 @@ monthly_noi = annual_noi / 12.0
 annual_debt_service = total_monthly_pi * 12.0
 actual_dscr = annual_noi / annual_debt_service if annual_debt_service > 0 else 0
 monthly_cash_flow = monthly_noi - total_monthly_pi
+dscr_variance = actual_dscr - target_dscr_rate
 
 gcond = total_hard_cost * 0.05
 fee_basis = total_hard_cost + gcond
@@ -200,7 +204,7 @@ cash_surplus = loan_total - total_project_basis
 retained_equity = total_arv - loan_total
 day1_wealth = gc_fee + max(0, cash_surplus) + retained_equity
 
-# --- GRANULAR COST BUILDUP DATA (ASCII CLEANED FOR PDF) ---
+# --- GRANULAR COST BUILDUP DATA ---
 raw_heated_divs = [
     ("DIVISION 1: FOUNDATION & CONCRETE", 9.50, True, ""),
     ("  - Dirtwork, Pad Prep & Formwork", 1.50, False, "Laser leveling, select fill compaction, 2x12 perimeter form boards."),
@@ -305,24 +309,29 @@ def create_pdf():
     pdf.cell(90, 7, f"${day1_wealth:,.0f}", 0, 1, 'R')
     pdf.ln(5)
 
+    # UPDATED PDF SECTION 2: Full Operating Waterfall
     pdf.set_font("Arial", 'B', 12)
-    pdf.cell(0, 8, " 2. Operating Performance & DSCR", ln=1, fill=True)
+    pdf.cell(0, 8, " 2. Operating Performance & DSCR (Annualized)", ln=1, fill=True)
     pdf.set_font("Arial", '', 10)
     
-    pdf.cell(100, 7, "Monthly Gross Rent:", 0, 0)
-    pdf.cell(90, 7, f"${total_gross_monthly_income:,.2f}", 0, 1, 'R')
-    pdf.cell(100, 7, f"Annual OpEx ({opex_rate*100:.0f}%):", 0, 0)
-    pdf.cell(90, 7, f"${annual_opex:,.2f}", 0, 1, 'R')
-    pdf.cell(100, 7, "Net Operating Income (NOI - Annual):", 0, 0)
+    pdf.cell(100, 7, "Gross Potential Rent (GPR):", 0, 0)
+    pdf.cell(90, 7, f"${total_gross_monthly_income * 12:,.2f}", 0, 1, 'R')
+    pdf.cell(100, 7, f"(-) Vacancy Loss ({vacancy_rate*100:.1f}%):", 0, 0)
+    pdf.cell(90, 7, f"-${annual_vacancy_loss:,.2f}", 0, 1, 'R')
+    pdf.cell(100, 7, "= Effective Gross Income (EGI):", 0, 0)
+    pdf.cell(90, 7, f"${annual_egi:,.2f}", 0, 1, 'R')
+    pdf.cell(100, 7, f"(-) Operating Expenses ({opex_rate*100:.1f}% EGI):", 0, 0)
+    pdf.cell(90, 7, f"-${annual_opex:,.2f}", 0, 1, 'R')
+    pdf.cell(100, 7, "= Net Operating Income (NOI):", 0, 0)
     pdf.cell(90, 7, f"${annual_noi:,.2f}", 0, 1, 'R')
-    pdf.cell(100, 7, "Total Debt Service (P&I - Annual):", 0, 0)
-    pdf.cell(90, 7, f"${annual_debt_service:,.2f}", 0, 1, 'R')
+    pdf.cell(100, 7, "(-) Total Debt Service (P&I):", 0, 0)
+    pdf.cell(90, 7, f"-${annual_debt_service:,.2f}", 0, 1, 'R')
     
     pdf.set_font("Arial", 'B', 10)
+    pdf.cell(100, 7, "= Net Cash Flow:", 0, 0)
+    pdf.cell(90, 7, f"${monthly_cash_flow * 12:,.2f}", 0, 1, 'R')
     pdf.cell(100, 7, "Actual DSCR Rate:", 0, 0)
-    pdf.cell(90, 7, f"{actual_dscr:.2f}x (Target: {target_dscr_rate:.2f}x)", 0, 1, 'R')
-    pdf.cell(100, 7, "Monthly Net Cash Flow:", 0, 0)
-    pdf.cell(90, 7, f"${monthly_cash_flow:,.2f} /mo", 0, 1, 'R')
+    pdf.cell(90, 7, f"{actual_dscr:.2f}x (Variance: {dscr_variance:+.2f}x)", 0, 1, 'R')
     pdf.ln(5)
 
     pdf.set_font("Arial", 'B', 12)
@@ -345,7 +354,6 @@ def create_pdf():
     pdf.cell(100, 7, "Total Soft Costs & Closing Fees:", 0, 0)
     pdf.cell(90, 7, f"${total_soft_costs + const_closing_fee + refi_closing_fee + total_buydown_cost:,.0f}", 0, 1, 'R')
     
-    # PDF SECTION 4: Sub-Level Breakdown (Added for Enterprise Report)
     pdf.ln(5)
     pdf.set_font("Arial", 'B', 12)
     pdf.set_fill_color(220, 220, 220)
@@ -621,26 +629,44 @@ st.divider()
 
 st.markdown("### 🏢 Operating Performance Summary")
 dscr_summary_data = {
-    "Metric Item": [
-        "Gross Rental Income", 
-        "Effective Gross Income (EGI)", 
-        f"Operating Expenses (OpEx) @ {opex_rate*100:.0f}%", 
-        "Net Operating Income (NOI)", 
-        "Total Debt Service (P&I)"
+    "Pro Forma Line Item": [
+        "Gross Potential Rent (GPR)", 
+        f"(-) Vacancy Loss @ {vacancy_rate*100:.1f}%", 
+        "= Effective Gross Income (EGI)", 
+        f"(-) Operating Expenses (OpEx) @ {opex_rate*100:.1f}%", 
+        "= Net Operating Income (NOI)", 
+        "(-) Total Debt Service (P&I)",
+        "= Net Cash Flow",
+        "---",
+        "Actual DSCR Rate",
+        "Target Lender DSCR",
+        "DSCR Variance"
     ],
-    "Monthly ($)": [
+    "Monthly": [
         f"${total_gross_monthly_income:,.2f}", 
+        f"-${monthly_vacancy_loss:,.2f}", 
         f"${annual_egi / 12:,.2f}", 
-        f"${annual_opex / 12:,.2f}", 
+        f"-${annual_opex / 12:,.2f}", 
         f"${monthly_noi:,.2f}", 
-        f"${total_monthly_pi:,.2f}"
+        f"-${total_monthly_pi:,.2f}",
+        f"${monthly_cash_flow:,.2f}",
+        "---",
+        f"{actual_dscr:.2f}x",
+        f"{target_dscr_rate:.2f}x",
+        f"{dscr_variance:+.2f}x"
     ],
-    "Annual ($)": [
+    "Annual": [
         f"${total_gross_monthly_income * 12:,.2f}", 
+        f"-${annual_vacancy_loss:,.2f}", 
         f"${annual_egi:,.2f}", 
-        f"${annual_opex:,.2f}", 
+        f"-${annual_opex:,.2f}", 
         f"${annual_noi:,.2f}", 
-        f"${annual_debt_service:,.2f}"
+        f"-${annual_debt_service:,.2f}",
+        f"${monthly_cash_flow * 12:,.2f}",
+        "---",
+        f"{actual_dscr:.2f}x",
+        f"{target_dscr_rate:.2f}x",
+        f"{dscr_variance:+.2f}x"
     ]
 }
 df_dscr = pd.DataFrame(dscr_summary_data)
