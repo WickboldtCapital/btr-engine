@@ -4,6 +4,7 @@ from fpdf import FPDF
 import tempfile
 import requests
 import os
+import re
 from datetime import datetime
 
 # Page Configuration
@@ -43,12 +44,38 @@ if "raw_api_data" not in st.session_state:
 # 2. Toggle Mode
 comp_entry_mode = st.radio(
     "Comparable Data Entry Mode", 
-    ["Manual Entry", "RentCast Auto-Fetch (API)"], 
+    [
+        "Manual Entry", 
+        "Auto-Load: 1103 S Spruce St (Hammond)", 
+        "Auto-Load: 71728 Spike Dr (Madisonville)",
+        "RentCast Auto-Fetch (API)"
+    ], 
     horizontal=True
 )
 
-if comp_entry_mode == "RentCast Auto-Fetch (API)":
+if comp_entry_mode == "Auto-Load: 1103 S Spruce St (Hammond)":
+    st.success("✅ Pre-Loaded Data Activated for Hammond Comp.")
+    st.session_state.comp_address = "1103 S Spruce St, Hammond, LA 70403"
+    st.session_state.comp_price = 210100
+    st.session_state.comp_heated_sf = 1300
     
+    comp_address = st.text_input("Comparable Property Address", value=st.session_state.comp_address, disabled=True)
+    cc_col1, cc_col2, cc_col3, cc_col4, cc_col5 = st.columns(5)
+    comp_price = cc_col1.number_input("Comp Sale Price ($)", value=st.session_state.comp_price, disabled=True)
+    comp_heated_sf = cc_col2.number_input("Comp Heated SF", value=st.session_state.comp_heated_sf, disabled=True)
+
+elif comp_entry_mode == "Auto-Load: 71728 Spike Dr (Madisonville)":
+    st.success("✅ Pre-Loaded Data Activated for Madisonville Comp.")
+    st.session_state.comp_address = "71728 Spike Dr, Madisonville, LA 70447"
+    st.session_state.comp_price = 205045
+    st.session_state.comp_heated_sf = 1001
+    
+    comp_address = st.text_input("Comparable Property Address", value=st.session_state.comp_address, disabled=True)
+    cc_col1, cc_col2, cc_col3, cc_col4, cc_col5 = st.columns(5)
+    comp_price = cc_col1.number_input("Comp Sale Price ($)", value=st.session_state.comp_price, disabled=True)
+    comp_heated_sf = cc_col2.number_input("Comp Heated SF", value=st.session_state.comp_heated_sf, disabled=True)
+
+elif comp_entry_mode == "RentCast Auto-Fetch (API)":
     rc_col1, rc_col2 = st.columns([4, 1])
     search_address = rc_col1.text_input("Property Address (Requires RentCast API Key)", placeholder="e.g. 1103 S Spruce St, Hammond, LA")
 
@@ -76,11 +103,10 @@ if comp_entry_mode == "RentCast Auto-Fetch (API)":
                                 prop = data[0]
                                 
                                 fetched_sf = prop.get("squareFootage")
-                                # Try listing price, then last sale price
                                 fetched_price = prop.get("price") or prop.get("lastSalePrice")
                                 fetched_addr = prop.get("formattedAddress")
                                 
-                                # If no active price or last sale, trigger RentCast AVM Appraiser
+                                # If no active price or last sale, trigger RentCast AVM
                                 if not fetched_price:
                                     try:
                                         avm_url = "https://api.rentcast.io/v1/avm/value"
@@ -100,7 +126,7 @@ if comp_entry_mode == "RentCast Auto-Fetch (API)":
                             else:
                                 st.error("No data found. Make sure the address is formatted correctly (e.g., '1103 S Spruce St, Hammond, LA 70403').")
                         else:
-                            st.error(f"RentCast API Error {response.status_code}. Please check your API key.")
+                            st.error(f"RentCast API Error {response.status_code}. (If this is a 403, your API key is missing. Go to Railway -> Deployments -> click Redeploy!)")
                 except Exception as e:
                     st.error(f"Error fetching data: {e}")
             else:
@@ -124,7 +150,7 @@ else:
     st.session_state.comp_heated_sf = comp_heated_sf
     st.session_state.comp_address = comp_address
 
-# Auxiliary details are always editable
+# Auxiliary details are always editable 
 comp_struct_sf = cc_col3.number_input("Comp Aux. SF (Garage)", value=200, step=25, format="%d")
 comp_front_sf = cc_col4.number_input("Comp Front Porch SF", value=60, step=10, format="%d")
 comp_back_sf = cc_col5.number_input("Comp Back Porch SF", value=120, step=10, format="%d")
@@ -141,7 +167,7 @@ else:
 
 
 # --- MATH AUDIT & RAW DATA PANEL ---
-with st.expander("🧮 View Comp Math Audit & Raw RentCast Data", expanded=False):
+with st.expander("🧮 View Comp Math Audit & Raw API Data", expanded=False):
     st.markdown("#### The Math Breakdown")
     st.markdown("**1. Retail Heated Rate (Standard Appraised Rate)**")
     st.code(f"${comp_price:,.0f} (Sale Price) ÷ {comp_heated_sf:,.0f} (Heated SF) = ${comp_retail_heated_rate:.2f} / SF")
@@ -152,10 +178,9 @@ with st.expander("🧮 View Comp Math Audit & Raw RentCast Data", expanded=False
     st.markdown("**Total Under-Roof Calculation:**")
     st.caption(f"• {comp_heated_sf} SF (Heated)\n\n• {comp_struct_sf} SF (Garage/Carport)\n\n• {comp_front_sf} SF (Front Porch)\n\n• {comp_back_sf} SF (Back Porch)\n\n**= {comp_total_sf} Total SF**")
 
-    if st.session_state.raw_api_data:
+    if st.session_state.raw_api_data and comp_entry_mode == "RentCast Auto-Fetch (API)":
         st.divider()
         st.markdown("#### 🔍 Raw RentCast API Feed")
-        st.caption("This is the exact raw data extracted from the MLS via RentCast. You can expand it to verify historical sales, year built, and property features.")
         st.json(st.session_state.raw_api_data)
 
 
@@ -243,10 +268,20 @@ if apply_buydown:
     st.sidebar.markdown(f"📉 **Buydown Net Rate:** `{net_refi_rate*100:.3f}%`")
     st.sidebar.markdown(f"💵 **Points Cost:** `{buydown_pts}% of Takeout Loan`")
 
-# --- SECTION 3: DSCR & OPERATING SECTION ---
-st.sidebar.subheader("DSCR & Operating Metrics")
-target_dscr_rate = st.sidebar.number_input("Target Lender DSCR Rate", min_value=1.0, max_value=1.5, value=1.20, step=0.05)
+# --- SECTION 3: INCOME, DSCR & VALUATION ---
+st.sidebar.subheader("Income, DSCR & Valuation")
 gross_monthly_rent = st.sidebar.number_input("Gross Monthly Rental Income per Unit ($)", value=1650, step=50, format="%d")
+
+# NEW BTR FEATURE: Switch between standard Price/SF appraisal and Income Approach (GRM)
+appraisal_mode = st.sidebar.radio("Takeout Appraisal Methodology", ["Sales Comp (Price/SF)", "Income Approach (GRM)"])
+if appraisal_mode == "Income Approach (GRM)":
+    target_grm = st.sidebar.number_input("Gross Rent Multiplier (GRM)", min_value=4.0, max_value=25.0, value=10.5, step=0.1)
+    # Give instant feedback on what the resulting unit ARV will be
+    st.sidebar.success(f"📈 **Calculated Unit ARV:** ${(gross_monthly_rent * 12) * target_grm:,.0f}")
+else:
+    target_grm = 0.0
+
+target_dscr_rate = st.sidebar.number_input("Target Lender DSCR Rate", min_value=1.0, max_value=1.5, value=1.20, step=0.05)
 vacancy_rate = st.sidebar.slider("Vacancy Rate (%)", min_value=0.0, max_value=15.0, value=5.0, step=1.0) / 100.0
 opex_rate = st.sidebar.slider("Operating Expenses (OpEx) Rate of EGI (%)", min_value=15.0, max_value=50.0, value=30.0, step=1.0) / 100.0
 
@@ -434,10 +469,16 @@ blended_cost_per_sf = hard_cost_per_unit / total_under_roof_sqft if total_under_
 
 total_hard_cost = hard_cost_per_unit * units
 
-# UPDATE: Proper Appraisal Math. Heated footprint valued at market rate. Aux structures valued at cost to build.
-appraised_heated_value = comp_retail_heated_rate * sqft
-appraised_aux_value = struct_total_cost + front_porch_cost + back_porch_cost
-arv_per_unit = appraised_heated_value + appraised_aux_value
+
+# UPDATE: DYNAMIC APPRAISAL METHODOLOGY
+if appraisal_mode == "Income Approach (GRM)":
+    # Appraise based strictly on rents and multiplier (Standard DSCR Method)
+    arv_per_unit = (gross_monthly_rent * 12) * target_grm
+else:
+    # Standard Residential Appraisal Math
+    appraised_heated_value = comp_retail_heated_rate * sqft
+    appraised_aux_value = struct_total_cost + front_porch_cost + back_porch_cost
+    arv_per_unit = appraised_heated_value + appraised_aux_value
 
 total_arv = arv_per_unit * units
 
@@ -516,7 +557,10 @@ with ui_op_metrics:
     st.markdown("### 🏢 Operating & DSCR Metrics")
     op1, op2, op3, op4 = st.columns(4)
 
-    op1.metric("Derived Unit ARV", f"${arv_per_unit:,.0f}", f"${total_arv:,.0f} Total ARV")
+    # Show which method is driving the ARV
+    arv_label = "Derived Unit ARV (Price/SF)" if appraisal_mode == "Sales Comp (Price/SF)" else "Derived Unit ARV (GRM)"
+    
+    op1.metric(arv_label, f"${arv_per_unit:,.0f}", f"${total_arv:,.0f} Total ARV")
     op2.metric("Actual DSCR Rate", f"{actual_dscr:.2f}x", f"Target: {target_dscr_rate:.2f}x", delta_color="normal" if actual_dscr >= target_dscr_rate else "inverse")
     op3.metric("Monthly Cash Flow", f"${monthly_cash_flow:,.0f} /mo", f"${monthly_cash_flow*12:,.0f} Annual", delta_color="normal" if monthly_cash_flow >= 0 else "inverse")
     op4.metric("Monthly P&I Payment", f"${total_monthly_pi:,.0f} /mo", f"{refi_term_years}Yr @ {net_refi_rate*100:.3f}%")
