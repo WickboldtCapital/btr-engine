@@ -113,6 +113,7 @@ if comp_entry_mode == "RentCast Live API Fetch":
                 st.error("Missing API Key. Paste it in the Configuration box or add RENTCAST_API_KEY to Railway Variables.")
             
     st.info("💡 RentCast Mode is active. Address, Price, and Heated SF are locked to the fetched data. Switch to 'Manual Entry' to edit them.")
+    
     comp_address = st.text_input("Comparable Property Address", value=st.session_state.comp_address, disabled=True)
     cc_col1, cc_col2, cc_col3, cc_col4, cc_col5 = st.columns(5)
     comp_price = cc_col1.number_input("Comp Sale Price ($)", value=st.session_state.comp_price, disabled=True)
@@ -211,7 +212,7 @@ else:
     base_direct_cost_sf = target_heated_hard_cost / sqft if sqft > 0 else 0
     st.sidebar.success(f"**Target Heated Cost:**\n${base_direct_cost_sf:.2f} / SF")
 
-st.sidebar.subheader("5. GC Fee, Land & Soft Costs")
+st.sidebar.subheader("5. GC Fee & Land Costs")
 gc_fee_mode = st.sidebar.radio("GC Fee Structure", ["Percentage of Hard Costs (%)", "Consolidated Flat Fee ($ Total)"])
 if gc_fee_mode == "Percentage of Hard Costs (%)":
     gc_fee_pct = st.sidebar.number_input("GC Management Fee (%)", min_value=0.0, max_value=50.0, value=10.0, step=0.5) / 100.0
@@ -221,7 +222,6 @@ else:
     gc_fee_pct = 0.0
 
 land_basis = st.sidebar.number_input("Land Basis per Lot ($)", value=15000, step=1000, format="%d")
-soft_costs = st.sidebar.number_input("Soft Costs per Unit ($)", value=5500, step=500, format="%d")
 
 st.sidebar.subheader("6. Financing & Operations")
 const_ltv = st.sidebar.slider("Construction Loan LTV (%)", min_value=60.0, max_value=100.0, value=85.0, step=5.0) / 100.0
@@ -238,6 +238,7 @@ refi_closing_fee = st.sidebar.number_input("Refinance Closing Fee ($ total)", va
 apply_buydown = st.sidebar.checkbox("Apply Interest Rate Buydown Points?")
 buydown_pts = 0.0
 net_refi_rate = base_refi_rate
+
 if apply_buydown:
     buydown_pts = st.sidebar.number_input("Discount Points (1 pt = 1% of Loan)", min_value=0.0, max_value=5.0, value=2.0, step=0.5)
     rate_reduction = buydown_pts * 0.0025  
@@ -414,7 +415,10 @@ fee_basis = total_hard_cost + default_gcond
 default_gc_fee = custom_gc_fee if gc_fee_mode == "Consolidated Flat Fee ($ Total)" else fee_basis * gc_fee_pct
 default_premium = total_hard_cost * 0.05
 total_land_default = land_basis * units
-total_soft_default = soft_costs * units
+
+# Establish the global standard default for soft costs (now removed from sidebar)
+default_soft_cost_per_unit = 5500
+total_soft_default = default_soft_cost_per_unit * units
 
 total_const_default = fee_basis + default_gc_fee + default_premium
 total_project_costs_ex_interest_default = total_land_default + total_const_default + total_soft_default + const_closing_fee
@@ -427,7 +431,7 @@ indirects_data = [
     {"Cost Category": "GC Management Fee", "Metric / Basis": "Flat Fee" if gc_fee_mode == "Consolidated Flat Fee ($ Total)" else f"{gc_fee_pct*100:.1f}% Basis", "Amount ($)": default_gc_fee},
     {"Cost Category": "BTR Buying Power Premium", "Metric / Basis": "5.0% of Direct", "Amount ($)": default_premium},
     {"Cost Category": "Land Acquisition Basis", "Metric / Basis": f"${land_basis:,.0f} / Lot", "Amount ($)": total_land_default},
-    {"Cost Category": "Soft Costs & Permitting", "Metric / Basis": f"${soft_costs:,.0f} / Unit", "Amount ($)": total_soft_default},
+    {"Cost Category": "Soft Costs & Permitting", "Metric / Basis": f"${default_soft_cost_per_unit:,.0f} / Unit", "Amount ($)": total_soft_default},
     {"Cost Category": "Construction Loan Closing Fee", "Metric / Basis": "Flat Fee", "Amount ($)": const_closing_fee},
     {"Cost Category": f"Accrued Const. Interest ({build_months} Mos)", "Metric / Basis": f"{avg_draw_pct*100:.0f}% Avg Draw", "Amount ($)": default_carry_int},
     {"Cost Category": "Takeout Refinance Closing Fee", "Metric / Basis": "Flat Fee", "Amount ($)": refi_closing_fee},
