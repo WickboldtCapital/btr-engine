@@ -41,12 +41,14 @@ const_ltv = st.sidebar.slider("Construction Loan LTV (%)", min_value=60.0, max_v
 build_months = st.sidebar.slider("Construction Duration (Months)", min_value=3, max_value=18, value=9, step=1)
 const_rate = st.sidebar.slider("Construction Loan Rate (%)", min_value=4.0, max_value=14.0, value=8.5, step=0.5) / 100.0
 avg_draw_pct = st.sidebar.slider("Average Draw / Principal Utilization Rate (%)", min_value=20.0, max_value=100.0, value=50.0, step=5.0) / 100.0
+const_closing_fee = st.sidebar.number_input("Construction Loan Closing Fee ($ total)", value=6000, step=500, format="%d")
 
 # --- SECTION 2: PERMANENT REFINANCE (TAKEOUT) ---
 st.sidebar.subheader("Permanent Refinance (Takeout)")
 refi_ltv = st.sidebar.slider("Refinance LTV (%)", min_value=60.0, max_value=85.0, value=80.0, step=5.0) / 100.0
 refi_term_years = st.sidebar.selectbox("Amortization Term (Years)", [15, 20, 25, 30], index=3)
 base_refi_rate = st.sidebar.slider("Base Refi Interest Rate (%)", min_value=4.0, max_value=10.0, value=6.5, step=0.25) / 100.0
+refi_closing_fee = st.sidebar.number_input("Refinance Closing Fee ($ total)", value=3650, step=250, format="%d")
 
 apply_buydown = st.sidebar.checkbox("Apply Interest Rate Buydown Points?")
 buydown_pts = 0.0
@@ -67,11 +69,9 @@ gross_monthly_rent = st.sidebar.number_input("Gross Monthly Rental Income per Un
 vacancy_rate = st.sidebar.slider("Vacancy Rate (%)", min_value=0.0, max_value=15.0, value=5.0, step=1.0) / 100.0
 opex_rate = st.sidebar.slider("Operating Expenses (OpEx) Rate of EGI (%)", min_value=15.0, max_value=50.0, value=30.0, step=1.0) / 100.0
 
-st.sidebar.subheader("Standard Fees & Land")
+st.sidebar.subheader("Land & Soft Costs")
 land_basis = st.sidebar.number_input("Land Basis per Lot ($)", value=15000, step=1000, format="%d")
 soft_costs = st.sidebar.number_input("Soft Costs per Unit ($)", value=5500, step=500, format="%d")
-const_fees = st.sidebar.number_input("Const. Loan Closing Fee per Unit ($)", value=6000, step=500, format="%d")
-takeout_fees = st.sidebar.number_input("Takeout Refi Fee per Unit ($)", value=3650, step=50, format="%d")
 
 # --- COMPARABLE MARKET ANALYSIS (COMP BENCHMARK TOOL) ---
 st.markdown("### 🔍 Market Comp Blended Cost & Valuation Benchmark")
@@ -108,7 +108,7 @@ total_arv = arv_per_unit * units
 loan_total = total_arv * refi_ltv
 total_buydown_cost = loan_total * buydown_cost_pct if apply_buydown else 0
 
-# Monthly P&I Calculation (per door or total based on units)
+# Monthly P&I Calculation
 monthly_interest_rate = net_refi_rate / 12.0
 total_payments = refi_term_years * 12
 if monthly_interest_rate > 0:
@@ -143,15 +143,13 @@ total_const = fee_basis + gc_fee + premium
 
 total_soft_costs = soft_costs * units
 total_land = land_basis * units
-total_const_fees = const_fees * units
-total_takeout_fees = takeout_fees * units
 
 # Construction Loan sizing and Accrued Interest calculation
-total_project_costs_ex_interest = total_land + total_const + total_soft_costs + total_const_fees
+total_project_costs_ex_interest = total_land + total_const + total_soft_costs + const_closing_fee
 construction_loan_limit = total_project_costs_ex_interest * const_ltv
 carry_int = construction_loan_limit * avg_draw_pct * const_rate * (build_months / 12.0)
 
-total_project_basis = total_project_costs_ex_interest + carry_int + total_takeout_fees + total_buydown_cost
+total_project_basis = total_project_costs_ex_interest + carry_int + refi_closing_fee + total_buydown_cost
 cash_surplus = loan_total - total_project_basis
 retained_equity = total_arv - loan_total
 day1_wealth = gc_fee + max(0, cash_surplus) + retained_equity
@@ -163,7 +161,7 @@ st.divider()
 col1, col2, col3, col4 = st.columns(4)
 
 col1.metric("Takeout Loan Proceeds", f"${loan_total:,.0f}", f"{refi_ltv*100:.0f}% LTV")
-col2.metric("Total Project Basis", f"${total_project_basis:,.0f}", f"${total_project_basis/units:,.0f} per door", delta_color="inverse")
+col2.metric("Total Project Basis", f"${total_project_basis:,.0f}", f"${total_project_basis/units:,.0f} per door", delta_color="off")
 col3.metric("Actual DSCR Rate", f"{actual_dscr:.2f}x", f"Target: {target_dscr_rate:.2f}x", delta_color="normal" if actual_dscr >= target_dscr_rate else "inverse")
 col4.metric("Monthly Cash Flow", f"${monthly_cash_flow:,.0f} /mo", f"${monthly_cash_flow*12:,.0f} Annual", delta_color="normal" if monthly_cash_flow >= 0 else "inverse")
 
@@ -184,9 +182,9 @@ with row2_col1:
             "GC Management Fee", 
             "BTR Buying Power Premium (5%)", 
             "Soft Costs & Permitting",
-            "Const. Loan Closing Fees", 
+            "Construction Loan Closing Fee", 
             f"Accrued Const. Interest ({build_months} Mos @ {const_rate*100:.1f}%, {avg_draw_pct*100:.0f}% Draw)",
-            "Takeout Refi Fees & Rate Buydown Points", 
+            "Refinance Closing Fee & Rate Buydown Points", 
             "TOTAL PROJECT BASIS"
         ],
         "Amount ($)": [
@@ -199,9 +197,9 @@ with row2_col1:
             gc_fee,
             premium,
             total_soft_costs,
-            total_const_fees,
+            const_closing_fee,
             carry_int,
-            total_takeout_fees + total_buydown_cost,
+            refi_closing_fee + total_buydown_cost,
             total_project_basis
         ]
     }
