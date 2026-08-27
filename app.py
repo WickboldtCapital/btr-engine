@@ -46,9 +46,7 @@ comp_entry_mode = st.radio(
     "Comparable Data Entry Mode", 
     [
         "Manual Entry", 
-        "RentCast Live API Fetch",
-        "Auto-Load: 1103 S Spruce St (Hammond)", 
-        "Auto-Load: 71728 Spike Dr (Madisonville)"
+        "RentCast Live API Fetch"
     ], 
     horizontal=True
 )
@@ -116,23 +114,7 @@ if comp_entry_mode == "RentCast Live API Fetch":
 st.markdown("##### 1. Primary Comp Metrics")
 col_addr, col_price, col_hsf = st.columns([2, 1, 1])
 
-if comp_entry_mode == "Auto-Load: 1103 S Spruce St (Hammond)":
-    st.session_state.comp_address = "1103 S Spruce St, Hammond, LA 70403"
-    st.session_state.comp_price = 210100
-    st.session_state.comp_heated_sf = 1300
-    comp_address = col_addr.text_input("Comparable Property Address", value=st.session_state.comp_address, disabled=True)
-    comp_price = col_price.number_input("Comp Sale Price ($)", value=st.session_state.comp_price, disabled=True)
-    comp_heated_sf = col_hsf.number_input("Comp Heated SF", value=st.session_state.comp_heated_sf, disabled=True)
-
-elif comp_entry_mode == "Auto-Load: 71728 Spike Dr (Madisonville)":
-    st.session_state.comp_address = "71728 Spike Dr, Madisonville, LA 70447"
-    st.session_state.comp_price = 205045
-    st.session_state.comp_heated_sf = 1001
-    comp_address = col_addr.text_input("Comparable Property Address", value=st.session_state.comp_address, disabled=True)
-    comp_price = col_price.number_input("Comp Sale Price ($)", value=st.session_state.comp_price, disabled=True)
-    comp_heated_sf = col_hsf.number_input("Comp Heated SF", value=st.session_state.comp_heated_sf, disabled=True)
-
-elif comp_entry_mode == "RentCast Live API Fetch":
+if comp_entry_mode == "RentCast Live API Fetch":
     comp_address = col_addr.text_input("Comparable Property Address", value=st.session_state.comp_address, disabled=True)
     comp_price = col_price.number_input("Comp Sale Price ($)", value=st.session_state.comp_price, disabled=True)
     comp_heated_sf = col_hsf.number_input("Comp Heated SF", value=st.session_state.comp_heated_sf, disabled=True)
@@ -190,6 +172,7 @@ with cont_footprint:
 
 with cont_finance:
     st.subheader("6. Financing & Operations")
+    # Rent moved down visually, but mathematically accessible globally!
     gross_monthly_rent = st.number_input("Gross Monthly Rental Income per Unit ($)", value=1650, step=50, format="%d")
     target_dscr_rate = st.number_input("Target Lender DSCR Rate", min_value=1.0, max_value=1.5, value=1.20, step=0.05)
     vacancy_rate = st.slider("Vacancy Rate (%)", min_value=0.0, max_value=15.0, value=5.0, step=1.0) / 100.0
