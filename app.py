@@ -20,6 +20,7 @@ st.markdown("### 📋 Project Information")
 top_col1, top_col2 = st.columns([2, 2])
 project_name = top_col1.text_input("Project Title", placeholder="e.g. Phase 1 - 24-Lot Build-to-Rent")
 project_address = top_col2.text_input("Project Address", placeholder="e.g. Rogers Moore Parkway, Hammond, LA")
+report_date = datetime.now().strftime("%B %d, %Y")
 
 sub_col1, sub_col2, sub_col3 = st.columns([1, 1, 2])
 project_beds = sub_col1.number_input("Beds per Unit", min_value=1, value=3, step=1)
@@ -533,7 +534,7 @@ retained_equity = total_arv - loan_total
 day1_wealth = gc_fee + max(0, cash_surplus) + retained_equity
 
 
-# --- UI CONTAINERS INITIALIZATION (Fixes NameError) ---
+# --- UI CONTAINERS INITIALIZATION ---
 ui_top_metrics = st.container()
 ui_op_metrics = st.container()
 
