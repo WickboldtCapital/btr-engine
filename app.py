@@ -20,7 +20,17 @@ if opt_gc:
 
 st.sidebar.subheader("Construction Costs (Heated Area)")
 sqft = st.sidebar.number_input("Heated SqFt per Unit", value=1150, step=50, format="%d")
-direct_cost_sf = st.sidebar.slider("Direct Build Cost / SF ($)", min_value=40.0, max_value=150.0, value=74.0, step=1.0)
+
+# NEW: Reverse-Engineer Cost Mode
+cost_calc_mode = st.sidebar.radio("Cost Calculation Mode", ["Manual Set (Heated SF)", "Reverse-Engineer (Target Blended SF)"])
+
+if cost_calc_mode == "Manual Set (Heated SF)":
+    direct_cost_sf = st.sidebar.slider("Direct Build Cost / SF ($)", min_value=40.0, max_value=150.0, value=74.0, step=1.0)
+    target_blended = 0.0
+else:
+    target_blended = st.sidebar.number_input("Target Blended Cost / SF ($)", value=65.0, step=1.0)
+    direct_cost_sf = 0.0 # Will calculate dynamically in core calculations
+    st.sidebar.caption("The Heated Build Cost / SF will be back-solved to hit this overall blended rate target.")
 
 st.sidebar.subheader("Auxiliary Structure (Carport / Garage)")
 structure_type = st.sidebar.selectbox("Structure Type", ["Carport", "Garage"])
@@ -77,6 +87,9 @@ soft_costs = st.sidebar.number_input("Soft Costs per Unit ($)", value=5500, step
 st.markdown("### 🔍 Market Comp Blended Cost & Valuation Benchmark")
 st.markdown("Input market comparable data below to evaluate blended under-roof costs. This comp valuation automatically drives the project's Appraised Value (ARV).")
 
+# NEW: Comp Address Input
+comp_address = st.text_input("Comparable Property Address (Optional)", placeholder="e.g. 16144 South Bud Broussard Road, Prairieville, LA")
+
 cc_col1, cc_col2, cc_col3, cc_col4, cc_col5 = st.columns(5)
 comp_price = cc_col1.number_input("Comp Total Value / Price ($)", value=182600, step=1000, format="%d")
 comp_heated_sf = cc_col2.number_input("Comp Heated SF", value=1150, step=50, format="%d")
@@ -87,18 +100,28 @@ comp_back_sf = cc_col5.number_input("Comp Back Porch SF", value=120, step=10, fo
 comp_total_sf = comp_heated_sf + comp_struct_sf + comp_front_sf + comp_back_sf
 comp_blended_cost = comp_price / comp_total_sf if comp_total_sf > 0 else 0
 
+if comp_address:
+    st.caption(f"📍 **Active Comp:** {comp_address} | Comp Blended Rate: **${comp_blended_cost:.2f} / SF**")
+
 # --- CORE CALCULATIONS ---
-heated_hard_cost = sqft * direct_cost_sf
 struct_total_cost = struct_sqft * struct_cost_sf
 front_porch_cost = front_porch_sqft * front_porch_cost_sf
 back_porch_cost = back_porch_sqft * back_porch_cost_sf
+total_under_roof_sqft = sqft + struct_sqft + front_porch_sqft + back_porch_sqft
+
+# Reverse-Engineer Logic for Direct Cost / SF
+if cost_calc_mode == "Reverse-Engineer (Target Blended SF)":
+    target_hard_cost = target_blended * total_under_roof_sqft
+    heated_hard_cost = target_hard_cost - struct_total_cost - front_porch_cost - back_porch_cost
+    direct_cost_sf = heated_hard_cost / sqft if sqft > 0 else 0
+    blended_cost_per_sf = target_blended
+else:
+    heated_hard_cost = sqft * direct_cost_sf
+    hard_cost_per_unit = heated_hard_cost + struct_total_cost + front_porch_cost + back_porch_cost
+    blended_cost_per_sf = hard_cost_per_unit / total_under_roof_sqft if total_under_roof_sqft > 0 else 0
 
 hard_cost_per_unit = heated_hard_cost + struct_total_cost + front_porch_cost + back_porch_cost
 total_hard_cost = hard_cost_per_unit * units
-
-# Under-roof metrics for project unit
-total_under_roof_sqft = sqft + struct_sqft + front_porch_sqft + back_porch_sqft
-blended_cost_per_sf = hard_cost_per_unit / total_under_roof_sqft if total_under_roof_sqft > 0 else 0
 
 # Appraised Value (ARV) derived from Comp's blended cost per SF
 arv_per_unit = comp_blended_cost * total_under_roof_sqft
