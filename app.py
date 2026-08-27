@@ -4,7 +4,6 @@ from fpdf import FPDF
 import tempfile
 import requests
 import os
-import re
 from datetime import datetime
 
 # Page Configuration
@@ -46,46 +45,28 @@ comp_entry_mode = st.radio(
     "Comparable Data Entry Mode", 
     [
         "Manual Entry", 
-        "Auto-Load: 1103 S Spruce St (Hammond)", 
-        "Auto-Load: 71728 Spike Dr (Madisonville)",
-        "RentCast Auto-Fetch (API)"
+        "RentCast Live API Fetch"
     ], 
     horizontal=True
 )
 
-if comp_entry_mode == "Auto-Load: 1103 S Spruce St (Hammond)":
-    st.success("✅ Pre-Loaded Data Activated for Hammond Comp.")
-    st.session_state.comp_address = "1103 S Spruce St, Hammond, LA 70403"
-    st.session_state.comp_price = 210100
-    st.session_state.comp_heated_sf = 1300
+if comp_entry_mode == "RentCast Live API Fetch":
     
-    comp_address = st.text_input("Comparable Property Address", value=st.session_state.comp_address, disabled=True)
-    cc_col1, cc_col2, cc_col3, cc_col4, cc_col5 = st.columns(5)
-    comp_price = cc_col1.number_input("Comp Sale Price ($)", value=st.session_state.comp_price, disabled=True)
-    comp_heated_sf = cc_col2.number_input("Comp Heated SF", value=st.session_state.comp_heated_sf, disabled=True)
-
-elif comp_entry_mode == "Auto-Load: 71728 Spike Dr (Madisonville)":
-    st.success("✅ Pre-Loaded Data Activated for Madisonville Comp.")
-    st.session_state.comp_address = "71728 Spike Dr, Madisonville, LA 70447"
-    st.session_state.comp_price = 205045
-    st.session_state.comp_heated_sf = 1001
-    
-    comp_address = st.text_input("Comparable Property Address", value=st.session_state.comp_address, disabled=True)
-    cc_col1, cc_col2, cc_col3, cc_col4, cc_col5 = st.columns(5)
-    comp_price = cc_col1.number_input("Comp Sale Price ($)", value=st.session_state.comp_price, disabled=True)
-    comp_heated_sf = cc_col2.number_input("Comp Heated SF", value=st.session_state.comp_heated_sf, disabled=True)
-
-elif comp_entry_mode == "RentCast Auto-Fetch (API)":
     rc_col1, rc_col2 = st.columns([4, 1])
-    search_address = rc_col1.text_input("Property Address (Requires RentCast API Key)", placeholder="e.g. 1103 S Spruce St, Hammond, LA")
+    search_address = rc_col1.text_input("Property Address", placeholder="e.g. 1103 S Spruce St, Hammond, LA")
+    
+    with st.expander("⚙️ API Configuration (Optional)"):
+        st.caption("If Railway hasn't loaded your key yet, paste it here to test immediately.")
+        manual_key = st.text_input("RentCast API Key Override", type="password")
 
-    if rc_col2.button("Fetch Property Data", use_container_width=True):
+    if rc_col2.button("Fetch Live Data", use_container_width=True):
         if search_address:
-            rentcast_key = os.environ.get("RENTCAST_API_KEY") or st.secrets.get("RENTCAST_API_KEY", "")
+            # Check manual input first, then Railway environment, then Streamlit secrets
+            rentcast_key = manual_key or os.environ.get("RENTCAST_API_KEY") or st.secrets.get("RENTCAST_API_KEY", "")
             
             if rentcast_key:
                 try:
-                    with st.spinner("Fetching live data from RentCast..."):
+                    with st.spinner("Fetching live data from RentCast MLS..."):
                         api_url = "https://api.rentcast.io/v1/properties"
                         querystring = {"address": search_address}
                         headers = {
@@ -124,13 +105,13 @@ elif comp_entry_mode == "RentCast Auto-Fetch (API)":
                                 st.success(f"Property successfully imported: {st.session_state.comp_address}")
                                 st.rerun()
                             else:
-                                st.error("No data found. Make sure the address is formatted correctly (e.g., '1103 S Spruce St, Hammond, LA 70403').")
+                                st.error("No exact match found. Make sure the address is formatted perfectly (e.g., '1103 S Spruce St, Hammond, LA').")
                         else:
-                            st.error(f"RentCast API Error {response.status_code}. (If this is a 403, your API key is missing. Go to Railway -> Deployments -> click Redeploy!)")
+                            st.error(f"RentCast API Error {response.status_code}. Your API Key may be invalid.")
                 except Exception as e:
                     st.error(f"Error fetching data: {e}")
             else:
-                st.error("Missing RENTCAST_API_KEY. Please ensure you added it to your Railway Variables.")
+                st.error("Missing API Key. Paste it in the Configuration box or add RENTCAST_API_KEY to Railway Variables.")
             
     st.info("💡 RentCast Mode is active. Address, Price, and Heated SF are locked to the fetched data. Switch to 'Manual Entry' to edit them.")
     
@@ -178,7 +159,7 @@ with st.expander("🧮 View Comp Math Audit & Raw API Data", expanded=False):
     st.markdown("**Total Under-Roof Calculation:**")
     st.caption(f"• {comp_heated_sf} SF (Heated)\n\n• {comp_struct_sf} SF (Garage/Carport)\n\n• {comp_front_sf} SF (Front Porch)\n\n• {comp_back_sf} SF (Back Porch)\n\n**= {comp_total_sf} Total SF**")
 
-    if st.session_state.raw_api_data and comp_entry_mode == "RentCast Auto-Fetch (API)":
+    if st.session_state.raw_api_data and comp_entry_mode == "RentCast Live API Fetch":
         st.divider()
         st.markdown("#### 🔍 Raw RentCast API Feed")
         st.json(st.session_state.raw_api_data)
@@ -468,7 +449,6 @@ hard_cost_per_unit = heated_hard_cost + struct_total_cost + front_porch_cost + b
 blended_cost_per_sf = hard_cost_per_unit / total_under_roof_sqft if total_under_roof_sqft > 0 else 0
 
 total_hard_cost = hard_cost_per_unit * units
-
 
 # UPDATE: DYNAMIC APPRAISAL METHODOLOGY
 if appraisal_mode == "Income Approach (GRM)":
