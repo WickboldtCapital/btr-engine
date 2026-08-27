@@ -65,29 +65,24 @@ else:
 st.sidebar.subheader("Construction Costs (Heated Area)")
 sqft = st.sidebar.number_input("Heated SqFt per Unit", value=1150, step=50, format="%d")
 
-# 3-Way Cost Calculation Mode
+# Streamlined Cost Calculation Mode
 cost_calc_mode = st.sidebar.radio(
     "Cost Calculation Mode", 
     [
         "Manual Set (Heated SF)", 
-        "Reverse-Engineer (Target Blended SF)", 
-        "Reverse-Engineer (Retail Price Breakdown)"
+        "Reverse-Engineer from Comp (Adjustable Breakdown)"
     ]
 )
 
 if cost_calc_mode == "Manual Set (Heated SF)":
     direct_cost_sf = st.sidebar.slider("Direct Build Cost / SF ($)", min_value=40.0, max_value=150.0, value=74.0, step=1.0)
-    target_blended = 0.0
-elif cost_calc_mode == "Reverse-Engineer (Target Blended SF)":
-    target_blended = st.sidebar.number_input("Target Blended Cost / SF ($)", value=65.0, step=1.0)
-    direct_cost_sf = 0.0 
-    st.sidebar.caption("The Heated Build Cost / SF will be back-solved to hit this overall blended rate target.")
 else:
-    st.sidebar.caption("Retail Price / SF is dynamically derived from your Market Comp inputs on the main dashboard.")
+    # Fully Automated Top-Down Retail Price Reverse Engineering with adjustable sliders
+    st.sidebar.caption("Retail Price / SF is dynamically derived from your Market Comp inputs.")
     retail_price_sf = comp_blended_cost
     st.sidebar.markdown(f"**Comp Retail Price:** `${retail_price_sf:.2f} / SF`")
     
-    st.sidebar.caption("Deductions (% of Price):")
+    st.sidebar.markdown("**Adjustable Deductions:**")
     lot_cost_pct = st.sidebar.slider("Finished Lot Cost (%)", min_value=0.0, max_value=30.0, value=18.0, step=0.5) / 100.0
     margin_pct = st.sidebar.slider("Gross Margin (O&P) (%)", min_value=0.0, max_value=30.0, value=20.0, step=0.5) / 100.0
     sales_pct = st.sidebar.slider("Sales & Marketing (%)", min_value=0.0, max_value=15.0, value=8.0, step=0.5) / 100.0
@@ -95,8 +90,8 @@ else:
     
     target_hard_cost_pct = 1.0 - (lot_cost_pct + margin_pct + sales_pct + finance_pct)
     direct_cost_sf = retail_price_sf * target_hard_cost_pct
-    st.sidebar.success(f"**Target Direct Hard Cost:** ${direct_cost_sf:.2f} / SF ({target_hard_cost_pct*100:.1f}%)")
-    target_blended = 0.0
+    
+    st.sidebar.success(f"**Output Direct Cost:**\n${direct_cost_sf:.2f} / SF (Heated)")
 
 st.sidebar.subheader("Auxiliary Structure (Carport / Garage)")
 structure_type = st.sidebar.selectbox("Structure Type", ["Carport", "Garage"])
@@ -148,23 +143,18 @@ st.sidebar.subheader("Land & Soft Costs")
 land_basis = st.sidebar.number_input("Land Basis per Lot ($)", value=15000, step=1000, format="%d")
 soft_costs = st.sidebar.number_input("Soft Costs per Unit ($)", value=5500, step=500, format="%d")
 
+
 # --- CORE CALCULATIONS ---
 struct_total_cost = struct_sqft * struct_cost_sf
 front_porch_cost = front_porch_sqft * front_porch_cost_sf
 back_porch_cost = back_porch_sqft * back_porch_cost_sf
 total_under_roof_sqft = sqft + struct_sqft + front_porch_sqft + back_porch_sqft
 
-if cost_calc_mode == "Reverse-Engineer (Target Blended SF)":
-    target_hard_cost = target_blended * total_under_roof_sqft
-    heated_hard_cost = target_hard_cost - struct_total_cost - front_porch_cost - back_porch_cost
-    direct_cost_sf = heated_hard_cost / sqft if sqft > 0 else 0
-    blended_cost_per_sf = target_blended
-else:
-    heated_hard_cost = sqft * direct_cost_sf
-    hard_cost_per_unit = heated_hard_cost + struct_total_cost + front_porch_cost + back_porch_cost
-    blended_cost_per_sf = hard_cost_per_unit / total_under_roof_sqft if total_under_roof_sqft > 0 else 0
-
+# Calculate Heated Hard Cost identically regardless of mode
+heated_hard_cost = sqft * direct_cost_sf
 hard_cost_per_unit = heated_hard_cost + struct_total_cost + front_porch_cost + back_porch_cost
+blended_cost_per_sf = hard_cost_per_unit / total_under_roof_sqft if total_under_roof_sqft > 0 else 0
+
 total_hard_cost = hard_cost_per_unit * units
 
 arv_per_unit = comp_blended_cost * total_under_roof_sqft
@@ -196,7 +186,6 @@ monthly_cash_flow = monthly_noi - total_monthly_pi
 gcond = total_hard_cost * 0.05
 fee_basis = total_hard_cost + gcond
 
-# Adjusted GC Fee Logic
 if gc_fee_mode == "Consolidated Flat Fee ($ Total)":
     gc_fee = custom_gc_fee
 else:
@@ -323,20 +312,9 @@ with download_placeholder:
     )
 
 # --- REVERSE ENGINEER UI BLOCKS ---
-if cost_calc_mode == "Reverse-Engineer (Target Blended SF)":
-    st.markdown("### 🔄 Blended Rate Reverse-Engineer Math Breakdown")
-    st.caption("How your required Heated Build Cost / SF is derived from your Target Blended Cost.")
-    re_col1, re_col2, re_col3, re_col4 = st.columns(4)
-    re_col1.metric("1. Target Total Hard Cost", f"${target_hard_cost:,.0f}", f"${target_blended:.2f} × {total_under_roof_sqft} SF")
-    aux_total = struct_total_cost + front_porch_cost + back_porch_cost
-    re_col2.metric("2. Less Auxiliary Costs", f"-${aux_total:,.0f}", f"Carport/Garage + Porches")
-    re_col3.metric("3. Heated Budget Remaining", f"${heated_hard_cost:,.0f}", "Target Cost - Aux Costs")
-    re_col4.metric("4. Required Direct Cost / SF", f"${direct_cost_sf:,.2f} / SF", f"${heated_hard_cost:,.0f} ÷ {sqft} SF", delta_color="off")
-    st.divider()
-
-elif cost_calc_mode == "Reverse-Engineer (Retail Price Breakdown)":
+if cost_calc_mode == "Reverse-Engineer from Comp (Adjustable Breakdown)":
     st.markdown("### 🔄 Retail Price Reverse-Engineering Breakdown")
-    st.caption(f"Isolating Target Direct Hard Costs by reverse-engineering your Comp's Retail Price of **${retail_price_sf:.2f} / SF**.")
+    st.caption(f"Isolating Target Direct Hard Costs by applying custom standard deductions to your Comp's Retail Price of **${retail_price_sf:.2f} / SF**.")
     
     breakdown_data = {
         "Cost Category": [
