@@ -53,23 +53,25 @@ comp_entry_mode = st.radio(
 # API Logic
 if comp_entry_mode == "RentCast Live API Fetch":
     rc_col1, rc_col2 = st.columns([4, 1])
-    search_address = rc_col1.text_input("Property Address", placeholder="e.g. 1103 S Spruce St, Hammond, LA")
+    search_address = rc_col1.text_input("Property Address", placeholder="e.g. 1103 S Spruce St, Hammond, LA 70403")
     
     with st.expander("⚙️ API Configuration (Optional)"):
         st.caption("If Railway hasn't loaded your key yet, paste it here to test immediately.")
         manual_key = st.text_input("RentCast API Key Override", type="password")
 
     if rc_col2.button("Fetch Live Data", use_container_width=True):
-        if search_address:
+        if not search_address or search_address.strip() == "":
+            st.warning("Please enter a valid property address before fetching.")
+        else:
             rentcast_key = manual_key or os.environ.get("RENTCAST_API_KEY") or st.secrets.get("RENTCAST_API_KEY", "")
             
             if rentcast_key:
                 try:
                     with st.spinner("Fetching live data from RentCast MLS..."):
                         api_url = "https://api.rentcast.io/v1/properties"
-                        querystring = {"address": search_address}
+                        querystring = {"address": search_address.strip()}
                         headers = {
-                            "X-Api-Key": rentcast_key,
+                            "X-Api-Key": rentcast_key.strip(),
                             "accept": "application/json"
                         }
                         
@@ -101,9 +103,15 @@ if comp_entry_mode == "RentCast Live API Fetch":
                                 st.success(f"Property successfully imported: {st.session_state.comp_address}")
                                 st.rerun()
                             else:
-                                st.error("No exact match found. Make sure the address is formatted perfectly.")
+                                st.error("No exact match found. Make sure the address includes city, state, and zip (e.g., '100 Main St, Hammond, LA 70401').")
+                        elif response.status_code == 400:
+                            st.error("Error 400 (Bad Request): RentCast could not parse this address format. Please format as: Street, City, State Zip.")
+                        elif response.status_code == 404:
+                            st.error("Error 404: RentCast found no property records for this address in public tax rolls.")
+                        elif response.status_code in [401, 403]:
+                            st.error(f"Error {response.status_code}: Unauthorized. Your API Key is invalid or missing.")
                         else:
-                            st.error(f"RentCast API Error {response.status_code}. Your API Key may be invalid.")
+                            st.error(f"RentCast API Error {response.status_code}. Please check your query.")
                 except Exception as e:
                     st.error(f"Error fetching data: {e}")
             else:
@@ -267,7 +275,33 @@ with cont_target:
         base_direct_cost_sf = target_heated_hard_cost / sqft if sqft > 0 else 0
         st.success(f"**Target Heated Cost:**\n${base_direct_cost_sf:.2f} / SF")
 
+
+# --- MATH AUDIT & RAW DATA PANEL ---
+with st.expander("🧮 View Comp Math Audit & Raw API Data", expanded=False):
+    st.markdown("#### The Math Breakdown")
+    st.markdown("**1. Raw Retail Heated Rate (Unadjusted)**")
+    st.code(f"${comp_price:,.0f} (Sale Price) ÷ {comp_heated_sf:,.0f} (Heated SF) = ${raw_comp_price_sf:.2f} / SF")
+    
+    st.markdown("**2. True Isolated Heated Shell Rate (Value-Add Extraction)**")
+    st.code(f"(${comp_price:,.0f} - ${comp_aux_value:,.0f} Aux Value) ÷ {comp_heated_sf:,.0f} SF = ${isolated_heated_rate:.2f} / SF")
+    
+    st.markdown("**Total Under-Roof Calculation:**")
+    st.caption(f"• {comp_heated_sf} SF (Heated)\n\n• {comp_struct_sf} SF (Garage/Carport)\n\n• {comp_front_sf} SF (Front Porch)\n\n• {comp_back_sf} SF (Back Porch)\n\n• {comp_storage_sf} SF (Storage Room)\n\n**= {comp_total_sf} Total SF**")
+
+    if st.session_state.raw_api_data and comp_entry_mode == "RentCast Live API Fetch":
+        st.divider()
+        st.markdown("#### 🔍 Raw RentCast API Feed")
+        st.json(st.session_state.raw_api_data)
+
 st.divider()
+
+# --- DYNAMIC UI PLACEHOLDERS ---
+ui_top_metrics = st.container()
+ui_op_metrics = st.container()
+st.divider()
+ui_rev_eng = st.container()
+st.divider()
+
 
 # --- RAW GRANULAR DATA ---
 raw_heated_divs = [
@@ -325,7 +359,9 @@ raw_struct_divs = [
     ("  - Paint & Column Wrap", 1.50, False)
 ]
 
+# --- GRANULAR HARD COST BUILDUP ---
 st.markdown("### 🧱 Granular Direct Hard Cost Buildup (Trade Divisions)")
+
 granular_mode = st.radio("Buildup Entry Mode", ["Auto-Proportional (Linked to Master Model)", "Manual Custom Entry (Bottom-Up)"], horizontal=True)
 
 pdf_granular_data = []
@@ -354,7 +390,7 @@ if granular_mode == "Auto-Proportional (Linked to Master Model)":
         live_sf = struct_cost_sf * (base_val / 31.0)
         s_data["Component Level"].append(name)
         s_data["Live Cost / SF"].append(f"${live_sf:.2f}")
-        s_data[f"Per Unit Cost"].append(f"${live_sf * struct_sqft:,.0f}")
+        s_data["Per Unit Cost"].append(f"${live_sf * struct_sqft:,.0f}")
     st.dataframe(pd.DataFrame(s_data), hide_index=True, use_container_width=True)
 
 else:
@@ -381,6 +417,7 @@ p_data = {
 st.dataframe(pd.DataFrame(p_data), hide_index=True, use_container_width=True)
 
 st.divider()
+
 
 # --- PRE-LEDGER MATH (Direct Hard Costs) ---
 total_under_roof_sqft = sqft + struct_sqft + front_porch_sqft + back_porch_sqft + storage_sqft
@@ -505,7 +542,6 @@ day1_wealth = gc_fee + max(0, cash_surplus) + retained_equity
 # ==========================================
 st.markdown("### 🚦 Go/No-Go Investment Decision Dashboard")
 
-# Evaluate metrics against institutional thresholds
 dscr_pass = actual_dscr >= target_dscr_rate
 cash_pass = cash_surplus >= 0
 
