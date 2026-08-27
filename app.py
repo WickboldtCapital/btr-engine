@@ -55,7 +55,13 @@ HARDCODED_DRIVERS = {
     "margin_pct": 20.0,
     "sales_pct": 8.0,
     "finance_pct": 4.0,
-    "pdf_include_sublevels": True
+    "pdf_include_sublevels": True,
+    
+    # Comp Auxiliary Base Defaults
+    "comp_struct_sf": 200,
+    "comp_front_sf": 60,
+    "comp_back_sf": 120,
+    "comp_storage_sf": 40
 }
 
 def load_defaults():
@@ -204,6 +210,114 @@ finance_pct = st.session_state.finance_pct / 100.0
 comp_price = st.session_state.comp_price
 comp_heated_sf = st.session_state.comp_heated_sf
 
+# Extract Comp auxiliary spaces directly from state so math matches UI toggle
+comp_struct_sf = st.session_state.comp_struct_sf
+comp_front_sf = st.session_state.comp_front_sf
+comp_back_sf = st.session_state.comp_back_sf
+comp_storage_sf = st.session_state.comp_storage_sf
+
+
+# ==========================================
+# --- CORE PRE-RENDER MATHEMATICS ---
+# ==========================================
+
+# 1. Base Costs
+struct_total_cost = struct_sqft * base_struct_cost_sf
+front_porch_cost = front_porch_sqft * front_porch_cost_sf
+back_porch_cost = back_porch_sqft * back_porch_cost_sf
+storage_cost = storage_sqft * storage_cost_sf
+our_aux_cost_total = struct_total_cost + front_porch_cost + back_porch_cost + storage_cost + additional_foundation_cost
+
+# 2. Comp Extraction Math
+comp_total_sf = comp_heated_sf + comp_struct_sf + comp_front_sf + comp_back_sf + comp_storage_sf
+raw_comp_price_sf = comp_price / comp_heated_sf if comp_heated_sf > 0 else 0
+comp_aux_value = (comp_struct_sf * base_struct_cost_sf) + (comp_front_sf * front_porch_cost_sf) + (comp_back_sf * back_porch_cost_sf) + (comp_storage_sf * storage_cost_sf)
+comp_isolated_heated_value = max(0, comp_price - comp_aux_value)
+isolated_heated_rate = comp_isolated_heated_value / comp_heated_sf if comp_heated_sf > 0 else 0
+
+# 3. Define the ARV Baseline
+if appraisal_mode == "Income Approach (GRM)":
+    arv_per_unit = (gross_monthly_rent * 12) * target_grm
+else:
+    arv_per_unit = (isolated_heated_rate * sqft) + our_aux_cost_total
+
+# 4. Target Cost Reverse Engineering
+if cost_calc_mode == "Manual Set (Heated SF)":
+    target_heated_hard_cost = base_direct_cost_sf * sqft
+    target_total_hard_cost = target_heated_hard_cost + our_aux_cost_total
+    comp_equivalent_arv = 0 # Not used in this mode
+    
+elif cost_calc_mode == "Reverse-Engineer from Appraisal":
+    target_hard_cost_pct = 1.0 - (lot_cost_pct + margin_pct + sales_pct + finance_pct)
+    target_total_hard_cost = arv_per_unit * target_hard_cost_pct
+    target_heated_hard_cost = max(0, target_total_hard_cost - our_aux_cost_total)
+    base_direct_cost_sf = target_heated_hard_cost / sqft if sqft > 0 else 0
+    comp_equivalent_arv = arv_per_unit
+    
+else: # Reverse-Engineer directly from Primary Comp
+    # We apply the Comp's isolated rate to OUR features to find a "Sales Comp Equivalent" baseline
+    comp_equivalent_arv = (isolated_heated_rate * sqft) + our_aux_cost_total
+    target_hard_cost_pct = 1.0 - (lot_cost_pct + margin_pct + sales_pct + finance_pct)
+    target_total_hard_cost = comp_equivalent_arv * target_hard_cost_pct
+    target_heated_hard_cost = max(0, target_total_hard_cost - our_aux_cost_total)
+    base_direct_cost_sf = target_heated_hard_cost / sqft if sqft > 0 else 0
+
+direct_cost_sf = base_direct_cost_sf
+struct_cost_sf = base_struct_cost_sf
+
+# 5. Ledger Roll-up
+total_under_roof_sqft = sqft + struct_sqft + front_porch_sqft + back_porch_sqft + storage_sqft
+heated_hard_cost = sqft * direct_cost_sf
+blended_cost_per_sf = (heated_hard_cost + our_aux_cost_total) / total_under_roof_sqft if total_under_roof_sqft > 0 else 0
+total_hard_cost = target_total_hard_cost * units if cost_calc_mode in ["Reverse-Engineer from Appraisal", "Reverse-Engineer from Primary Comp"] else (heated_hard_cost + our_aux_cost_total) * units
+total_arv = arv_per_unit * units
+loan_total = total_arv * refi_ltv
+
+default_gcond = total_hard_cost * 0.05
+fee_basis = total_hard_cost + default_gcond
+default_gc_fee = custom_gc_fee if gc_fee_mode == "Consolidated Flat Fee ($ Total)" else fee_basis * gc_fee_pct
+default_premium = total_hard_cost * 0.05
+total_land_default = land_basis * units
+default_soft_cost_per_unit = 5500
+total_soft_default = default_soft_cost_per_unit * units
+
+total_const_default = fee_basis + default_gc_fee + default_premium
+total_project_costs_ex_interest_default = total_land_default + total_const_default + total_soft_default + const_closing_fee
+construction_loan_limit_default = total_project_costs_ex_interest_default * const_ltv
+default_carry_int = construction_loan_limit_default * avg_draw_pct * const_rate * (build_months / 12.0)
+default_buydown_cost = loan_total * (buydown_pts / 100.0) if apply_buydown else 0
+
+total_const = total_hard_cost + default_gcond + default_gc_fee + default_premium
+total_project_costs_ex_interest = total_land_default + total_const + total_soft_default + const_closing_fee
+total_project_basis = total_project_costs_ex_interest + default_carry_int + refi_closing_fee + default_buydown_cost
+
+# 6. DSCR Math
+monthly_interest_rate = net_refi_rate / 12.0
+total_payments = refi_term_years * 12
+if monthly_interest_rate > 0:
+    monthly_pi_per_unit = loan_total / units * (monthly_interest_rate * (1 + monthly_interest_rate)**total_payments) / ((1 + monthly_interest_rate)**total_payments - 1)
+else:
+    monthly_pi_per_unit = (loan_total / units) / total_payments if total_payments > 0 else 0
+
+total_monthly_pi = monthly_pi_per_unit * units
+total_gross_monthly_income = gross_monthly_rent * units
+monthly_vacancy_loss = total_gross_monthly_income * vacancy_rate
+annual_vacancy_loss = monthly_vacancy_loss * 12.0
+effective_gross_monthly_income = total_gross_monthly_income - monthly_vacancy_loss
+annual_egi = effective_gross_monthly_income * 12.0
+annual_opex = annual_egi * opex_rate
+annual_noi = annual_egi - annual_opex
+monthly_noi = annual_noi / 12.0
+
+annual_debt_service = total_monthly_pi * 12.0
+actual_dscr = annual_noi / annual_debt_service if annual_debt_service > 0 else 0
+monthly_cash_flow = monthly_noi - total_monthly_pi
+dscr_variance = actual_dscr - target_dscr_rate
+
+cash_surplus = loan_total - total_project_basis
+retained_equity = total_arv - loan_total
+day1_wealth = default_gc_fee + max(0, cash_surplus) + retained_equity
+
 
 # ==========================================
 # --- PAGE HEADER ---
@@ -249,10 +363,40 @@ with tab_main:
     download_placeholder = sub_col3.empty()
     st.divider()
 
-    # INVISIBLE CONTAINERS FOR TOP DASHBOARDS
-    ui_top_metrics = st.container()
-    ui_op_metrics = st.container()
-    ui_decision_dashboard = st.container()
+    # --- TOP METRICS DASHBOARDS ---
+    st.markdown("### 🏗️ Project Capital & Valuation Metrics")
+    col1, col2, col3, col4 = st.columns(4)
+    col1.metric("Takeout Loan Proceeds", f"${loan_total:,.0f}", f"{refi_ltv*100:.0f}% LTV")
+    if cash_surplus >= 0:
+        deal_health_color = "normal" 
+        surplus_title = "Tax-Free Cash Surplus"
+        surplus_delta = "Capital Recovered"
+    else:
+        deal_health_color = "inverse" 
+        surplus_title = "Trapped Seed Capital"
+        surplus_delta = "Loss at Closing"
+    col2.metric("Total Project Basis", f"${total_project_basis:,.0f}", f"${total_project_basis/units:,.0f} per door", delta_color=deal_health_color)
+    col3.metric("Under-Roof Blended Cost", f"${blended_cost_per_sf:.2f} / SF", f"{total_under_roof_sqft:,} Total SF Under Roof")
+    col4.metric(surplus_title, f"${cash_surplus:,.0f}", surplus_delta, delta_color=deal_health_color)
+
+    st.markdown("### 🏢 Operating & DSCR Metrics")
+    op1, op2, op3, op4 = st.columns(4)
+    arv_label = "Derived Unit ARV (Price/SF)" if appraisal_mode == "Sales Comp (Price/SF)" else "Derived Unit ARV (GRM)"
+    op1.metric(arv_label, f"${arv_per_unit:,.0f}", f"${total_arv:,.0f} Total ARV")
+    op2.metric("Actual DSCR Rate", f"{actual_dscr:.2f}x", f"Target: {target_dscr_rate:.2f}x", delta_color="normal" if actual_dscr >= target_dscr_rate else "inverse")
+    op3.metric("Monthly Cash Flow", f"${monthly_cash_flow:,.0f} /mo", f"${monthly_cash_flow*12:,.0f} Annual", delta_color="normal" if monthly_cash_flow >= 0 else "inverse")
+    op4.metric("Monthly P&I Payment", f"${total_monthly_pi:,.0f} /mo", f"{refi_term_years}Yr @ {net_refi_rate*100:.3f}%")
+
+    st.markdown("### 🚦 Go/No-Go Investment Decision Dashboard")
+    dscr_pass = actual_dscr >= target_dscr_rate
+    cash_pass = cash_surplus >= 0
+    dscr_light = "🟢 GREEN LIGHT" if dscr_pass else "🔴 RED LIGHT"
+    cash_light = "🟢 GREEN LIGHT" if cash_pass else "🔴 RED LIGHT"
+
+    dash_col1, dash_col2, dash_col3 = st.columns(3)
+    dash_col1.metric("DSCR Underwriting Status", dscr_light, f"Actual: {actual_dscr:.2f}x (Target: {target_dscr_rate:.2f}x)", delta_color="normal" if dscr_pass else "inverse")
+    dash_col2.metric("Capital Recovery Status", cash_light, f"${cash_surplus:,.0f} at Refi Close", delta_color="normal" if cash_pass else "inverse")
+    dash_col3.metric("Day-1 Wealth Creation", f"${day1_wealth:,.0f}", f"${day1_wealth/units:,.0f} per door", delta_color="normal")
     st.divider()
 
     # --- COMP TOOL ---
@@ -295,7 +439,7 @@ with tab_main:
     st.markdown("##### 1. Primary Comp Metrics")
     col_addr, col_price, col_hsf = st.columns([2, 1, 1])
     if comp_entry_mode == "RentCast Live API Fetch":
-        comp_address = col_addr.text_input("Comparable Property Address", value=st.session_state.comp_address, disabled=True)
+        col_addr.text_input("Comparable Property Address", value=st.session_state.comp_address, disabled=True)
         col_price.number_input("Comp Sale Price ($)", value=st.session_state.comp_price, disabled=True)
         col_hsf.number_input("Comp Heated SF", value=st.session_state.comp_heated_sf, disabled=True)
     else:
@@ -306,62 +450,18 @@ with tab_main:
             st.session_state.comp_address = c_add; st.session_state.comp_price = c_prc; st.session_state.comp_heated_sf = c_hsf
             st.rerun()
 
-    # Retrieve potentially updated comp variables directly from state
-    comp_price = st.session_state.comp_price
-    comp_heated_sf = st.session_state.comp_heated_sf
-
     st.markdown("##### 2. Comp Auxiliary Spaces (Always Editable)")
     c_aux1, c_aux2, c_aux3, c_aux4 = st.columns(4)
-    # Removing 'disabled=True' so you can match the specific comp's auxiliary footprint!
-    comp_struct_sf = c_aux1.number_input("Comp Aux. SF (Garage/Carport)", value=200, step=25, format="%d")
-    comp_front_sf = c_aux2.number_input("Comp Front Porch SF", value=60, step=10, format="%d")
-    comp_back_sf = c_aux3.number_input("Comp Back Porch SF", value=120, step=10, format="%d")
-    comp_storage_sf = c_aux4.number_input("Comp Storage Room SF", value=40, step=5, format="%d")
-
-
-    # ==========================================
-    # --- CORE MATH OPERATIONS ---
-    # ==========================================
-    struct_total_cost = struct_sqft * base_struct_cost_sf
-    front_porch_cost = front_porch_sqft * front_porch_cost_sf
-    back_porch_cost = back_porch_sqft * back_porch_cost_sf
-    storage_cost = storage_sqft * storage_cost_sf
-    our_aux_cost_total = struct_total_cost + front_porch_cost + back_porch_cost + storage_cost + additional_foundation_cost
-
-    comp_total_sf = comp_heated_sf + comp_struct_sf + comp_front_sf + comp_back_sf + comp_storage_sf
-    raw_comp_price_sf = comp_price / comp_heated_sf if comp_heated_sf > 0 else 0
-    comp_aux_value = (comp_struct_sf * base_struct_cost_sf) + (comp_front_sf * front_porch_cost_sf) + (comp_back_sf * back_porch_cost_sf) + (comp_storage_sf * storage_cost_sf)
-    comp_isolated_heated_value = max(0, comp_price - comp_aux_value)
-    isolated_heated_rate = comp_isolated_heated_value / comp_heated_sf if comp_heated_sf > 0 else 0
+    # Using key bound variables updates session_state and re-triggers math automatically
+    c_aux1.number_input("Comp Aux. SF (Garage/Carport)", step=25, format="%d", key="comp_struct_sf")
+    c_aux2.number_input("Comp Front Porch SF", step=10, format="%d", key="comp_front_sf")
+    c_aux3.number_input("Comp Back Porch SF", step=10, format="%d", key="comp_back_sf")
+    c_aux4.number_input("Comp Storage Room SF", step=5, format="%d", key="comp_storage_sf")
 
     if st.session_state.comp_address:
         st.caption(f"📍 **Active Comp:** {st.session_state.comp_address} | Isolated Heated Rate: **${isolated_heated_rate:.2f} / SF**")
     else:
         st.caption(f"📊 Isolated Heated Rate: **${isolated_heated_rate:.2f} / SF**")
-
-    if appraisal_mode == "Income Approach (GRM)":
-        arv_per_unit = (gross_monthly_rent * 12) * target_grm
-    else:
-        arv_per_unit = (isolated_heated_rate * sqft) + our_aux_cost_total
-
-    if cost_calc_mode == "Manual Set (Heated SF)":
-        target_heated_hard_cost = base_direct_cost_sf * sqft
-        target_total_hard_cost = target_heated_hard_cost + our_aux_cost_total
-    elif cost_calc_mode == "Reverse-Engineer from Appraisal":
-        target_hard_cost_pct = 1.0 - (lot_cost_pct + margin_pct + sales_pct + finance_pct)
-        target_total_hard_cost = arv_per_unit * target_hard_cost_pct
-        target_heated_hard_cost = max(0, target_total_hard_cost - our_aux_cost_total)
-        base_direct_cost_sf = target_heated_hard_cost / sqft if sqft > 0 else 0
-    else: # Reverse from Comp
-        target_hard_cost_pct = 1.0 - (lot_cost_pct + margin_pct + sales_pct + finance_pct)
-        comp_total_hard_budget = comp_price * target_hard_cost_pct
-        comp_target_heated_budget = max(0, comp_total_hard_budget - comp_aux_value)
-        base_direct_cost_sf = comp_target_heated_budget / comp_heated_sf if comp_heated_sf > 0 else 0
-        target_heated_hard_cost = base_direct_cost_sf * sqft
-        target_total_hard_cost = target_heated_hard_cost + our_aux_cost_total
-
-    direct_cost_sf = base_direct_cost_sf
-    struct_cost_sf = base_struct_cost_sf
 
     with st.expander("🧮 View Comp Math Audit & Raw API Data", expanded=False):
         st.markdown("**1. Raw Retail Heated Rate (Unadjusted)**")
@@ -433,13 +533,6 @@ with tab_main:
     st.divider()
 
     # --- LEDGER & CAP STACK ---
-    total_under_roof_sqft = sqft + struct_sqft + front_porch_sqft + back_porch_sqft + storage_sqft
-    heated_hard_cost = sqft * direct_cost_sf
-    blended_cost_per_sf = (heated_hard_cost + our_aux_cost_total) / total_under_roof_sqft if total_under_roof_sqft > 0 else 0
-    total_hard_cost = target_total_hard_cost * units if cost_calc_mode in ["Reverse-Engineer from Appraisal", "Reverse-Engineer from Primary Comp"] else (heated_hard_cost + our_aux_cost_total) * units
-    total_arv = arv_per_unit * units
-    loan_total = total_arv * refi_ltv
-
     st.markdown("### 📊 Detailed Construction Cost & Capital Ledger")
     ledger_mode = st.radio("Ledger Input Mode", ["Sync with Global Parameters", "Manual Ledger Override"], horizontal=True)
 
@@ -453,20 +546,6 @@ with tab_main:
     st.dataframe(pd.DataFrame(direct_data).style.format({"Total Amount ($)": "${:,.0f}"}), hide_index=True, use_container_width=True)
 
     st.markdown("#### 2. Indirect, Land & Capital Costs")
-    default_gcond = total_hard_cost * 0.05
-    fee_basis = total_hard_cost + default_gcond
-    default_gc_fee = custom_gc_fee if gc_fee_mode == "Consolidated Flat Fee ($ Total)" else fee_basis * gc_fee_pct
-    default_premium = total_hard_cost * 0.05
-    total_land_default = land_basis * units
-    default_soft_cost_per_unit = 5500
-    total_soft_default = default_soft_cost_per_unit * units
-
-    total_const_default = fee_basis + default_gc_fee + default_premium
-    total_project_costs_ex_interest_default = total_land_default + total_const_default + total_soft_default + const_closing_fee
-    construction_loan_limit_default = total_project_costs_ex_interest_default * const_ltv
-    default_carry_int = construction_loan_limit_default * avg_draw_pct * const_rate * (build_months / 12.0)
-    default_buydown_cost = loan_total * (buydown_pts / 100.0) if apply_buydown else 0
-
     indirects_data = [
         {"Cost Category": "General Conditions", "Metric / Basis": "5.0% of Direct", "Amount ($)": default_gcond},
         {"Cost Category": "GC Management Fee", "Metric / Basis": "Flat Fee" if gc_fee_mode == "Consolidated Flat Fee ($ Total)" else f"{gc_fee_pct*100:.1f}% Basis", "Amount ($)": default_gc_fee},
@@ -482,96 +561,18 @@ with tab_main:
     if ledger_mode == "Manual Ledger Override":
         st.caption("✏️ **Manual Mode Active:** Edit the amounts in the table below.")
         edited_df = st.data_editor(pd.DataFrame(indirects_data), column_config={"Amount ($)": st.column_config.NumberColumn(format="$%.2f", min_value=0.0)}, disabled=["Cost Category", "Metric / Basis"], hide_index=True, use_container_width=True)
-        gcond = edited_df.loc[0, "Amount ($)"]; gc_fee = edited_df.loc[1, "Amount ($)"]; premium = edited_df.loc[2, "Amount ($)"]
-        total_land = edited_df.loc[3, "Amount ($)"]; total_soft_costs = edited_df.loc[4, "Amount ($)"]
-        final_const_closing = edited_df.loc[5, "Amount ($)"]; carry_int = edited_df.loc[6, "Amount ($)"]
-        final_refi_closing = edited_df.loc[7, "Amount ($)"]; total_buydown_cost = edited_df.loc[8, "Amount ($)"]
     else:
         st.dataframe(pd.DataFrame(indirects_data).style.format({"Amount ($)": "${:,.0f}"}), hide_index=True, use_container_width=True)
-        gcond = default_gcond; gc_fee = default_gc_fee; premium = default_premium
-        total_land = total_land_default; total_soft_costs = total_soft_default
-        final_const_closing = const_closing_fee; carry_int = default_carry_int
-        final_refi_closing = refi_closing_fee; total_buydown_cost = default_buydown_cost
-
-    total_const = total_hard_cost + gcond + gc_fee + premium
-    total_project_costs_ex_interest = total_land + total_const + total_soft_costs + final_const_closing
-    total_project_basis = total_project_costs_ex_interest + carry_int + final_refi_closing + total_buydown_cost
 
     st.markdown(f"### 🎯 TOTAL PROJECT BASIS: **${total_project_basis:,.0f}** *(${total_project_basis/units:,.0f} / Door)*")
     st.divider()
-
-    # --- DSCR MATH ---
-    monthly_interest_rate = net_refi_rate / 12.0
-    total_payments = refi_term_years * 12
-    if monthly_interest_rate > 0:
-        monthly_pi_per_unit = loan_total / units * (monthly_interest_rate * (1 + monthly_interest_rate)**total_payments) / ((1 + monthly_interest_rate)**total_payments - 1)
-    else:
-        monthly_pi_per_unit = (loan_total / units) / total_payments if total_payments > 0 else 0
-
-    total_monthly_pi = monthly_pi_per_unit * units
-    total_gross_monthly_income = gross_monthly_rent * units
-    monthly_vacancy_loss = total_gross_monthly_income * vacancy_rate
-    annual_vacancy_loss = monthly_vacancy_loss * 12.0
-    effective_gross_monthly_income = total_gross_monthly_income - monthly_vacancy_loss
-    annual_egi = effective_gross_monthly_income * 12.0
-    annual_opex = annual_egi * opex_rate
-    annual_noi = annual_egi - annual_opex
-    monthly_noi = annual_noi / 12.0
-
-    annual_debt_service = total_monthly_pi * 12.0
-    actual_dscr = annual_noi / annual_debt_service if annual_debt_service > 0 else 0
-    monthly_cash_flow = monthly_noi - total_monthly_pi
-    dscr_variance = actual_dscr - target_dscr_rate
-
-    cash_surplus = loan_total - total_project_basis
-    retained_equity = total_arv - loan_total
-    day1_wealth = gc_fee + max(0, cash_surplus) + retained_equity
-
-    # ==========================================
-    # --- POPULATE INVISIBLE DASHBOARDS ---
-    # ==========================================
-    with ui_top_metrics:
-        st.markdown("### 🏗️ Project Capital & Valuation Metrics")
-        col1, col2, col3, col4 = st.columns(4)
-        col1.metric("Takeout Loan Proceeds", f"${loan_total:,.0f}", f"{refi_ltv*100:.0f}% LTV")
-        if cash_surplus >= 0:
-            deal_health_color = "normal" 
-            surplus_title = "Tax-Free Cash Surplus"
-            surplus_delta = "Capital Recovered"
-        else:
-            deal_health_color = "inverse" 
-            surplus_title = "Trapped Seed Capital"
-            surplus_delta = "Loss at Closing"
-        col2.metric("Total Project Basis", f"${total_project_basis:,.0f}", f"${total_project_basis/units:,.0f} per door", delta_color=deal_health_color)
-        col3.metric("Under-Roof Blended Cost", f"${blended_cost_per_sf:.2f} / SF", f"{total_under_roof_sqft:,} Total SF Under Roof")
-        col4.metric(surplus_title, f"${cash_surplus:,.0f}", surplus_delta, delta_color=deal_health_color)
-
-    with ui_op_metrics:
-        st.markdown("### 🏢 Operating & DSCR Metrics")
-        op1, op2, op3, op4 = st.columns(4)
-        arv_label = "Derived Unit ARV (Price/SF)" if appraisal_mode == "Sales Comp (Price/SF)" else "Derived Unit ARV (GRM)"
-        op1.metric(arv_label, f"${arv_per_unit:,.0f}", f"${total_arv:,.0f} Total ARV")
-        op2.metric("Actual DSCR Rate", f"{actual_dscr:.2f}x", f"Target: {target_dscr_rate:.2f}x", delta_color="normal" if actual_dscr >= target_dscr_rate else "inverse")
-        op3.metric("Monthly Cash Flow", f"${monthly_cash_flow:,.0f} /mo", f"${monthly_cash_flow*12:,.0f} Annual", delta_color="normal" if monthly_cash_flow >= 0 else "inverse")
-        op4.metric("Monthly P&I Payment", f"${total_monthly_pi:,.0f} /mo", f"{refi_term_years}Yr @ {net_refi_rate*100:.3f}%")
-
-    with ui_decision_dashboard:
-        st.markdown("### 🚦 Go/No-Go Investment Decision Dashboard")
-        dscr_pass = actual_dscr >= target_dscr_rate
-        cash_pass = cash_surplus >= 0
-        dscr_light = "🟢 GREEN LIGHT" if dscr_pass else "🔴 RED LIGHT"
-        cash_light = "🟢 GREEN LIGHT" if cash_pass else "🔴 RED LIGHT"
-
-        dash_col1, dash_col2, dash_col3 = st.columns(3)
-        dash_col1.metric("DSCR Underwriting Status", dscr_light, f"Actual: {actual_dscr:.2f}x (Target: {target_dscr_rate:.2f}x)", delta_color="normal" if dscr_pass else "inverse")
-        dash_col2.metric("Capital Recovery Status", cash_light, f"${cash_surplus:,.0f} at Refi Close", delta_color="normal" if cash_pass else "inverse")
-        dash_col3.metric("Day-1 Wealth Creation", f"${day1_wealth:,.0f}", f"${day1_wealth/units:,.0f} per door", delta_color="normal")
-
 
     # --- BOTTOM PERFORMANCE SECTIONS ---
     if cost_calc_mode in ["Reverse-Engineer from Appraisal", "Reverse-Engineer from Primary Comp"]:
         st.markdown("### 🔄 Retail Comp & Appraisal Reverse-Engineering Breakdown")
         st.caption("Extracting true Heated Construction budget by applying custom standard deductions, isolating fixed auxiliary costs and elevation extras.")
+        
+        reference_price = arv_per_unit if cost_calc_mode == 'Reverse-Engineer from Appraisal' else comp_equivalent_arv
         breakdown_data = {
             "Cost Category": [
                 f"Baseline Reference Price (Comp / ARV)", "(-) Finished Lot Cost", "(-) Gross Margin (O&P)", 
@@ -579,11 +580,11 @@ with tab_main:
                 "(-) Fixed Auxiliary & Elevation Costs", "= Available Budget for Heated Shell"
             ],
             "Value ($)": [
-                f"${comp_price if cost_calc_mode == 'Reverse-Engineer from Primary Comp' else arv_per_unit:,.0f}", 
-                f"-${(comp_price if cost_calc_mode == 'Reverse-Engineer from Primary Comp' else arv_per_unit) * lot_cost_pct:,.0f}", 
-                f"-${(comp_price if cost_calc_mode == 'Reverse-Engineer from Primary Comp' else arv_per_unit) * margin_pct:,.0f}", 
-                f"-${(comp_price if cost_calc_mode == 'Reverse-Engineer from Primary Comp' else arv_per_unit) * sales_pct:,.0f}", 
-                f"-${(comp_price if cost_calc_mode == 'Reverse-Engineer from Primary Comp' else arv_per_unit) * finance_pct:,.0f}", 
+                f"${reference_price:,.0f}", 
+                f"-${reference_price * lot_cost_pct:,.0f}", 
+                f"-${reference_price * margin_pct:,.0f}", 
+                f"-${reference_price * sales_pct:,.0f}", 
+                f"-${reference_price * finance_pct:,.0f}", 
                 f"${target_total_hard_cost:,.0f}", 
                 f"-${our_aux_cost_total:,.0f}", 
                 f"${target_heated_hard_cost:,.0f}"
@@ -605,7 +606,7 @@ with tab_main:
     st.markdown("### 💰 Day-1 Wealth Creation")
     wealth_data = {
         "Pocket Component": ["Pocket 1: Active GC Fee Revenue", "Pocket 2: Tax-Free Cash Surplus at Close", "Pocket 3: Retained Asset Equity", "TOTAL DAY-1 CREATED VALUE"],
-        "Value ($)": [f"${gc_fee:,.0f}", f"${cash_surplus:,.0f}", f"${retained_equity:,.0f}", f"${day1_wealth:,.0f}"]
+        "Value ($)": [f"${default_gc_fee:,.0f}", f"${cash_surplus:,.0f}", f"${retained_equity:,.0f}", f"${day1_wealth:,.0f}"]
     }
     st.dataframe(pd.DataFrame(wealth_data), hide_index=True, use_container_width=True)
 
