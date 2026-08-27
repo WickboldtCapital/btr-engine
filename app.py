@@ -49,8 +49,16 @@ comp_entry_mode = st.radio(
 )
 
 if comp_entry_mode == "Zillow Auto-Fetch (API)":
+    st.caption("⚙️ **RapidAPI Configuration:** Check the 'Code Snippets' box on your RapidAPI Dashboard to find your exact URL and Host.")
+    api_col1, api_col2 = st.columns(2)
+    # Defaulting to the most common RapidAPI formats, but user can edit them in the UI!
+    custom_api_url = api_col1.text_input("API Endpoint URL", value="https://zillow-com-realtime-scraper.p.rapidapi.com/property")
+    custom_api_host = api_col2.text_input("X-RapidAPI-Host", value="zillow-com-realtime-scraper.p.rapidapi.com")
+    
+    st.markdown("<br>", unsafe_allow_html=True)
+    
     z_col1, z_col2 = st.columns([4, 1])
-    zillow_url = z_col1.text_input("Zillow Listing URL (Requires API Key)", placeholder="Paste Zillow URL here (e.g. https://www.zillow.com/homedetails/...)")
+    zillow_url = z_col1.text_input("Zillow Property Link", placeholder="Paste Zillow URL here (e.g. https://www.zillow.com/homedetails/...)")
 
     if z_col2.button("Fetch Zillow Data", use_container_width=True):
         if zillow_url:
@@ -67,14 +75,15 @@ if comp_entry_mode == "Zillow Auto-Fetch (API)":
                     zpid = zpid_match.group(1)
                     
                     try:
-                        with st.spinner("Fetching live data from Zillow..."):
-                            # Using the industry standard APIMaker Zillow API
-                            api_url = "https://zillow-com1.p.rapidapi.com/property" 
-                            querystring = {"zpid": zpid} 
+                        with st.spinner(f"Fetching live data via {custom_api_host}..."):
+                            # Using the dynamic URL and Host from the UI
+                            api_url = custom_api_url.strip() 
+                            # We send multiple parameter variations (zpid, url, property_url) because different RapidAPI scrapers use different keys
+                            querystring = {"zpid": zpid, "url": zillow_url, "property_url": zillow_url} 
                             
                             headers = {
                                 "X-RapidAPI-Key": rapidapi_key,
-                                "X-RapidAPI-Host": "zillow-com1.p.rapidapi.com"
+                                "X-RapidAPI-Host": custom_api_host.strip()
                             }
                             
                             response = requests.get(api_url, headers=headers, params=querystring)
@@ -83,14 +92,15 @@ if comp_entry_mode == "Zillow Auto-Fetch (API)":
                                 data = response.json()
                                 st.session_state.raw_zillow_data = data # Save the raw feed for the audit panel
                                 
-                                # Universal Parser
+                                # Universal Parser to hunt for nested data
                                 def get_val(d, keys):
                                     for k in keys:
                                         if k in d and d[k] is not None: return d[k]
-                                    for v in d.values():
-                                        if isinstance(v, dict):
-                                            for k in keys:
-                                                if k in v and v[k] is not None: return v[k]
+                                    if isinstance(d, dict):
+                                        for v in d.values():
+                                            if isinstance(v, dict):
+                                                for k in keys:
+                                                    if k in v and v[k] is not None: return v[k]
                                     return None
 
                                 fetched_price = get_val(data, ["price", "zestimate"])
@@ -108,7 +118,7 @@ if comp_entry_mode == "Zillow Auto-Fetch (API)":
                                 st.success(f"Listing successfully imported: {st.session_state.comp_address}")
                                 st.rerun()
                             else:
-                                st.error(f"Failed to fetch data. API returned Code: {response.status_code}. Make sure you subscribed to the Zillow.com API by 'apimaker'.")
+                                st.error(f"Failed to fetch data. API returned Code: {response.status_code}. Double-check your API Endpoint URL and Host above!")
                     except Exception as e:
                         st.error(f"Error fetching data: {e}")
             else:
