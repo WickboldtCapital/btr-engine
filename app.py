@@ -46,13 +46,36 @@ comp_entry_mode = st.radio(
     "Comparable Data Entry Mode", 
     [
         "Manual Entry", 
+        "Auto-Load: 1103 S Spruce St (Hammond)", 
+        "Auto-Load: 71728 Spike Dr (Madisonville)",
         "RentCast Live API Fetch"
     ], 
     horizontal=True
 )
 
-if comp_entry_mode == "RentCast Live API Fetch":
+if comp_entry_mode == "Auto-Load: 1103 S Spruce St (Hammond)":
+    st.success("✅ Pre-Loaded Data Activated for Hammond Comp.")
+    st.session_state.comp_address = "1103 S Spruce St, Hammond, LA 70403"
+    st.session_state.comp_price = 210100
+    st.session_state.comp_heated_sf = 1300
     
+    comp_address = st.text_input("Comparable Property Address", value=st.session_state.comp_address, disabled=True)
+    cc_col1, cc_col2, cc_col3, cc_col4, cc_col5 = st.columns(5)
+    comp_price = cc_col1.number_input("Comp Sale Price ($)", value=st.session_state.comp_price, disabled=True)
+    comp_heated_sf = cc_col2.number_input("Comp Heated SF", value=st.session_state.comp_heated_sf, disabled=True)
+
+elif comp_entry_mode == "Auto-Load: 71728 Spike Dr (Madisonville)":
+    st.success("✅ Pre-Loaded Data Activated for Madisonville Comp.")
+    st.session_state.comp_address = "71728 Spike Dr, Madisonville, LA 70447"
+    st.session_state.comp_price = 205045
+    st.session_state.comp_heated_sf = 1001
+    
+    comp_address = st.text_input("Comparable Property Address", value=st.session_state.comp_address, disabled=True)
+    cc_col1, cc_col2, cc_col3, cc_col4, cc_col5 = st.columns(5)
+    comp_price = cc_col1.number_input("Comp Sale Price ($)", value=st.session_state.comp_price, disabled=True)
+    comp_heated_sf = cc_col2.number_input("Comp Heated SF", value=st.session_state.comp_heated_sf, disabled=True)
+
+elif comp_entry_mode == "RentCast Live API Fetch":
     rc_col1, rc_col2 = st.columns([4, 1])
     search_address = rc_col1.text_input("Property Address", placeholder="e.g. 1103 S Spruce St, Hammond, LA")
     
@@ -62,6 +85,7 @@ if comp_entry_mode == "RentCast Live API Fetch":
 
     if rc_col2.button("Fetch Live Data", use_container_width=True):
         if search_address:
+            # Check manual input first, then Railway environment, then Streamlit secrets
             rentcast_key = manual_key or os.environ.get("RENTCAST_API_KEY") or st.secrets.get("RENTCAST_API_KEY", "")
             
             if rentcast_key:
@@ -87,6 +111,7 @@ if comp_entry_mode == "RentCast Live API Fetch":
                                 fetched_price = prop.get("price") or prop.get("lastSalePrice")
                                 fetched_addr = prop.get("formattedAddress")
                                 
+                                # If no active price or last sale, trigger RentCast AVM
                                 if not fetched_price:
                                     try:
                                         avm_url = "https://api.rentcast.io/v1/avm/value"
@@ -104,9 +129,13 @@ if comp_entry_mode == "RentCast Live API Fetch":
                                 st.success(f"Property successfully imported: {st.session_state.comp_address}")
                                 st.rerun()
                             else:
-                                st.error("No exact match found. Make sure the address is formatted perfectly (e.g., '1103 S Spruce St, Hammond, LA').")
+                                st.error("RentCast found no property records for this exact address. Try a different format or use Manual Entry.")
+                        elif response.status_code == 404:
+                            st.error("Error 404: RentCast found no property records for this exact address in their public database. Try modifying the spelling or use Manual Entry.")
+                        elif response.status_code in [401, 403]:
+                            st.error(f"Error {response.status_code}: Unauthorized. Your API Key is invalid, expired, or missing.")
                         else:
-                            st.error(f"RentCast API Error {response.status_code}. Your API Key may be invalid.")
+                            st.error(f"RentCast API Error {response.status_code}. Please try again later.")
                 except Exception as e:
                     st.error(f"Error fetching data: {e}")
             else:
@@ -125,10 +154,46 @@ else:
     comp_price = cc_col1.number_input("Comp Sale Price ($)", value=st.session_state.comp_price, step=1000, format="%d")
     comp_heated_sf = cc_col2.number_input("Comp Heated SF", value=st.session_state.comp_heated_sf, step=50, format="%d")
     
+    # Save manual typing to session state so it doesn't revert
     st.session_state.comp_price = comp_price
     st.session_state.comp_heated_sf = comp_heated_sf
     st.session_state.comp_address = comp_address
 
+# Auxiliary details are always editable 
+comp_struct_sf = cc_col3.number_input("Comp Aux. SF (Garage)", value=200, step=25, format="%d")
+comp_front_sf = cc_col4.number_input("Comp Front Porch SF", value=60, step=10, format="%d")
+comp_back_sf = cc_col5.number_input("Comp Back Porch SF", value=120, step=10, format="%d")
+
+# Fixed Calculations
+comp_retail_heated_rate = comp_price / comp_heated_sf if comp_heated_sf > 0 else 0
+comp_total_sf = comp_heated_sf + comp_struct_sf + comp_front_sf + comp_back_sf
+comp_blended_cost = comp_price / comp_total_sf if comp_total_sf > 0 else 0
+
+if comp_address:
+    st.caption(f"📍 **Active Comp:** {comp_address} | Isolated Heated Rate: *(Calculated Below)* | *(Blended Under-Roof: ${comp_blended_cost:.2f} / SF)*")
+else:
+    st.caption(f"📊 Isolated Heated Rate: *(Calculated Below)* | *(Blended Under-Roof: ${comp_blended_cost:.2f} / SF)*")
+
+
+# --- MATH AUDIT & RAW DATA PANEL ---
+with st.expander("🧮 View Comp Math Audit & Raw API Data", expanded=False):
+    st.markdown("#### The Math Breakdown")
+    st.markdown("**1. Retail Heated Rate (Standard Appraised Rate)**")
+    st.code(f"${comp_price:,.0f} (Sale Price) ÷ {comp_heated_sf:,.0f} (Heated SF) = ${comp_retail_heated_rate:.2f} / SF")
+    
+    st.markdown("**2. Blended Under-Roof Rate (Wickboldt Standard)**")
+    st.code(f"${comp_price:,.0f} (Sale Price) ÷ {comp_total_sf:,.0f} (Total Under-Roof SF) = ${comp_blended_cost:.2f} / SF")
+    
+    st.markdown("**Total Under-Roof Calculation:**")
+    st.caption(f"• {comp_heated_sf} SF (Heated)\n\n• {comp_struct_sf} SF (Garage/Carport)\n\n• {comp_front_sf} SF (Front Porch)\n\n• {comp_back_sf} SF (Back Porch)\n\n**= {comp_total_sf} Total SF**")
+
+    if st.session_state.raw_api_data and comp_entry_mode == "RentCast Live API Fetch":
+        st.divider()
+        st.markdown("#### 🔍 Raw RentCast API Feed")
+        st.json(st.session_state.raw_api_data)
+
+
+st.divider()
 
 # --- SIDEBAR: MASTER MODEL DRIVERS ---
 st.sidebar.header("Master Model Drivers")
@@ -238,7 +303,6 @@ refi_closing_fee = st.sidebar.number_input("Refinance Closing Fee ($ total)", va
 apply_buydown = st.sidebar.checkbox("Apply Interest Rate Buydown Points?")
 buydown_pts = 0.0
 net_refi_rate = base_refi_rate
-
 if apply_buydown:
     buydown_pts = st.sidebar.number_input("Discount Points (1 pt = 1% of Loan)", min_value=0.0, max_value=5.0, value=2.0, step=0.5)
     rate_reduction = buydown_pts * 0.0025  
@@ -415,8 +479,6 @@ fee_basis = total_hard_cost + default_gcond
 default_gc_fee = custom_gc_fee if gc_fee_mode == "Consolidated Flat Fee ($ Total)" else fee_basis * gc_fee_pct
 default_premium = total_hard_cost * 0.05
 total_land_default = land_basis * units
-
-# Establish the global standard default for soft costs (now removed from sidebar)
 default_soft_cost_per_unit = 5500
 total_soft_default = default_soft_cost_per_unit * units
 
