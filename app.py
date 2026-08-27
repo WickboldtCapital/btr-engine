@@ -32,9 +32,11 @@ st.divider()
 # ==========================================
 # --- TOP-OF-PAGE METRIC CONTAINERS ---
 # ==========================================
-ui_top_metrics = st.container()
-ui_op_metrics = st.container()
-ui_decision_dashboard = st.container()
+# We define these empty placeholders here so they render physically at the top of the page.
+# We will populate them with math later in the script after the ledger runs!
+container_capital_metrics = st.container()
+container_op_metrics = st.container()
+container_dashboard = st.container()
 st.divider()
 
 
@@ -71,7 +73,6 @@ with cont_footprint:
     storage_sqft = st.number_input("Storage Room SqFt", value=40, step=5, format="%d")
     storage_cost_sf = st.slider("Storage Room Cost / SF ($)", min_value=15.0, max_value=90.0, value=45.0, step=1.0)
     
-    # NEW INPUT FOR ELEVATION / ADDITIONAL FOUNDATION COSTS
     additional_foundation_cost = st.number_input("Additional Foundation / Elevation Cost ($ per unit)", value=0, step=500, format="%d")
 
 with cont_finance:
@@ -172,10 +173,20 @@ if comp_entry_mode == "RentCast Live API Fetch":
                                 if fetched_addr: st.session_state.comp_address = str(fetched_addr)
                                 st.success(f"Property successfully imported: {st.session_state.comp_address}")
                                 st.rerun()
+                            else:
+                                st.error("No exact match found. Make sure the address includes city, state, and zip.")
+                        elif response.status_code == 400:
+                            st.error("Error 400 (Bad Request): RentCast could not parse this address format.")
+                        elif response.status_code == 404:
+                            st.error("Error 404: RentCast found no property records for this address in public tax rolls.")
+                        elif response.status_code in [401, 403]:
+                            st.error(f"Error {response.status_code}: Unauthorized. Your API Key is invalid or missing.")
                         else:
                             st.error(f"RentCast API Error {response.status_code}.")
                 except Exception as e:
                     st.error(f"Error fetching data: {e}")
+            else:
+                st.error("Missing API Key. Paste it in the Configuration box or add RENTCAST_API_KEY to Railway Variables.")
 
 st.markdown("##### 1. Primary Comp Metrics")
 col_addr, col_price, col_hsf = st.columns([2, 1, 1])
@@ -222,6 +233,7 @@ if comp_address:
 else:
     st.caption(f"📊 Isolated Heated Rate: **${isolated_heated_rate:.2f} / SF** *(Raw Price/SF: ${raw_comp_price_sf:.2f})*")
 
+# 1. MODULAR TAKEOUT APPRAISAL METHODOLOGY
 with cont_appraisal:
     st.subheader("3. Takeout Appraisal Methodology")
     appraisal_mode = st.radio("Valuation Mode", ["Sales Comp (Price/SF)", "Income Approach (GRM)"])
@@ -235,18 +247,25 @@ with cont_appraisal:
         arv_per_unit = appraised_heated_value + our_aux_cost_total
         st.success(f"📈 **Calculated Unit ARV (Sales Comp):** ${arv_per_unit:,.0f}")
 
+# 2. MODULAR COST TARGET MODE
 with cont_target:
     st.subheader("4. Cost Target Mode (Reverse Engineer)")
     cost_calc_mode = st.radio(
         "Calculation Logic", 
-        ["Manual Set (Heated SF)", "Reverse-Engineer from Appraisal"]
+        [
+            "Manual Set (Heated SF)", 
+            "Reverse-Engineer from Appraisal",
+            "Reverse-Engineer from Primary Comp"
+        ]
     )
+    
     if cost_calc_mode == "Manual Set (Heated SF)":
         base_direct_cost_sf = st.slider("Direct Build Cost / SF ($)", min_value=40.0, max_value=150.0, value=74.0, step=1.0)
         target_heated_hard_cost = base_direct_cost_sf * sqft
         lot_cost_pct = 0.18; margin_pct = 0.20; sales_pct = 0.08; finance_pct = 0.04 
         target_total_hard_cost = target_heated_hard_cost + our_aux_cost_total
-    else:
+        
+    elif cost_calc_mode == "Reverse-Engineer from Appraisal":
         st.caption(f"Extracting Target Direct Costs from Unit ARV (${arv_per_unit:,.0f}).")
         lot_cost_pct = st.slider("Finished Lot Cost (%)", min_value=0.0, max_value=30.0, value=18.0, step=0.5) / 100.0
         margin_pct = st.slider("Gross Margin (O&P) (%)", min_value=0.0, max_value=30.0, value=20.0, step=0.5) / 100.0
@@ -257,7 +276,24 @@ with cont_target:
         target_total_hard_cost = arv_per_unit * target_hard_cost_pct
         target_heated_hard_cost = max(0, target_total_hard_cost - our_aux_cost_total)
         base_direct_cost_sf = target_heated_hard_cost / sqft if sqft > 0 else 0
-        st.success(f"**Target Heated Cost:**\n${base_direct_cost_sf:.2f} / SF")
+        st.success(f"**Target Heated Cost (from ARV):**\n${base_direct_cost_sf:.2f} / SF")
+        
+    else:
+        # Reverse-Engineer from Primary Comp
+        st.caption(f"Extracting Target Direct Costs directly from Primary Comp Price (${comp_price:,.0f}).")
+        lot_cost_pct = st.slider("Finished Lot Cost (%)", min_value=0.0, max_value=30.0, value=18.0, step=0.5) / 100.0
+        margin_pct = st.slider("Gross Margin (O&P) (%)", min_value=0.0, max_value=30.0, value=20.0, step=0.5) / 100.0
+        sales_pct = st.slider("Sales & Marketing (%)", min_value=0.0, max_value=15.0, value=8.0, step=0.5) / 100.0
+        finance_pct = st.slider("Soft Costs & Finance (%)", min_value=0.0, max_value=15.0, value=4.0, step=0.5) / 100.0
+        
+        target_hard_cost_pct = 1.0 - (lot_cost_pct + margin_pct + sales_pct + finance_pct)
+        comp_total_hard_budget = comp_price * target_hard_cost_pct
+        comp_target_heated_budget = max(0, comp_total_hard_budget - comp_aux_value)
+        base_direct_cost_sf = comp_target_heated_budget / comp_heated_sf if comp_heated_sf > 0 else 0
+        
+        target_heated_hard_cost = base_direct_cost_sf * sqft
+        target_total_hard_cost = target_heated_hard_cost + our_aux_cost_total
+        st.success(f"**Target Heated Cost (from Comp):**\n${base_direct_cost_sf:.2f} / SF")
 
 direct_cost_sf = base_direct_cost_sf
 struct_cost_sf = base_struct_cost_sf
@@ -405,7 +441,7 @@ total_under_roof_sqft = sqft + struct_sqft + front_porch_sqft + back_porch_sqft 
 heated_hard_cost = sqft * direct_cost_sf
 
 blended_cost_per_sf = (heated_hard_cost + our_aux_cost_total) / total_under_roof_sqft if total_under_roof_sqft > 0 else 0
-total_hard_cost = target_total_hard_cost * units if cost_calc_mode == "Reverse-Engineer from Appraisal" else (heated_hard_cost + our_aux_cost_total) * units
+total_hard_cost = target_total_hard_cost * units if cost_calc_mode in ["Reverse-Engineer from Appraisal", "Reverse-Engineer from Primary Comp"] else (heated_hard_cost + our_aux_cost_total) * units
 total_arv = arv_per_unit * units
 loan_total = total_arv * refi_ltv
 
@@ -522,7 +558,7 @@ day1_wealth = gc_fee + max(0, cash_surplus) + retained_equity
 # ==========================================
 
 # 1. Project Capital & Valuation Metrics
-with ui_top_metrics:
+with container_capital_metrics:
     st.markdown("### 🏗️ Project Capital & Valuation Metrics")
     col1, col2, col3, col4 = st.columns(4)
     col1.metric("Takeout Loan Proceeds", f"${loan_total:,.0f}", f"{refi_ltv*100:.0f}% LTV")
@@ -539,7 +575,7 @@ with ui_top_metrics:
     col4.metric(surplus_title, f"${cash_surplus:,.0f}", surplus_delta, delta_color=deal_health_color)
 
 # 2. Operating & DSCR Metrics
-with ui_op_metrics:
+with container_op_metrics:
     st.markdown("### 🏢 Operating & DSCR Metrics")
     op1, op2, op3, op4 = st.columns(4)
     arv_label = "Derived Unit ARV (Price/SF)" if appraisal_mode == "Sales Comp (Price/SF)" else "Derived Unit ARV (GRM)"
@@ -549,7 +585,7 @@ with ui_op_metrics:
     op4.metric("Monthly P&I Payment", f"${total_monthly_pi:,.0f} /mo", f"{refi_term_years}Yr @ {net_refi_rate*100:.3f}%")
 
 # 3. Go/No-Go Decision Dashboard
-with ui_decision_dashboard:
+with container_dashboard:
     st.markdown("### 🚦 Go/No-Go Investment Decision Dashboard")
     dscr_pass = actual_dscr >= target_dscr_rate
     cash_pass = cash_surplus >= 0
@@ -563,28 +599,33 @@ with ui_decision_dashboard:
 
 
 # --- REVERSE ENGINEERING BREAKDOWN & BOTTOM SECTIONS ---
-if cost_calc_mode == "Reverse-Engineer from Appraisal":
-    st.markdown("### 🔄 Retail Appraisal Reverse-Engineering Breakdown")
-    st.caption(f"Extracting true Heated Construction budget by applying custom standard deductions to your Appraised Unit Value of **${arv_per_unit:,.0f}**, and isolating fixed auxiliary costs.")
+if cost_calc_mode in ["Reverse-Engineer from Appraisal", "Reverse-Engineer from Primary Comp"]:
+    st.markdown("### 🔄 Retail Comp & Appraisal Reverse-Engineering Breakdown")
+    st.caption(f"Extracting true Heated Construction budget by applying custom standard deductions, isolating fixed auxiliary costs and elevation extras.")
     breakdown_data = {
         "Cost Category": [
-            f"Target Appraised Value (ARV) per Unit", "(-) Finished Lot Cost", "(-) Gross Margin (O&P)", 
+            f"Baseline Reference Price (Comp / ARV)", "(-) Finished Lot Cost", "(-) Gross Margin (O&P)", 
             "(-) Sales & Marketing", "(-) Soft Costs & Finance", "= Total Hard Cost Budget", 
-            "(-) Fixed Auxiliary Costs (Carport/Porches/Storage/Elevation)", "= Available Budget for Heated Shell"
+            "(-) Fixed Auxiliary & Elevation Costs", "= Available Budget for Heated Shell"
         ],
         "Value ($)": [
-            f"${arv_per_unit:,.0f}", f"-${arv_per_unit * lot_cost_pct:,.0f}", f"-${arv_per_unit * margin_pct:,.0f}", 
-            f"-${arv_per_unit * sales_pct:,.0f}", f"-${arv_per_unit * finance_pct:,.0f}", f"${target_total_hard_cost:,.0f}", 
-            f"-${our_aux_cost_total:,.0f}", f"${target_heated_hard_cost:,.0f}"
+            f"${comp_price if cost_calc_mode == 'Reverse-Engineer from Primary Comp' else arv_per_unit:,.0f}", 
+            f"-${(comp_price if cost_calc_mode == 'Reverse-Engineer from Primary Comp' else arv_per_unit) * lot_cost_pct:,.0f}", 
+            f"-${(comp_price if cost_calc_mode == 'Reverse-Engineer from Primary Comp' else arv_per_unit) * margin_pct:,.0f}", 
+            f"-${(comp_price if cost_calc_mode == 'Reverse-Engineer from Primary Comp' else arv_per_unit) * sales_pct:,.0f}", 
+            f"-${(comp_price if cost_calc_mode == 'Reverse-Engineer from Primary Comp' else arv_per_unit) * finance_pct:,.0f}", 
+            f"${target_total_hard_cost:,.0f}", 
+            f"-${our_aux_cost_total:,.0f}", 
+            f"${target_heated_hard_cost:,.0f}"
         ],
         "Description": [
-            "Based on your selected Appraisal Methodology.",
+            "Derived directly from Primary Comp Sale Price or Takeout Appraisal.",
             "Raw land, engineering, road paving, wet/dry utility infrastructure.",
             "Builder gross overhead and corporate net margin.",
             "Realtor commissions, internal sales reps, buyer closing concessions.",
             "Impact fees, plan design, municipal permits, and loan interest carry.",
             "Total budget available for all physical construction.",
-            "Locked budget required for your specific outdoor/auxiliary footprint and elevation.",
+            "Locked budget required for your specific outdoor/auxiliary footprint and foundation elevation.",
             f"Yields exactly ${base_direct_cost_sf:.2f} / SF across {sqft} Heated SF."
         ]
     }
