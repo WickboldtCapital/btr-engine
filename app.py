@@ -53,8 +53,8 @@ if comp_entry_mode == "Zillow Auto-Fetch (API)":
 
     if z_col2.button("Fetch Zillow Data", use_container_width=True):
         if zillow_url:
-            # Look directly in the OS environment variables for Railway compatibility
-            rapidapi_key = os.environ.get("RAPIDAPI_KEY", "")
+            # Look in OS environ first (Railway), then Streamlit secrets
+            rapidapi_key = os.environ.get("RAPIDAPI_KEY") or st.secrets.get("RAPIDAPI_KEY", "")
             
             if rapidapi_key:
                 try:
@@ -788,7 +788,7 @@ def create_pdf(include_sublevels):
     pdf.ln(5)
 
     pdf.set_font("Arial", 'B', 12)
-    pdf.cell(0, 8, " 3. Detailed Construction Cost Breakdown", fill=True)
+    pdf.cell(0, 8, " 3. Detailed Construction Cost Breakdown", ln=1, fill=True)
     pdf.set_font("Arial", '', 10)
     
     pdf.cell(100, 7, "Total Direct Hard Costs:", 0, 0)
