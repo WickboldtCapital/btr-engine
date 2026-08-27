@@ -52,15 +52,15 @@ refi_closing_fee = st.sidebar.number_input("Refinance Closing Fee ($ total)", va
 
 apply_buydown = st.sidebar.checkbox("Apply Interest Rate Buydown Points?")
 buydown_pts = 0.0
-buydown_cost_pct = 0.0
 net_refi_rate = base_refi_rate
 
 if apply_buydown:
-    buydown_pts = st.sidebar.number_input("Points Buydown (e.g. 2.0)", min_value=0.0, max_value=5.0, value=2.0, step=0.5)
-    buydown_cost_pct = st.sidebar.slider("Cost of Points (% of Loan)", min_value=0.5, max_value=3.0, value=1.0, step=0.25) / 100.0
+    # 1 Point = 1% of Loan Amount Cost = 0.25% Rate Reduction
+    buydown_pts = st.sidebar.number_input("Discount Points (1 pt = 1% of Loan)", min_value=0.0, max_value=5.0, value=2.0, step=0.5)
     rate_reduction = buydown_pts * 0.0025  
     net_refi_rate = max(0.01, base_refi_rate - rate_reduction)
     st.sidebar.markdown(f"📉 **Buydown Net Rate:** `{net_refi_rate*100:.3f}%`")
+    st.sidebar.markdown(f"💵 **Points Cost:** `{buydown_pts}% of Takeout Loan`")
 
 # --- SECTION 3: DSCR & OPERATING SECTION ---
 st.sidebar.subheader("DSCR & Operating Metrics")
@@ -106,7 +106,9 @@ total_arv = arv_per_unit * units
 
 # Refinance Loan and P&I Calculations
 loan_total = total_arv * refi_ltv
-total_buydown_cost = loan_total * buydown_cost_pct if apply_buydown else 0
+
+# 1 Point = 1% of Loan Amount
+total_buydown_cost = loan_total * (buydown_pts / 100.0) if apply_buydown else 0
 
 monthly_interest_rate = net_refi_rate / 12.0
 total_payments = refi_term_years * 12
@@ -223,7 +225,7 @@ ledger_data = {
         "Flat Fee",
         f"{avg_draw_pct*100:.0f}% Avg Draw",
         "Flat Fee",
-        f"{buydown_pts} Points",
+        f"{buydown_pts} Points ({buydown_pts}% of Loan)",
         f"${total_project_basis/units:,.0f} / Door"
     ],
     "Cost / SF ($)": [
