@@ -41,105 +41,108 @@ if "comp_heated_sf" not in st.session_state:
 if "raw_zillow_data" not in st.session_state:
     st.session_state.raw_zillow_data = None
 
-# 2. Toggle Mode
+# 2. Toggle Mode (Updated with Pre-Loaded Comps!)
 comp_entry_mode = st.radio(
     "Comparable Data Entry Mode", 
-    ["Manual Entry", "Zillow Auto-Fetch (API)"], 
+    [
+        "Manual Entry", 
+        "Auto-Load: 1103 S Spruce St (Hammond)", 
+        "Auto-Load: 71728 Spike Dr (Madisonville)",
+        "Zillow Auto-Fetch (Custom API)"
+    ], 
     horizontal=True
 )
 
-if comp_entry_mode == "Zillow Auto-Fetch (API)":
+if comp_entry_mode == "Auto-Load: 1103 S Spruce St (Hammond)":
+    st.success("✅ Pre-Loaded Data Activated for Hammond Comp.")
+    st.session_state.comp_address = "1103 S Spruce St, Hammond, LA 70403"
+    st.session_state.comp_price = 210100
+    st.session_state.comp_heated_sf = 1300
     
+    comp_address = st.text_input("Comparable Property Address", value=st.session_state.comp_address, disabled=True)
+    cc_col1, cc_col2, cc_col3, cc_col4, cc_col5 = st.columns(5)
+    comp_price = cc_col1.number_input("Comp Sale Price ($)", value=st.session_state.comp_price, disabled=True)
+    comp_heated_sf = cc_col2.number_input("Comp Heated SF", value=st.session_state.comp_heated_sf, disabled=True)
+
+elif comp_entry_mode == "Auto-Load: 71728 Spike Dr (Madisonville)":
+    st.success("✅ Pre-Loaded Data Activated for Madisonville Comp.")
+    st.session_state.comp_address = "71728 Spike Dr, Madisonville, LA 70447"
+    st.session_state.comp_price = 205045
+    st.session_state.comp_heated_sf = 1001
+    
+    comp_address = st.text_input("Comparable Property Address", value=st.session_state.comp_address, disabled=True)
+    cc_col1, cc_col2, cc_col3, cc_col4, cc_col5 = st.columns(5)
+    comp_price = cc_col1.number_input("Comp Sale Price ($)", value=st.session_state.comp_price, disabled=True)
+    comp_heated_sf = cc_col2.number_input("Comp Heated SF", value=st.session_state.comp_heated_sf, disabled=True)
+
+elif comp_entry_mode == "Zillow Auto-Fetch (Custom API)":
     st.caption("⚙️ **RapidAPI Configuration:** Using the new 2026 'US Housing Market Data' APIMaker Endpoint.")
     api_col1, api_col2 = st.columns(2)
     custom_api_url = api_col1.text_input("API Endpoint URL", value="https://us-housing-market-data1.p.rapidapi.com/property")
     custom_api_host = api_col2.text_input("X-RapidAPI-Host", value="us-housing-market-data1.p.rapidapi.com")
     
     st.markdown("<br>", unsafe_allow_html=True)
-    
     z_col1, z_col2 = st.columns([4, 1])
     zillow_url = z_col1.text_input("Zillow Property Link", placeholder="Paste Zillow URL here (e.g. https://www.zillow.com/homedetails/...)")
 
     if z_col2.button("Fetch Zillow Data", use_container_width=True):
         if zillow_url:
-            url_lower = zillow_url.lower()
+            rapidapi_key = os.environ.get("RAPIDAPI_KEY") or st.secrets.get("RAPIDAPI_KEY", "")
             
-            # --- 1. INSTANT SMART FALLBACKS (Bypass API entirely for known properties) ---
-            if "1103" in url_lower and "spruce" in url_lower:
-                st.session_state.comp_address = "1103 S Spruce St, Hammond, LA 70403"
-                st.session_state.comp_price = 210100
-                st.session_state.comp_heated_sf = 1300
-                st.session_state.raw_zillow_data = {"Status": "Interceptor Activated", "Note": "Bypassed API and injected hardcoded data for 1103 S Spruce St."}
-                st.toast("Smart Fallback Activated for Spruce St!", icon="✅")
-                st.rerun()
+            zpid_match = re.search(r'(\d+)_zpid', zillow_url)
+            if not zpid_match:
+                zpid_match = re.search(r'homedetails/.*?/(\d+)', zillow_url)
                 
-            elif "71728" in url_lower and "spike" in url_lower:
-                st.session_state.comp_address = "71728 Spike Dr, Madisonville, LA 70447"
-                st.session_state.comp_price = 205045
-                st.session_state.comp_heated_sf = 1001
-                st.session_state.raw_zillow_data = {"Status": "Interceptor Activated", "Note": "Bypassed API and injected hardcoded data for 71728 Spike Dr."}
-                st.toast("Smart Fallback Activated for Spike Dr!", icon="✅")
-                st.rerun()
-                
-            # --- 2. LIVE API FETCH (If it's an unknown URL) ---
-            else:
-                rapidapi_key = os.environ.get("RAPIDAPI_KEY") or st.secrets.get("RAPIDAPI_KEY", "")
-                
-                zpid_match = re.search(r'(\d+)_zpid', zillow_url)
-                if not zpid_match:
-                    zpid_match = re.search(r'homedetails/.*?/(\d+)', zillow_url)
-                    
-                if rapidapi_key and zpid_match:
-                    zpid = zpid_match.group(1)
-                    try:
-                        with st.spinner(f"Fetching live data via {custom_api_host}..."):
-                            api_url = custom_api_url.strip() 
-                            querystring = {"zpid": zpid, "property_url": zillow_url} 
+            if rapidapi_key and zpid_match:
+                zpid = zpid_match.group(1)
+                try:
+                    with st.spinner(f"Fetching live data via {custom_api_host}..."):
+                        api_url = custom_api_url.strip() 
+                        querystring = {"zpid": zpid, "property_url": zillow_url} 
+                        
+                        headers = {
+                            "X-RapidAPI-Key": rapidapi_key,
+                            "X-RapidAPI-Host": custom_api_host.strip()
+                        }
+                        
+                        response = requests.get(api_url, headers=headers, params=querystring)
+                        
+                        if response.status_code == 200:
+                            data = response.json()
+                            st.session_state.raw_zillow_data = data 
                             
-                            headers = {
-                                "X-RapidAPI-Key": rapidapi_key,
-                                "X-RapidAPI-Host": custom_api_host.strip()
-                            }
-                            
-                            response = requests.get(api_url, headers=headers, params=querystring)
-                            
-                            if response.status_code == 200:
-                                data = response.json()
-                                st.session_state.raw_zillow_data = data 
-                                
-                                def get_val(d, keys):
-                                    for k in keys:
-                                        if k in d and d[k] is not None: return d[k]
-                                    if isinstance(d, dict):
-                                        for v in d.values():
-                                            if isinstance(v, dict):
-                                                for k in keys:
-                                                    if k in v and v[k] is not None: return v[k]
-                                    return None
+                            def get_val(d, keys):
+                                for k in keys:
+                                    if k in d and d[k] is not None: return d[k]
+                                if isinstance(d, dict):
+                                    for v in d.values():
+                                        if isinstance(v, dict):
+                                            for k in keys:
+                                                if k in v and v[k] is not None: return v[k]
+                                return None
 
-                                fetched_price = get_val(data, ["price", "zestimate"])
-                                fetched_sf = get_val(data, ["livingArea", "livingAreaValue", "sqft"])
-                                fetched_addr = get_val(data, ["address"])
+                            fetched_price = get_val(data, ["price", "zestimate"])
+                            fetched_sf = get_val(data, ["livingArea", "livingAreaValue", "sqft"])
+                            fetched_addr = get_val(data, ["address"])
+                            
+                            if fetched_price: st.session_state.comp_price = int(fetched_price)
+                            if fetched_sf: st.session_state.comp_heated_sf = int(fetched_sf)
+                            
+                            if isinstance(fetched_addr, dict):
+                                st.session_state.comp_address = f"{fetched_addr.get('streetAddress', '')}, {fetched_addr.get('city', '')}, {fetched_addr.get('state', '')}"
+                            elif fetched_addr:
+                                st.session_state.comp_address = str(fetched_addr)
                                 
-                                if fetched_price: st.session_state.comp_price = int(fetched_price)
-                                if fetched_sf: st.session_state.comp_heated_sf = int(fetched_sf)
-                                
-                                if isinstance(fetched_addr, dict):
-                                    st.session_state.comp_address = f"{fetched_addr.get('streetAddress', '')}, {fetched_addr.get('city', '')}, {fetched_addr.get('state', '')}"
-                                elif fetched_addr:
-                                    st.session_state.comp_address = str(fetched_addr)
-                                    
-                                st.success(f"Listing successfully imported: {st.session_state.comp_address}")
-                                st.rerun()
-                            else:
-                                st.error(f"API Error {response.status_code}. Double-check your API Endpoint URL and Host above!")
-                    except Exception as e:
-                        st.error(f"Error fetching data: {e}")
-                else:
-                    st.error("Missing RAPIDAPI_KEY or Invalid Zillow URL.")
+                            st.success(f"Listing successfully imported: {st.session_state.comp_address}")
+                            st.rerun()
+                        else:
+                            st.error(f"API Error {response.status_code}. Double-check your API Endpoint URL and Host above!")
+                except Exception as e:
+                    st.error(f"Error fetching data: {e}")
+            else:
+                st.error("Missing RAPIDAPI_KEY or Invalid Zillow URL.")
             
     st.info("💡 Zillow Mode is active. Address, Price, and Heated SF are locked to the scraped data. Switch to 'Manual Entry' to edit them.")
-    
     comp_address = st.text_input("Comparable Property Address", value=st.session_state.comp_address, disabled=True)
     cc_col1, cc_col2, cc_col3, cc_col4, cc_col5 = st.columns(5)
     comp_price = cc_col1.number_input("Comp Sale Price ($)", value=st.session_state.comp_price, disabled=True)
@@ -183,7 +186,7 @@ with st.expander("🧮 View Comp Math Audit & Raw Zillow Data", expanded=False):
     st.markdown("**Total Under-Roof Calculation:**")
     st.caption(f"• {comp_heated_sf} SF (Heated)\n\n• {comp_struct_sf} SF (Garage/Carport)\n\n• {comp_front_sf} SF (Front Porch)\n\n• {comp_back_sf} SF (Back Porch)\n\n**= {comp_total_sf} Total SF**")
 
-    if st.session_state.raw_zillow_data:
+    if st.session_state.raw_zillow_data and comp_entry_mode == "Zillow Auto-Fetch (Custom API)":
         st.divider()
         st.markdown("#### 🔍 Raw Zillow API Feed")
         st.caption("This is the exact raw data extracted from Zillow. You can expand it to verify dates, Zestimates, and scraped square footages.")
@@ -302,7 +305,7 @@ raw_heated_divs = [
     ("  - Dirtwork, Pad Prep & Formwork", 1.50, False, "Laser leveling, select fill compaction, 2x12 perimeter form boards."),
     ("  - Termiticide & Vapor Barrier", 0.50, False, "Soil pre-treatment chemical barrier and 10-mil poly vapor barrier."),
     ("  - Rebar & Post-Tension Steel", 2.50, False, "Grade 60 rebar footings, welded wire mesh / post-tension cables."),
-    ("  - Ready-Mix Concrete & Pumping", 3.50, False, "3,000 PSI ready-mix concrete batching and boom processing."),
+    ("  - Ready-Mix Concrete & Pumping", 3.50, False, "3,000 PSI ready-mix concrete batching and boom pump truck service."),
     ("  - Slab Placement & Finishing", 1.50, False, "Turnkey concrete crew placement, screeding, power trowel finish."),
     
     ("DIVISION 2: FRAMING & STRUCTURAL SHELL", 18.50, True, ""),
