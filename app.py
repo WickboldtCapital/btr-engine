@@ -100,7 +100,7 @@ total_hard_cost = hard_cost_per_unit * units
 total_under_roof_sqft = sqft + struct_sqft + front_porch_sqft + back_porch_sqft
 blended_cost_per_sf = hard_cost_per_unit / total_under_roof_sqft if total_under_roof_sqft > 0 else 0
 
-# Appraised Value (ARV) derived from Comp's blended cost per SF applied to project under-roof area
+# Appraised Value (ARV) derived from Comp's blended cost per SF
 arv_per_unit = comp_blended_cost * total_under_roof_sqft
 total_arv = arv_per_unit * units
 
@@ -108,7 +108,6 @@ total_arv = arv_per_unit * units
 loan_total = total_arv * refi_ltv
 total_buydown_cost = loan_total * buydown_cost_pct if apply_buydown else 0
 
-# Monthly P&I Calculation
 monthly_interest_rate = net_refi_rate / 12.0
 total_payments = refi_term_years * 12
 if monthly_interest_rate > 0:
@@ -130,6 +129,7 @@ annual_debt_service = total_monthly_pi * 12.0
 actual_dscr = annual_noi / annual_debt_service if annual_debt_service > 0 else 0
 monthly_cash_flow = monthly_noi - total_monthly_pi
 
+# Indirect / Overhead Hard Cost Breakouts
 gcond = total_hard_cost * 0.05
 fee_basis = total_hard_cost + gcond
 
@@ -170,41 +170,84 @@ st.divider()
 row2_col1, row2_col2 = st.columns(2)
 
 with row2_col1:
-    st.markdown("### 📊 Capital Ledger Breakdown")
+    st.markdown("### 📊 Detailed Construction Cost & Capital Ledger")
     ledger_data = {
-        "Category": [
-            "Land Acquisition", 
-            f"Heated Hard Costs ({sqft:,.0f} SF @ ${direct_cost_sf:.2f}/SF)", 
-            f"{structure_type} Hard Costs ({struct_sqft:,.0f} SF @ ${struct_cost_sf:.2f}/SF)",
-            f"Front Porch ({front_porch_sqft:,.0f} SF @ ${front_porch_cost_sf:.2f}/SF)",
-            f"Back Porch ({back_porch_sqft:,.0f} SF @ ${back_porch_cost_sf:.2f}/SF)",
-            "General Conditions (5%)", 
+        "Cost Category / Sub-Level": [
+            "--- DIRECT HARD COSTS ---",
+            f"Heated Living Area (Sub-Level)", 
+            f"{structure_type} (Sub-Level)",
+            f"Front Porch (Sub-Level)",
+            f"Back Porch (Sub-Level)",
+            "SUBTOTAL DIRECT HARD COSTS",
+            "--- INDIRECT & OVERHEAD HARD COSTS ---",
+            "General Conditions (5% of Direct)", 
             "GC Management Fee", 
-            "BTR Buying Power Premium (5%)", 
+            "BTR Buying Power Premium (5% of Direct)", 
+            "TOTAL HARD COSTS",
+            "--- LAND, SOFT & FINANCING COSTS ---",
+            "Land Acquisition Basis",
             "Soft Costs & Permitting",
-            "Construction Loan Closing Fee", 
-            f"Accrued Const. Interest ({build_months} Mos @ {const_rate*100:.1f}%, {avg_draw_pct*100:.0f}% Draw)",
-            "Refinance Closing Fee & Rate Buydown Points", 
+            "Construction Loan Closing Fee",
+            f"Accrued Construction Interest ({build_months} Mos)",
+            "Takeout Refinance Closing Fee",
+            "Rate Buydown Points Cost",
             "TOTAL PROJECT BASIS"
         ],
-        "Amount ($)": [
-            total_land,
+        "Area (SF) / Metric": [
+            "",
+            f"{sqft:,.0f} SF",
+            f"{struct_sqft:,.0f} SF",
+            f"{front_porch_sqft:,.0f} SF",
+            f"{back_porch_sqft:,.0f} SF",
+            f"{total_under_roof_sqft:,.0f} SF Under Roof",
+            "",
+            "5.0% Basis",
+            "10% or Flat",
+            "5.0% Basis",
+            f"{total_under_roof_sqft:,.0f} Total SF",
+            f"{units:,.0f} Lot(s)",
+            "Per Unit Basis",
+            "Flat Fee",
+            f"{avg_draw_pct*100:.0f}% Avg Draw",
+            "Flat Fee",
+            f"{buydown_pts} Points",
+            f"${total_project_basis/units:,.0f} / Door"
+        ],
+        "Cost / SF ($)": [
+            "",
+            f"${direct_cost_sf:.2f} /SF",
+            f"${struct_cost_sf:.2f} /SF",
+            f"${front_porch_cost_sf:.2f} /SF",
+            f"${back_porch_cost_sf:.2f} /SF",
+            f"${blended_cost_per_sf:.2f} /SF (Blended)",
+            "",
+            "-", "-", "-", "-", "-", "-", "-", "-", "-", "-", "-", "-"
+        ],
+        "Total Amount ($)": [
+            "",
             heated_hard_cost * units,
             struct_total_cost * units,
             front_porch_cost * units,
             back_porch_cost * units,
+            total_hard_cost,
+            "",
             gcond,
             gc_fee,
             premium,
+            total_const,
+            "",
+            total_land,
             total_soft_costs,
             const_closing_fee,
             carry_int,
-            refi_closing_fee + total_buydown_cost,
+            refi_closing_fee,
+            total_buydown_cost,
             total_project_basis
         ]
     }
     df_ledger = pd.DataFrame(ledger_data)
-    df_ledger['Amount ($)'] = df_ledger['Amount ($)'].apply(lambda x: f"${x:,.0f}")
+    # Format numeric amounts where applicable
+    df_ledger['Total Amount ($)'] = df_ledger['Total Amount ($)'].apply(lambda x: f"${x:,.0f}" if isinstance(x, (int, float)) else x)
     st.dataframe(df_ledger, hide_index=True, use_container_width=True)
 
 with row2_col2:
