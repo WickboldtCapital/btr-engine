@@ -3,6 +3,7 @@ import pandas as pd
 from fpdf import FPDF
 import tempfile
 import requests
+import os
 from datetime import datetime
 
 # Page Configuration
@@ -52,11 +53,14 @@ if comp_entry_mode == "Zillow Auto-Fetch (API)":
 
     if z_col2.button("Fetch Zillow Data", use_container_width=True):
         if zillow_url:
-            rapidapi_key = st.secrets.get("RAPIDAPI_KEY", "")
+            # Look directly in the OS environment variables for Railway compatibility
+            rapidapi_key = os.environ.get("RAPIDAPI_KEY", "")
+            
             if rapidapi_key:
                 try:
                     with st.spinner("Fetching live data from Zillow..."):
                         api_url = "https://zillow-com-realtime-scraper.p.rapidapi.com/property" 
+                        # EZ API sometimes uses url, sometimes property_url. We pass both to be safe.
                         querystring = {"url": zillow_url, "property_url": zillow_url} 
                         
                         headers = {
@@ -70,7 +74,7 @@ if comp_entry_mode == "Zillow Auto-Fetch (API)":
                             data = response.json()
                             st.session_state.raw_zillow_data = data # Save the raw feed for the audit panel
                             
-                            # Universal Parser
+                            # Universal Parser: Searches the JSON for the correct keys regardless of nesting
                             def get_val(d, keys):
                                 for k in keys:
                                     if k in d and d[k] is not None: return d[k]
@@ -331,13 +335,11 @@ pdf_granular_data = [] # Stores final data for PDF export
 if granular_mode == "Auto-Proportional (Linked to Master Model)":
     st.caption("Budget dynamically scales proportionally based on your active Direct Cost / SF and the Wickboldt Capital baseline document weightings.")
     
-    # Values default to sidebar
     direct_cost_sf = base_direct_cost_sf
     struct_cost_sf = base_struct_cost_sf
 
     show_sub_items = st.toggle("Show Detailed Sub-Level Trade Itemization", value=False)
     
-    # 1. Heated Area
     st.markdown(f"#### 1. Heated Living Area ({sqft} SF @ ${direct_cost_sf:.2f} / SF)")
     h_data = {"Division / Trade Level": [], "Live Cost / SF": [], f"Per Unit Cost": [], "Scope Specifications": []}
     
@@ -353,7 +355,6 @@ if granular_mode == "Auto-Proportional (Linked to Master Model)":
         
     st.dataframe(pd.DataFrame(h_data), hide_index=True, use_container_width=True)
     
-    # 2. Structure Area
     st.markdown(f"#### 2. {structure_type} Auxiliary ({struct_sqft} SF @ ${struct_cost_sf:.2f} / SF)")
     s_data = {"Component Level": [], "Live Cost / SF": [], f"Per Unit Cost": []}
     
@@ -370,7 +371,6 @@ if granular_mode == "Auto-Proportional (Linked to Master Model)":
 else:
     st.caption("Enter your custom $ / SF for each trade division below. Your inputs will sum together to automatically override the Master Model.")
     
-    # 1. Heated Area (Manual Editor)
     st.markdown(f"#### 1. Heated Living Area ({sqft} SF)")
     hl_heated = [{"Division / Trade Level": name, "Cost / SF": base_direct_cost_sf * (base/74.0), "Scope": scope} for name, base, is_h, scope in raw_heated_divs if is_h]
     
@@ -385,7 +385,6 @@ else:
         use_container_width=True,
         key="manual_heated_editor"
     )
-    # The sum of their manual entries becomes the new Master Direct Cost!
     direct_cost_sf = edited_h["Cost / SF"].sum()
     st.success(f"**Calculated Manual Direct Cost:** ${direct_cost_sf:.2f} / SF")
     
@@ -393,7 +392,6 @@ else:
         live_sf = row["Cost / SF"]
         pdf_granular_data.append((row["Division / Trade Level"], live_sf, live_sf * sqft, live_sf * sqft * units, True))
     
-    # 2. Structure Area (Manual Editor)
     st.markdown(f"#### 2. {structure_type} Auxiliary ({struct_sqft} SF)")
     hl_struct = [{"Component Level": name, "Cost / SF": base_struct_cost_sf * (base/31.0)} for name, base, is_h in raw_struct_divs if is_h]
     
@@ -407,11 +405,10 @@ else:
         use_container_width=True,
         key="manual_struct_editor"
     )
-    # The sum becomes the new Master Structure Cost!
     struct_cost_sf = edited_s["Cost / SF"].sum()
 
 
-# 3. PORCHES STACK (Always renders below Granular logic)
+# 3. PORCHES STACK
 st.markdown(f"#### 3. Porches & Outdoor Living ({front_porch_sqft + back_porch_sqft} Total SF)")
 front_porch_cost = front_porch_sqft * front_porch_cost_sf
 back_porch_cost = back_porch_sqft * back_porch_cost_sf
@@ -426,18 +423,15 @@ st.dataframe(pd.DataFrame(p_data), hide_index=True, use_container_width=True)
 st.divider()
 
 
-# --- CORE CALCULATIONS (RUNS USING FINAL DIRECT & STRUCT COSTS) ---
+# --- CORE CALCULATIONS ---
 struct_total_cost = struct_sqft * struct_cost_sf
 total_under_roof_sqft = sqft + struct_sqft + front_porch_sqft + back_porch_sqft
 
-# Calculate Heated Hard Cost using the correct final direct_cost_sf
 heated_hard_cost = sqft * direct_cost_sf
 hard_cost_per_unit = heated_hard_cost + struct_total_cost + front_porch_cost + back_porch_cost
 blended_cost_per_sf = hard_cost_per_unit / total_under_roof_sqft if total_under_roof_sqft > 0 else 0
 
 total_hard_cost = hard_cost_per_unit * units
-
-# ARV is based strictly on Retail Heated Rate across the total Under-Roof to maintain blended valuation
 arv_per_unit = comp_retail_heated_rate * total_under_roof_sqft
 total_arv = arv_per_unit * units
 
@@ -492,7 +486,7 @@ retained_equity = total_arv - loan_total
 day1_wealth = gc_fee + max(0, cash_surplus) + retained_equity
 
 
-# --- POPULATE THE TOP PLACEHOLDERS WITH CALCULATED DATA ---
+# --- POPULATE THE TOP PLACEHOLDERS ---
 with ui_top_metrics:
     st.markdown("### 🏗️ Project Capital & Valuation Metrics")
     col1, col2, col3, col4 = st.columns(4)
@@ -794,7 +788,7 @@ def create_pdf(include_sublevels):
     pdf.ln(5)
 
     pdf.set_font("Arial", 'B', 12)
-    pdf.cell(0, 8, " 3. Detailed Construction Cost Breakdown", ln=1, fill=True)
+    pdf.cell(0, 8, " 3. Detailed Construction Cost Breakdown", fill=True)
     pdf.set_font("Arial", '', 10)
     
     pdf.cell(100, 7, "Total Direct Hard Costs:", 0, 0)
