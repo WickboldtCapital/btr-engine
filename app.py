@@ -74,8 +74,7 @@ if z_col2.button("Fetch Zillow Data", use_container_width=True):
         else:
             st.error("Missing RAPIDAPI_KEY in environment variables.")
         
-        # MOCK DATA FOR DEMONSTRATION (Shows you how the UI dynamically reacts)
-        st.toast("Zillow API Key not detected. Injecting simulated listing data...")
+                st.toast("Zillow API Key not detected. Injecting simulated listing data...")
         st.session_state.comp_address = "123 Simulated Zillow Listing, Hammond, LA"
         st.session_state.comp_price = 245000
         st.session_state.comp_heated_sf = 1450
