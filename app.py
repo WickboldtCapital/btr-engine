@@ -49,32 +49,49 @@ if z_col2.button("Fetch Zillow Data", use_container_width=True):
         # -------------------------------------------------------------------------
         '''
         import requests
+        import json
+        
         rapidapi_key = st.secrets.get("RAPIDAPI_KEY", "")
         if rapidapi_key:
             try:
-                url = "https://zillow-com1.p.rapidapi.com/property"
-                querystring = {"property_url": zillow_url}
+                # ---> 1. REPLACE THIS URL WITH THE ONE FROM YOUR RAPIDAPI SNIPPET <---
+                api_url = "https://zillow-com-realtime-scraper.p.rapidapi.com/property" 
+                
+                # Check your specific API snippet to see if it uses 'url', 'property_url', or 'zpid'
+                querystring = {"url": zillow_url} 
+                
                 headers = {
                     "X-RapidAPI-Key": rapidapi_key,
-                    "X-RapidAPI-Host": "zillow-com1.p.rapidapi.com"
+                    # ---> 2. REPLACE THIS HOST WITH THE ONE FROM YOUR RAPIDAPI SNIPPET <---
+                    "X-RapidAPI-Host": "zillow-com-realtime-scraper.p.rapidapi.com"
                 }
-                response = requests.get(url, headers=headers, params=querystring)
+                
+                response = requests.get(api_url, headers=headers, params=querystring)
                 if response.status_code == 200:
                     data = response.json()
-                    st.session_state.comp_price = data.get("price", 182600)
-                    st.session_state.comp_heated_sf = data.get("livingArea", 1150)
+                    
+                    # Universal Auto-Parser: Hunts for data regardless of how EZ formats the JSON
+                    st.session_state.comp_price = data.get("price") or data.get("zestimate") or 182600
+                    st.session_state.comp_heated_sf = data.get("livingArea") or data.get("livingAreaValue") or data.get("sqft") or 1150
+                    
                     addr = data.get("address", {})
-                    st.session_state.comp_address = f"{addr.get('streetAddress', '')}, {addr.get('city', '')}, {addr.get('state', '')}"
+                    if isinstance(addr, dict):
+                        st.session_state.comp_address = f"{addr.get('streetAddress', '')}, {addr.get('city', '')}, {addr.get('state', '')}"
+                    else:
+                        st.session_state.comp_address = str(addr)
+                        
                     st.success("Listing successfully imported!")
                     st.rerun()
                 else:
-                    st.error("Failed to fetch data. Check API Key or URL.")
+                    st.error(f"Failed to fetch data. Code: {response.status_code}")
             except Exception as e:
                 st.error(f"Error fetching data: {e}")
         else:
             st.error("Missing RAPIDAPI_KEY in environment variables.")
-        
-                st.toast("Zillow API Key not detected. Injecting simulated listing data...")
+        '''
+
+        # MOCK DATA FOR DEMONSTRATION (Delete this block when you uncomment the live code above)
+        st.toast("Zillow API Key not detected. Injecting simulated listing data...")
         st.session_state.comp_address = "123 Simulated Zillow Listing, Hammond, LA"
         st.session_state.comp_price = 245000
         st.session_state.comp_heated_sf = 1450
@@ -346,7 +363,7 @@ else:
     
     # 2. Structure Area (Manual Editor)
     st.markdown(f"#### 2. {structure_type} Auxiliary ({struct_sqft} SF)")
-    hl_struct = [{"Component Level": name, "Cost / SF": base_struct_cost_sf * (base/31.0)} for name, base, is_h in raw_struct_divs if not is_h]
+    hl_struct = [{"Component Level": name, "Cost / SF": base_struct_cost_sf * (base/31.0)} for name, base, is_h in raw_struct_divs if is_h]
     
     edited_s = st.data_editor(
         pd.DataFrame(hl_struct),
