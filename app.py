@@ -28,27 +28,42 @@ HARDCODED_DRIVERS = {
     "storage_sqft": 40,
     "storage_cost_sf": 45.0,
     "additional_foundation_cost": 0,
+    
     "gross_monthly_rent": 1650,
     "target_dscr_rate": 1.20,
     "vacancy_rate_pct": 5.0,
     "opex_rate_pct": 30.0,
+    
     "const_ltv_pct": 85.0,
     "build_months": 9,
     "const_rate_pct": 8.5,
     "avg_draw_pct": 50.0,
     "const_closing_fee": 6000,
+    
+    # Construction Lender DSCR Stress Constraints
+    "const_bank_rent": 1500,
+    "const_bank_opex_pct": 35.0,
+    "const_bank_vac_pct": 7.0,
+    "const_bank_dscr": 1.25,
+    "const_bank_qual_rate_pct": 7.5,
+    "const_bank_amort_yrs": 30,
+    "reserve_accrual_pct": 100.0,
+    
     "refi_ltv_pct": 80.0,
     "refi_term_years": 30,
     "base_refi_rate_pct": 6.5,
     "refi_closing_fee": 3650,
     "apply_buydown": False,
     "buydown_pts": 2.0,
+    
     "gc_fee_mode": "Percentage of Hard Costs (%)",
     "gc_fee_pct": 10.0,
     "custom_gc_fee": 20000,
     "land_basis": 15000,
+    
     "appraisal_mode": "Income Approach (GRM)",
     "target_grm": 10.5,
+    
     "cost_calc_mode": "Reverse-Engineer from Appraisal",
     "base_direct_cost_sf": 74.0,
     "lot_cost_pct": 18.0,
@@ -57,7 +72,6 @@ HARDCODED_DRIVERS = {
     "finance_pct": 4.0,
     "pdf_include_sublevels": True,
     
-    # Comp Auxiliary Base Defaults
     "comp_struct_sf": 200,
     "comp_front_sf": 60,
     "comp_back_sf": 120,
@@ -73,7 +87,6 @@ def load_defaults():
             pass
     return HARDCODED_DRIVERS
 
-# Load active defaults and initialize session state BEFORE rendering UI
 GLOBAL_DRIVERS = load_defaults()
 for key, value in GLOBAL_DRIVERS.items():
     if key not in st.session_state:
@@ -158,6 +171,16 @@ with st.sidebar.container():
         st.markdown(f"📉 **Buydown Net Rate:** `{net_rate*100:.3f}%`")
 
 with st.sidebar.container():
+    st.subheader("7. Const. Lender DSCR Limits")
+    st.number_input("Bank Underwriting Rent ($)", step=50, format="%d", key="const_bank_rent")
+    st.slider("Bank Underwriting OpEx (%)", min_value=15.0, max_value=50.0, step=1.0, key="const_bank_opex_pct")
+    st.slider("Bank Underwriting Vacancy (%)", min_value=0.0, max_value=15.0, step=1.0, key="const_bank_vac_pct")
+    st.number_input("Bank Target DSCR", min_value=1.0, max_value=1.5, step=0.05, key="const_bank_dscr")
+    st.slider("Bank Qualifying Rate (%)", min_value=4.0, max_value=14.0, step=0.25, key="const_bank_qual_rate_pct")
+    st.selectbox("Bank Amortization (Years)", [15, 20, 25, 30], index=[15, 20, 25, 30].index(st.session_state.const_bank_amort_yrs), key="const_bank_amort_yrs")
+    st.slider("Reserve Utilization / Accrual (%)", min_value=0.0, max_value=100.0, step=5.0, key="reserve_accrual_pct")
+
+with st.sidebar.container():
     st.subheader("PDF Export Options")
     st.checkbox("Include Detailed Sub-Levels in PDF Report", key="pdf_include_sublevels")
 
@@ -186,6 +209,16 @@ build_months = st.session_state.build_months
 const_rate = st.session_state.const_rate_pct / 100.0
 avg_draw_pct = st.session_state.avg_draw_pct / 100.0
 const_closing_fee = st.session_state.const_closing_fee
+
+# Const DSCR Limits Extraction
+const_bank_rent = st.session_state.const_bank_rent
+const_bank_opex_pct = st.session_state.const_bank_opex_pct / 100.0
+const_bank_vac_pct = st.session_state.const_bank_vac_pct / 100.0
+const_bank_dscr = st.session_state.const_bank_dscr
+const_bank_qual_rate = st.session_state.const_bank_qual_rate_pct / 100.0
+const_bank_amort_yrs = st.session_state.const_bank_amort_yrs
+reserve_accrual_pct = st.session_state.reserve_accrual_pct / 100.0
+
 refi_ltv = st.session_state.refi_ltv_pct / 100.0
 refi_term_years = st.session_state.refi_term_years
 base_refi_rate = st.session_state.base_refi_rate_pct / 100.0
@@ -210,7 +243,6 @@ finance_pct = st.session_state.finance_pct / 100.0
 comp_price = st.session_state.comp_price
 comp_heated_sf = st.session_state.comp_heated_sf
 
-# Extract Comp auxiliary spaces directly from state so math matches UI toggle
 comp_struct_sf = st.session_state.comp_struct_sf
 comp_front_sf = st.session_state.comp_front_sf
 comp_back_sf = st.session_state.comp_back_sf
@@ -221,41 +253,34 @@ comp_storage_sf = st.session_state.comp_storage_sf
 # --- CORE PRE-RENDER MATHEMATICS ---
 # ==========================================
 
-# 1. Base Costs
 struct_total_cost = struct_sqft * base_struct_cost_sf
 front_porch_cost = front_porch_sqft * front_porch_cost_sf
 back_porch_cost = back_porch_sqft * back_porch_cost_sf
 storage_cost = storage_sqft * storage_cost_sf
 our_aux_cost_total = struct_total_cost + front_porch_cost + back_porch_cost + storage_cost + additional_foundation_cost
 
-# 2. Comp Extraction Math
 comp_total_sf = comp_heated_sf + comp_struct_sf + comp_front_sf + comp_back_sf + comp_storage_sf
 raw_comp_price_sf = comp_price / comp_heated_sf if comp_heated_sf > 0 else 0
 comp_aux_value = (comp_struct_sf * base_struct_cost_sf) + (comp_front_sf * front_porch_cost_sf) + (comp_back_sf * back_porch_cost_sf) + (comp_storage_sf * storage_cost_sf)
 comp_isolated_heated_value = max(0, comp_price - comp_aux_value)
 isolated_heated_rate = comp_isolated_heated_value / comp_heated_sf if comp_heated_sf > 0 else 0
 
-# 3. Define the ARV Baseline
 if appraisal_mode == "Income Approach (GRM)":
     arv_per_unit = (gross_monthly_rent * 12) * target_grm
 else:
     arv_per_unit = (isolated_heated_rate * sqft) + our_aux_cost_total
 
-# 4. Target Cost Reverse Engineering
 if cost_calc_mode == "Manual Set (Heated SF)":
     target_heated_hard_cost = base_direct_cost_sf * sqft
     target_total_hard_cost = target_heated_hard_cost + our_aux_cost_total
-    comp_equivalent_arv = 0 # Not used in this mode
-    
+    comp_equivalent_arv = 0 
 elif cost_calc_mode == "Reverse-Engineer from Appraisal":
     target_hard_cost_pct = 1.0 - (lot_cost_pct + margin_pct + sales_pct + finance_pct)
     target_total_hard_cost = arv_per_unit * target_hard_cost_pct
     target_heated_hard_cost = max(0, target_total_hard_cost - our_aux_cost_total)
     base_direct_cost_sf = target_heated_hard_cost / sqft if sqft > 0 else 0
     comp_equivalent_arv = arv_per_unit
-    
-else: # Reverse-Engineer directly from Primary Comp
-    # We apply the Comp's isolated rate to OUR features to find a "Sales Comp Equivalent" baseline
+else: # Reverse from Comp
     comp_equivalent_arv = (isolated_heated_rate * sqft) + our_aux_cost_total
     target_hard_cost_pct = 1.0 - (lot_cost_pct + margin_pct + sales_pct + finance_pct)
     target_total_hard_cost = comp_equivalent_arv * target_hard_cost_pct
@@ -265,7 +290,6 @@ else: # Reverse-Engineer directly from Primary Comp
 direct_cost_sf = base_direct_cost_sf
 struct_cost_sf = base_struct_cost_sf
 
-# 5. Ledger Roll-up
 total_under_roof_sqft = sqft + struct_sqft + front_porch_sqft + back_porch_sqft + storage_sqft
 heated_hard_cost = sqft * direct_cost_sf
 blended_cost_per_sf = (heated_hard_cost + our_aux_cost_total) / total_under_roof_sqft if total_under_roof_sqft > 0 else 0
@@ -281,17 +305,32 @@ total_land_default = land_basis * units
 default_soft_cost_per_unit = 5500
 total_soft_default = default_soft_cost_per_unit * units
 
+# --- DSCR CONSTRUCTION CAPPING LOGIC ---
 total_const_default = fee_basis + default_gc_fee + default_premium
 total_project_costs_ex_interest_default = total_land_default + total_const_default + total_soft_default + const_closing_fee
 construction_loan_limit_default = total_project_costs_ex_interest_default * const_ltv
-default_carry_int = construction_loan_limit_default * avg_draw_pct * const_rate * (build_months / 12.0)
+
+cb_noi = (const_bank_rent * units * 12.0) * (1.0 - const_bank_vac_pct) * (1.0 - const_bank_opex_pct)
+cb_max_annual_ds = cb_noi / const_bank_dscr
+cb_monthly_rate = const_bank_qual_rate / 12.0
+cb_term_months = const_bank_amort_yrs * 12
+if cb_monthly_rate > 0:
+    max_const_loan_dscr = (cb_max_annual_ds / 12.0) * ((1.0 - (1.0 + cb_monthly_rate)**-cb_term_months) / cb_monthly_rate)
+else:
+    max_const_loan_dscr = (cb_max_annual_ds / 12.0) * cb_term_months
+
+actual_const_loan_limit = min(construction_loan_limit_default, max_const_loan_dscr)
+dscr_shortfall_reserve = max(0, construction_loan_limit_default - actual_const_loan_limit)
+
+default_carry_int_base = actual_const_loan_limit * avg_draw_pct * const_rate * (build_months / 12.0)
+default_carry_int_reserve = dscr_shortfall_reserve * reserve_accrual_pct * const_rate * (build_months / 12.0)
+default_carry_int = default_carry_int_base + default_carry_int_reserve
 default_buydown_cost = loan_total * (buydown_pts / 100.0) if apply_buydown else 0
 
 total_const = total_hard_cost + default_gcond + default_gc_fee + default_premium
-total_project_costs_ex_interest = total_land_default + total_const + total_soft_default + const_closing_fee
+total_project_costs_ex_interest = total_land_default + total_const + total_soft_default + const_closing_fee + dscr_shortfall_reserve
 total_project_basis = total_project_costs_ex_interest + default_carry_int + refi_closing_fee + default_buydown_cost
 
-# 6. DSCR Math
 monthly_interest_rate = net_refi_rate / 12.0
 total_payments = refi_term_years * 12
 if monthly_interest_rate > 0:
@@ -314,7 +353,8 @@ actual_dscr = annual_noi / annual_debt_service if annual_debt_service > 0 else 0
 monthly_cash_flow = monthly_noi - total_monthly_pi
 dscr_variance = actual_dscr - target_dscr_rate
 
-cash_surplus = loan_total - total_project_basis
+# The returned reserve mathematically neutralizes the upfront cash trap at the closing table
+cash_surplus = loan_total + dscr_shortfall_reserve - total_project_basis
 retained_equity = total_arv - loan_total
 day1_wealth = default_gc_fee + max(0, cash_surplus) + retained_equity
 
@@ -339,6 +379,18 @@ with tab_admin:
     
     if admin_pwd == "admin":
         st.success("Access Granted.")
+        
+        col_adm1, col_adm2, col_adm3 = st.columns(3)
+        with col_adm3:
+            st.subheader("6. Const. Bank DSCR Constraints")
+            st.number_input("Const. Bank Rent ($)", step=50, format="%d", key="const_bank_rent")
+            st.slider("Const. Bank OpEx (%)", min_value=15.0, max_value=50.0, step=1.0, key="const_bank_opex_pct")
+            st.slider("Const. Bank Vacancy (%)", min_value=0.0, max_value=15.0, step=1.0, key="const_bank_vac_pct")
+            st.number_input("Const. Bank Target DSCR", min_value=1.0, max_value=1.5, step=0.05, key="const_bank_dscr")
+            st.slider("Const. Bank Qual. Rate (%)", min_value=4.0, max_value=14.0, step=0.25, key="const_bank_qual_rate_pct")
+            st.selectbox("Const. Bank Amortization", [15, 20, 25, 30], key="const_bank_amort_yrs")
+            st.slider("Reserve Interest Accrual (%)", min_value=0.0, max_value=100.0, step=5.0, key="reserve_accrual_pct")
+            
         if st.button("💾 Save Current Sidebar Settings as Global Defaults", type="primary"):
             new_defaults = {k: st.session_state[k] for k in HARDCODED_DRIVERS.keys() if k in st.session_state}
             with open(DEFAULT_FILE, "w") as f:
@@ -363,40 +415,10 @@ with tab_main:
     download_placeholder = sub_col3.empty()
     st.divider()
 
-    # --- TOP METRICS DASHBOARDS ---
-    st.markdown("### 🏗️ Project Capital & Valuation Metrics")
-    col1, col2, col3, col4 = st.columns(4)
-    col1.metric("Takeout Loan Proceeds", f"${loan_total:,.0f}", f"{refi_ltv*100:.0f}% LTV")
-    if cash_surplus >= 0:
-        deal_health_color = "normal" 
-        surplus_title = "Tax-Free Cash Surplus"
-        surplus_delta = "Capital Recovered"
-    else:
-        deal_health_color = "inverse" 
-        surplus_title = "Trapped Seed Capital"
-        surplus_delta = "Loss at Closing"
-    col2.metric("Total Project Basis", f"${total_project_basis:,.0f}", f"${total_project_basis/units:,.0f} per door", delta_color=deal_health_color)
-    col3.metric("Under-Roof Blended Cost", f"${blended_cost_per_sf:.2f} / SF", f"{total_under_roof_sqft:,} Total SF Under Roof")
-    col4.metric(surplus_title, f"${cash_surplus:,.0f}", surplus_delta, delta_color=deal_health_color)
-
-    st.markdown("### 🏢 Operating & DSCR Metrics")
-    op1, op2, op3, op4 = st.columns(4)
-    arv_label = "Derived Unit ARV (Price/SF)" if appraisal_mode == "Sales Comp (Price/SF)" else "Derived Unit ARV (GRM)"
-    op1.metric(arv_label, f"${arv_per_unit:,.0f}", f"${total_arv:,.0f} Total ARV")
-    op2.metric("Actual DSCR Rate", f"{actual_dscr:.2f}x", f"Target: {target_dscr_rate:.2f}x", delta_color="normal" if actual_dscr >= target_dscr_rate else "inverse")
-    op3.metric("Monthly Cash Flow", f"${monthly_cash_flow:,.0f} /mo", f"${monthly_cash_flow*12:,.0f} Annual", delta_color="normal" if monthly_cash_flow >= 0 else "inverse")
-    op4.metric("Monthly P&I Payment", f"${total_monthly_pi:,.0f} /mo", f"{refi_term_years}Yr @ {net_refi_rate*100:.3f}%")
-
-    st.markdown("### 🚦 Go/No-Go Investment Decision Dashboard")
-    dscr_pass = actual_dscr >= target_dscr_rate
-    cash_pass = cash_surplus >= 0
-    dscr_light = "🟢 GREEN LIGHT" if dscr_pass else "🔴 RED LIGHT"
-    cash_light = "🟢 GREEN LIGHT" if cash_pass else "🔴 RED LIGHT"
-
-    dash_col1, dash_col2, dash_col3 = st.columns(3)
-    dash_col1.metric("DSCR Underwriting Status", dscr_light, f"Actual: {actual_dscr:.2f}x (Target: {target_dscr_rate:.2f}x)", delta_color="normal" if dscr_pass else "inverse")
-    dash_col2.metric("Capital Recovery Status", cash_light, f"${cash_surplus:,.0f} at Refi Close", delta_color="normal" if cash_pass else "inverse")
-    dash_col3.metric("Day-1 Wealth Creation", f"${day1_wealth:,.0f}", f"${day1_wealth/units:,.0f} per door", delta_color="normal")
+    # INVISIBLE CONTAINERS FOR TOP DASHBOARDS
+    ui_top_metrics = st.container()
+    ui_op_metrics = st.container()
+    ui_decision_dashboard = st.container()
     st.divider()
 
     # --- COMP TOOL ---
@@ -452,7 +474,6 @@ with tab_main:
 
     st.markdown("##### 2. Comp Auxiliary Spaces (Always Editable)")
     c_aux1, c_aux2, c_aux3, c_aux4 = st.columns(4)
-    # Using key bound variables updates session_state and re-triggers math automatically
     c_aux1.number_input("Comp Aux. SF (Garage/Carport)", step=25, format="%d", key="comp_struct_sf")
     c_aux2.number_input("Comp Front Porch SF", step=10, format="%d", key="comp_front_sf")
     c_aux3.number_input("Comp Back Porch SF", step=10, format="%d", key="comp_back_sf")
@@ -553,7 +574,8 @@ with tab_main:
         {"Cost Category": "Land Acquisition Basis", "Metric / Basis": f"${land_basis:,.0f} / Lot", "Amount ($)": total_land_default},
         {"Cost Category": "Soft Costs & Permitting", "Metric / Basis": f"${default_soft_cost_per_unit:,.0f} / Unit", "Amount ($)": total_soft_default},
         {"Cost Category": "Construction Loan Closing Fee", "Metric / Basis": "Flat Fee", "Amount ($)": const_closing_fee},
-        {"Cost Category": f"Accrued Const. Interest ({build_months} Mos)", "Metric / Basis": f"{avg_draw_pct*100:.0f}% Avg Draw", "Amount ($)": default_carry_int},
+        {"Cost Category": "Const. DSCR Shortfall Reserve", "Metric / Basis": "Gap to LTV Max", "Amount ($)": dscr_shortfall_reserve},
+        {"Cost Category": f"Accrued Const. Interest ({build_months} Mos)", "Metric / Basis": "Base + Reserve", "Amount ($)": default_carry_int},
         {"Cost Category": "Takeout Refinance Closing Fee", "Metric / Basis": "Flat Fee", "Amount ($)": refi_closing_fee},
         {"Cost Category": "Rate Buydown Points Cost", "Metric / Basis": f"{buydown_pts} Points", "Amount ($)": default_buydown_cost}
     ]
@@ -561,11 +583,68 @@ with tab_main:
     if ledger_mode == "Manual Ledger Override":
         st.caption("✏️ **Manual Mode Active:** Edit the amounts in the table below.")
         edited_df = st.data_editor(pd.DataFrame(indirects_data), column_config={"Amount ($)": st.column_config.NumberColumn(format="$%.2f", min_value=0.0)}, disabled=["Cost Category", "Metric / Basis"], hide_index=True, use_container_width=True)
+        gcond = edited_df.loc[0, "Amount ($)"]; gc_fee = edited_df.loc[1, "Amount ($)"]; premium = edited_df.loc[2, "Amount ($)"]
+        total_land = edited_df.loc[3, "Amount ($)"]; total_soft_costs = edited_df.loc[4, "Amount ($)"]
+        final_const_closing = edited_df.loc[5, "Amount ($)"]; dscr_reserve_active = edited_df.loc[6, "Amount ($)"]
+        carry_int = edited_df.loc[7, "Amount ($)"]; final_refi_closing = edited_df.loc[8, "Amount ($)"]
+        total_buydown_cost = edited_df.loc[9, "Amount ($)"]
     else:
         st.dataframe(pd.DataFrame(indirects_data).style.format({"Amount ($)": "${:,.0f}"}), hide_index=True, use_container_width=True)
+        gcond = default_gcond; gc_fee = default_gc_fee; premium = default_premium
+        total_land = total_land_default; total_soft_costs = total_soft_default
+        final_const_closing = const_closing_fee; dscr_reserve_active = dscr_shortfall_reserve
+        carry_int = default_carry_int; final_refi_closing = refi_closing_fee; total_buydown_cost = default_buydown_cost
+
+    total_const = total_hard_cost + gcond + gc_fee + premium
+    total_project_costs_ex_interest = total_land + total_const + total_soft_costs + final_const_closing + dscr_reserve_active
+    total_project_basis = total_project_costs_ex_interest + carry_int + final_refi_closing + total_buydown_cost
 
     st.markdown(f"### 🎯 TOTAL PROJECT BASIS: **${total_project_basis:,.0f}** *(${total_project_basis/units:,.0f} / Door)*")
     st.divider()
+
+    # ==========================================
+    # --- POPULATE INVISIBLE DASHBOARDS ---
+    # ==========================================
+    with ui_top_metrics:
+        if dscr_shortfall_reserve > 0:
+            st.warning(f"⚠️ **Construction Loan DSCR Constrained:** The lender capped construction proceeds at **${actual_const_loan_limit:,.0f}**, forcing a Day-1 capital reserve of **${dscr_shortfall_reserve:,.0f}**. This reserve is held in your total basis and mathematically refunded at permanent refinance.")
+
+        st.markdown("### 🏗️ Project Capital & Valuation Metrics")
+        col1, col2, col3, col4 = st.columns(4)
+        col1.metric("Takeout Loan Proceeds", f"${loan_total:,.0f}", f"{refi_ltv*100:.0f}% LTV")
+        if cash_surplus >= 0:
+            deal_health_color = "normal" 
+            surplus_title = "Tax-Free Cash Surplus"
+            surplus_delta = "Capital Recovered"
+        else:
+            deal_health_color = "inverse" 
+            surplus_title = "Trapped Seed Capital"
+            surplus_delta = "Loss at Closing"
+        col2.metric("Total Project Basis", f"${total_project_basis:,.0f}", f"${total_project_basis/units:,.0f} per door", delta_color=deal_health_color)
+        col3.metric("Under-Roof Blended Cost", f"${blended_cost_per_sf:.2f} / SF", f"{total_under_roof_sqft:,} Total SF Under Roof")
+        col4.metric(surplus_title, f"${cash_surplus:,.0f}", surplus_delta, delta_color=deal_health_color)
+
+    with ui_op_metrics:
+        st.markdown("### 🏢 Operating & DSCR Metrics")
+        op1, op2, op3, op4 = st.columns(4)
+        arv_label = "Derived Unit ARV (Price/SF)" if appraisal_mode == "Sales Comp (Price/SF)" else "Derived Unit ARV (GRM)"
+        op1.metric(arv_label, f"${arv_per_unit:,.0f}", f"${total_arv:,.0f} Total ARV")
+        op2.metric("Actual DSCR Rate", f"{actual_dscr:.2f}x", f"Target: {target_dscr_rate:.2f}x", delta_color="normal" if actual_dscr >= target_dscr_rate else "inverse")
+        op3.metric("Monthly Cash Flow", f"${monthly_cash_flow:,.0f} /mo", f"${monthly_cash_flow*12:,.0f} Annual", delta_color="normal" if monthly_cash_flow >= 0 else "inverse")
+        op4.metric("Monthly P&I Payment", f"${total_monthly_pi:,.0f} /mo", f"{refi_term_years}Yr @ {net_refi_rate*100:.3f}%")
+
+    with ui_decision_dashboard:
+        st.markdown("### 🚦 Go/No-Go Investment Decision Dashboard")
+        dscr_pass = actual_dscr >= target_dscr_rate
+        cash_pass = cash_surplus >= 0
+        dscr_light = "🟢 GREEN LIGHT" if dscr_pass else "🔴 RED LIGHT"
+        cash_light = "🟢 GREEN LIGHT" if cash_pass else "🔴 RED LIGHT"
+
+        dash_col1, dash_col2, dash_col3 = st.columns(3)
+        dash_col1.metric("DSCR Underwriting Status", dscr_light, f"Actual: {actual_dscr:.2f}x (Target: {target_dscr_rate:.2f}x)", delta_color="normal" if dscr_pass else "inverse")
+        dash_col2.metric("Capital Recovery Status", cash_light, f"${cash_surplus:,.0f} at Refi Close", delta_color="normal" if cash_pass else "inverse")
+        dash_col3.metric("Day-1 Wealth Creation", f"${day1_wealth:,.0f}", f"${day1_wealth/units:,.0f} per door", delta_color="normal")
+
 
     # --- BOTTOM PERFORMANCE SECTIONS ---
     if cost_calc_mode in ["Reverse-Engineer from Appraisal", "Reverse-Engineer from Primary Comp"]:
@@ -606,7 +685,7 @@ with tab_main:
     st.markdown("### 💰 Day-1 Wealth Creation")
     wealth_data = {
         "Pocket Component": ["Pocket 1: Active GC Fee Revenue", "Pocket 2: Tax-Free Cash Surplus at Close", "Pocket 3: Retained Asset Equity", "TOTAL DAY-1 CREATED VALUE"],
-        "Value ($)": [f"${default_gc_fee:,.0f}", f"${cash_surplus:,.0f}", f"${retained_equity:,.0f}", f"${day1_wealth:,.0f}"]
+        "Value ($)": [f"${gc_fee:,.0f}", f"${cash_surplus:,.0f}", f"${retained_equity:,.0f}", f"${day1_wealth:,.0f}"]
     }
     st.dataframe(pd.DataFrame(wealth_data), hide_index=True, use_container_width=True)
 
@@ -724,6 +803,11 @@ with tab_main:
         
         pdf.cell(100, 7, "Land Acquisition Basis:", 0, 0)
         pdf.cell(90, 7, f"${total_land_default:,.0f}", 0, 1, 'R')
+        
+        if dscr_reserve_active > 0:
+            pdf.cell(100, 7, "Const. DSCR Shortfall Reserve Fund:", 0, 0)
+            pdf.cell(90, 7, f"${dscr_reserve_active:,.0f}", 0, 1, 'R')
+            
         pdf.cell(100, 7, "Accrued Construction Loan Interest:", 0, 0)
         pdf.cell(90, 7, f"${default_carry_int:,.0f}", 0, 1, 'R')
         pdf.cell(100, 7, "Total Soft Costs & Closing Fees:", 0, 0)
