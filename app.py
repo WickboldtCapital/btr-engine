@@ -140,6 +140,10 @@ st.sidebar.subheader("Land & Soft Costs")
 land_basis = st.sidebar.number_input("Land Basis per Lot ($)", value=15000, step=1000, format="%d")
 soft_costs = st.sidebar.number_input("Soft Costs per Unit ($)", value=5500, step=500, format="%d")
 
+# --- PDF SETTINGS IN SIDEBAR ---
+st.sidebar.subheader("PDF Export Options")
+pdf_include_sublevels = st.sidebar.checkbox("Include Detailed Sub-Levels in PDF Report", value=True)
+
 # --- CORE CALCULATIONS ---
 struct_total_cost = struct_sqft * struct_cost_sf
 front_porch_cost = front_porch_sqft * front_porch_cost_sf
@@ -166,7 +170,6 @@ else:
 
 total_monthly_pi = monthly_pi_per_unit * units
 
-# Advanced Operating Calculations
 total_gross_monthly_income = gross_monthly_rent * units
 monthly_vacancy_loss = total_gross_monthly_income * vacancy_rate
 annual_vacancy_loss = monthly_vacancy_loss * 12.0
@@ -275,7 +278,7 @@ class EnterpriseReport(FPDF):
         self.set_font('Arial', 'I', 8)
         self.cell(0, 10, f'Page {self.page_no()} | Prepared by: Stephen Wickboldt Jr. - Wickboldt Capital', 0, 0, 'C')
 
-def create_pdf():
+def create_pdf(include_sublevels):
     pdf = EnterpriseReport()
     pdf.add_page()
     
@@ -309,7 +312,7 @@ def create_pdf():
     pdf.cell(90, 7, f"${day1_wealth:,.0f}", 0, 1, 'R')
     pdf.ln(5)
 
-    # UPDATED PDF SECTION 2: Full Operating Waterfall
+    # PDF SECTION 2: Full Operating Waterfall
     pdf.set_font("Arial", 'B', 12)
     pdf.cell(0, 8, " 2. Operating Performance & DSCR (Annualized)", ln=1, fill=True)
     pdf.set_font("Arial", '', 10)
@@ -354,18 +357,21 @@ def create_pdf():
     pdf.cell(100, 7, "Total Soft Costs & Closing Fees:", 0, 0)
     pdf.cell(90, 7, f"${total_soft_costs + const_closing_fee + refi_closing_fee + total_buydown_cost:,.0f}", 0, 1, 'R')
     
+    # PDF SECTION 4: Conditional Granular Buydown based on Sidebar Toggle
     pdf.ln(5)
     pdf.set_font("Arial", 'B', 12)
     pdf.set_fill_color(220, 220, 220)
     pdf.cell(0, 8, " 4. Granular Direct Hard Cost Buildup", ln=1, fill=True)
     pdf.set_font("Arial", 'B', 9)
     
-    pdf.cell(90, 6, "Division / Trade Sub-Level", 1, 0, 'C')
+    pdf.cell(90, 6, "Division / Trade Level", 1, 0, 'C')
     pdf.cell(30, 6, "Live Cost / SF", 1, 0, 'C')
     pdf.cell(35, 6, f"Per Unit ({sqft} SF)", 1, 0, 'C')
     pdf.cell(35, 6, "Project Total", 1, 1, 'C')
     
     for name, base_val, is_header, scope in raw_heated_divs:
+        if not include_sublevels and not is_header:
+            continue
         div_sf = direct_cost_sf * (base_val / 74.0)
         div_unit = div_sf * sqft
         div_proj = div_unit * units
@@ -393,7 +399,7 @@ with download_placeholder:
     st.markdown("<br>", unsafe_allow_html=True)
     st.download_button(
         label="📄 Download Enterprise Report (PDF)",
-        data=create_pdf(),
+        data=create_pdf(pdf_include_sublevels),
         file_name=f"Wickboldt_Capital_ProForma_{report_date.replace(' ', '_').replace(',', '')}.pdf",
         mime="application/pdf",
         type="primary",
@@ -473,50 +479,57 @@ if cost_calc_mode == "Reverse-Engineer from Comp (Adjustable Breakdown)":
     st.divider()
 
 
-# --- TOGGLE EXPANDER FOR SUB-LEVEL BREAKDOWN ---
-with st.expander("🧱 View Granular Direct Hard Cost Buildup (Trade Divisions)", expanded=False):
-    st.markdown("This budget dynamically scales proportionally based on your active Direct Cost / SF and the Wickboldt Capital baseline document weightings.")
-    
-    # 1. HEATED AREA STACK
-    st.markdown(f"#### 1. Heated Living Area ({sqft} SF @ ${direct_cost_sf:.2f} / SF)")
-    h_data = {
-        "Division / Trade Sub-Level": [],
-        "Live Cost / SF": [],
-        f"Per Unit Cost": [],
-        "Scope Specifications": []
-    }
-    for name, base_val, is_header, scope in raw_heated_divs:
-        live_sf = direct_cost_sf * (base_val / 74.0)
-        h_data["Division / Trade Sub-Level"].append(name)
-        h_data["Live Cost / SF"].append(f"${live_sf:.2f}")
-        h_data[f"Per Unit Cost"].append(f"${live_sf * sqft:,.0f}")
-        h_data["Scope Specifications"].append(scope)
-    st.dataframe(pd.DataFrame(h_data), hide_index=True, use_container_width=True)
-    
-    # 2. CARPORT / GARAGE STACK
-    st.markdown(f"#### 2. {structure_type} Auxiliary ({struct_sqft} SF @ ${struct_cost_sf:.2f} / SF)")
-    s_data = {
-        "Component Sub-Level": [],
-        "Live Cost / SF": [],
-        f"Per Unit Cost": []
-    }
-    for name, base_val, is_header in raw_struct_divs:
-        live_sf = struct_cost_sf * (base_val / 31.0)
-        s_data["Component Sub-Level"].append(name)
-        s_data["Live Cost / SF"].append(f"${live_sf:.2f}")
-        s_data[f"Per Unit Cost"].append(f"${live_sf * struct_sqft:,.0f}")
-    st.dataframe(pd.DataFrame(s_data), hide_index=True, use_container_width=True)
+# --- GRANULAR HARD COST BUILDUP LOGIC ---
+st.markdown("### 🧱 Granular Direct Hard Cost Buildup (Trade Divisions)")
+st.caption("This budget dynamically scales proportionally based on your active Direct Cost / SF and the Wickboldt Capital baseline document weightings.")
 
-    # 3. PORCHES STACK
-    st.markdown(f"#### 3. Porches & Outdoor Living ({front_porch_sqft + back_porch_sqft} Total SF)")
-    p_data = {
-        "Component": ["Front Porch", "Back Porch", "TOTAL PORCHES"],
-        "Area (SF)": [f"{front_porch_sqft} SF", f"{back_porch_sqft} SF", f"{front_porch_sqft + back_porch_sqft} SF"],
-        "Live Cost / SF": [f"${front_porch_cost_sf:.2f}", f"${back_porch_cost_sf:.2f}", "-"],
-        "Per Unit Cost": [f"${front_porch_cost:,.0f}", f"${back_porch_cost:,.0f}", f"${front_porch_cost + back_porch_cost:,.0f}"]
-    }
-    st.dataframe(pd.DataFrame(p_data), hide_index=True, use_container_width=True)
+show_sub_items = st.toggle("Show Detailed Sub-Level Trade Itemization", value=False)
 
+# 1. HEATED AREA STACK
+st.markdown(f"#### 1. Heated Living Area ({sqft} SF @ ${direct_cost_sf:.2f} / SF)")
+h_data = {
+    "Division / Trade Level": [],
+    "Live Cost / SF": [],
+    f"Per Unit Cost": [],
+    "Scope Specifications": []
+}
+for name, base_val, is_header, scope in raw_heated_divs:
+    if not show_sub_items and not is_header:
+        continue
+    live_sf = direct_cost_sf * (base_val / 74.0)
+    h_data["Division / Trade Level"].append(name)
+    h_data["Live Cost / SF"].append(f"${live_sf:.2f}")
+    h_data[f"Per Unit Cost"].append(f"${live_sf * sqft:,.0f}")
+    h_data["Scope Specifications"].append(scope)
+st.dataframe(pd.DataFrame(h_data), hide_index=True, use_container_width=True)
+
+# 2. CARPORT / GARAGE STACK
+st.markdown(f"#### 2. {structure_type} Auxiliary ({struct_sqft} SF @ ${struct_cost_sf:.2f} / SF)")
+s_data = {
+    "Component Level": [],
+    "Live Cost / SF": [],
+    f"Per Unit Cost": []
+}
+for name, base_val, is_header in raw_struct_divs:
+    if not show_sub_items and not is_header:
+        continue
+    live_sf = struct_cost_sf * (base_val / 31.0)
+    s_data["Component Level"].append(name)
+    s_data["Live Cost / SF"].append(f"${live_sf:.2f}")
+    s_data[f"Per Unit Cost"].append(f"${live_sf * struct_sqft:,.0f}")
+st.dataframe(pd.DataFrame(s_data), hide_index=True, use_container_width=True)
+
+# 3. PORCHES STACK
+st.markdown(f"#### 3. Porches & Outdoor Living ({front_porch_sqft + back_porch_sqft} Total SF)")
+p_data = {
+    "Component": ["Front Porch", "Back Porch", "TOTAL PORCHES"],
+    "Area (SF)": [f"{front_porch_sqft} SF", f"{back_porch_sqft} SF", f"{front_porch_sqft + back_porch_sqft} SF"],
+    "Live Cost / SF": [f"${front_porch_cost_sf:.2f}", f"${back_porch_cost_sf:.2f}", "-"],
+    "Per Unit Cost": [f"${front_porch_cost:,.0f}", f"${back_porch_cost:,.0f}", f"${front_porch_cost + back_porch_cost:,.0f}"]
+}
+st.dataframe(pd.DataFrame(p_data), hide_index=True, use_container_width=True)
+
+st.divider()
 
 # --- VERTICAL STACK FOR MAIN TABLES ---
 st.markdown("### 📊 Detailed Construction Cost & Capital Ledger")
