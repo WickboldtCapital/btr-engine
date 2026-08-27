@@ -103,15 +103,15 @@ if comp_entry_mode == "RentCast Live API Fetch":
                                 st.success(f"Property successfully imported: {st.session_state.comp_address}")
                                 st.rerun()
                             else:
-                                st.error("No exact match found. Make sure the address includes city, state, and zip (e.g., '100 Main St, Hammond, LA 70401').")
+                                st.error("No exact match found. Make sure the address includes city, state, and zip.")
                         elif response.status_code == 400:
-                            st.error("Error 400 (Bad Request): RentCast could not parse this address format. Please format as: Street, City, State Zip.")
+                            st.error("Error 400 (Bad Request): RentCast could not parse this address format.")
                         elif response.status_code == 404:
                             st.error("Error 404: RentCast found no property records for this address in public tax rolls.")
                         elif response.status_code in [401, 403]:
                             st.error(f"Error {response.status_code}: Unauthorized. Your API Key is invalid or missing.")
                         else:
-                            st.error(f"RentCast API Error {response.status_code}. Please check your query.")
+                            st.error(f"RentCast API Error {response.status_code}.")
                 except Exception as e:
                     st.error(f"Error fetching data: {e}")
             else:
@@ -238,19 +238,21 @@ if comp_address:
 else:
     st.caption(f"📊 Isolated Heated Rate: **${isolated_heated_rate:.2f} / SF** *(Raw Price/SF: ${raw_comp_price_sf:.2f})*")
 
+# 1. MODULAR TAKEOUT APPRAISAL METHODOLOGY (Strictly drives Loan Sizing & ARV)
 with cont_appraisal:
     st.subheader("3. Takeout Appraisal Methodology")
     appraisal_mode = st.radio("Valuation Mode", ["Sales Comp (Price/SF)", "Income Approach (GRM)"])
     if appraisal_mode == "Income Approach (GRM)":
         target_grm = st.number_input("Gross Rent Multiplier (GRM)", min_value=4.0, max_value=25.0, value=10.5, step=0.1)
         arv_per_unit = (gross_monthly_rent * 12) * target_grm
-        st.success(f"📈 **Calculated Unit ARV:** ${arv_per_unit:,.0f}")
+        st.success(f"📈 **Calculated Unit ARV (Income):** ${arv_per_unit:,.0f}")
     else:
         target_grm = 0.0
         appraised_heated_value = isolated_heated_rate * sqft
         arv_per_unit = appraised_heated_value + our_aux_cost_total
-        st.success(f"📈 **Calculated Unit ARV:** ${arv_per_unit:,.0f}")
+        st.success(f"📈 **Calculated Unit ARV (Sales Comp):** ${arv_per_unit:,.0f}")
 
+# 2. MODULAR COST TARGET MODE (Strictly drives Construction Budget & Reverse Engineering)
 with cont_target:
     st.subheader("4. Cost Target Mode (Reverse Engineer)")
     cost_calc_mode = st.radio(
@@ -275,6 +277,7 @@ with cont_target:
         base_direct_cost_sf = target_heated_hard_cost / sqft if sqft > 0 else 0
         st.success(f"**Target Heated Cost:**\n${base_direct_cost_sf:.2f} / SF")
 
+st.divider()
 
 # --- MATH AUDIT & RAW DATA PANEL ---
 with st.expander("🧮 View Comp Math Audit & Raw API Data", expanded=False):
@@ -294,14 +297,6 @@ with st.expander("🧮 View Comp Math Audit & Raw API Data", expanded=False):
         st.json(st.session_state.raw_api_data)
 
 st.divider()
-
-# --- DYNAMIC UI PLACEHOLDERS ---
-ui_top_metrics = st.container()
-ui_op_metrics = st.container()
-st.divider()
-ui_rev_eng = st.container()
-st.divider()
-
 
 # --- RAW GRANULAR DATA ---
 raw_heated_divs = [
@@ -673,7 +668,7 @@ with ui_dscr:
         ],
         "Annual": [
             f"${total_gross_monthly_income * 12:,.2f}", f"-${annual_vacancy_loss:,.2f}", f"${annual_egi:,.2f}", 
-            f"-${annual_opex:,.2f}", f"${annual_noi:,.2f}", f"${annual_debt_service:,.2f}", f"${monthly_cash_flow * 12:,.2f}",
+            f"-${annual_opex / 12:,.2f}", f"${annual_noi:,.2f}", f"${annual_debt_service:,.2f}", f"${monthly_cash_flow * 12:,.2f}",
             "---", f"{actual_dscr:.2f}x", f"{target_dscr_rate:.2f}x", f"{dscr_variance:+.2f}x"
         ]
     }
