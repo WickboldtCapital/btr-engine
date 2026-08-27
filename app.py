@@ -200,61 +200,60 @@ cash_surplus = loan_total - total_project_basis
 retained_equity = total_arv - loan_total
 day1_wealth = gc_fee + max(0, cash_surplus) + retained_equity
 
-
-# --- GRANULAR COST BUILDUP DATA (DOCUMENT MATCHING) ---
+# --- GRANULAR COST BUILDUP DATA (ASCII CLEANED FOR PDF) ---
 raw_heated_divs = [
     ("DIVISION 1: FOUNDATION & CONCRETE", 9.50, True, ""),
-    ("  • Dirtwork, Pad Prep & Formwork", 1.50, False, "Laser leveling, select fill compaction, 2x12 perimeter form boards."),
-    ("  • Termiticide & Vapor Barrier", 0.50, False, "Soil pre-treatment chemical barrier and 10-mil poly vapor barrier."),
-    ("  • Rebar & Post-Tension Steel", 2.50, False, "Grade 60 rebar footings, welded wire mesh / post-tension cables."),
-    ("  • Ready-Mix Concrete & Pumping", 3.50, False, "3,000 PSI ready-mix concrete batching and boom pump truck service."),
-    ("  • Slab Placement & Finishing", 1.50, False, "Turnkey concrete crew placement, screeding, power trowel finish."),
+    ("  - Dirtwork, Pad Prep & Formwork", 1.50, False, "Laser leveling, select fill compaction, 2x12 perimeter form boards."),
+    ("  - Termiticide & Vapor Barrier", 0.50, False, "Soil pre-treatment chemical barrier and 10-mil poly vapor barrier."),
+    ("  - Rebar & Post-Tension Steel", 2.50, False, "Grade 60 rebar footings, welded wire mesh / post-tension cables."),
+    ("  - Ready-Mix Concrete & Pumping", 3.50, False, "3,000 PSI ready-mix concrete batching and boom pump truck service."),
+    ("  - Slab Placement & Finishing", 1.50, False, "Turnkey concrete crew placement, screeding, power trowel finish."),
     
     ("DIVISION 2: FRAMING & STRUCTURAL SHELL", 18.50, True, ""),
-    ("  • Wall Framing Lumber Package", 5.50, False, "2x4 studs @ 16\" OC, treated sole plates, double top plates, LVL headers."),
-    ("  • Pre-Engineered Roof Trusses", 4.50, False, "Manufactured gang-nail roof truss package, gable ends, bracing."),
-    ("  • Sheathing (Walls & Roof)", 2.50, False, "7/16\" OSB wall sheathing and 7/16\" radiant barrier roof decking."),
-    ("  • Structural Hardware & Fasteners", 1.00, False, "Simpson Strong-Tie clips, anchor bolts, framing nails."),
-    ("  • Turnkey Framing Labor", 5.00, False, "Piece-rate crew framing walls, setting trusses, sheathing, drying-in."),
+    ("  - Wall Framing Lumber Package", 5.50, False, "2x4 studs @ 16\" OC, treated sole plates, double top plates, LVL headers."),
+    ("  - Pre-Engineered Roof Trusses", 4.50, False, "Manufactured gang-nail roof truss package, gable ends, bracing."),
+    ("  - Sheathing (Walls & Roof)", 2.50, False, "7/16\" OSB wall sheathing and 7/16\" radiant barrier roof decking."),
+    ("  - Structural Hardware & Fasteners", 1.00, False, "Simpson Strong-Tie clips, anchor bolts, framing nails."),
+    ("  - Turnkey Framing Labor", 5.00, False, "Piece-rate crew framing walls, setting trusses, sheathing, drying-in."),
     
     ("DIVISION 3: EXTERIOR ENVELOPE & ROOFING", 10.00, True, ""),
-    ("  • Architectural Shingle Roofing", 3.25, False, "Lifetime architectural shingles, synthetic underlayment, drip edge."),
-    ("  • Vinyl Lap Siding, Soffit & Fascia", 3.00, False, "0.042\" vinyl lap siding, vented vinyl soffits, aluminum fascia wrap."),
-    ("  • Windows & Exterior Doors", 2.50, False, "Low-E vinyl single-hung windows; fiberglass insulated exterior doors."),
-    ("  • Weatherization & Exterior Labor", 1.25, False, "Housewrap, flashing tape, window/door install, exterior caulk."),
+    ("  - Architectural Shingle Roofing", 3.25, False, "Lifetime architectural shingles, synthetic underlayment, drip edge."),
+    ("  - Vinyl Lap Siding, Soffit & Fascia", 3.00, False, "0.042\" vinyl lap siding, vented vinyl soffits, aluminum fascia wrap."),
+    ("  - Windows & Exterior Doors", 2.50, False, "Low-E vinyl single-hung windows; fiberglass insulated exterior doors."),
+    ("  - Weatherization & Exterior Labor", 1.25, False, "Housewrap, flashing tape, window/door install, exterior caulk."),
 
     ("DIVISION 4: MECHANICAL, ELECTRICAL, PLUMBING", 15.50, True, ""),
-    ("  • Plumbing Complete (Rough & Trim)", 5.00, False, "Underground PVC, PEX supply, 50-gal water heater, tub/shower, faucets."),
-    ("  • HVAC Heat Pump System", 6.00, False, "14.3+ SEER2 heat pump & air handler, R-6 flex ducting, thermostat."),
-    ("  • Electrical Rough & Trim", 4.50, False, "200A main service panel, Romex wiring, LED recessed lighting, smoke/CO."),
+    ("  - Plumbing Complete (Rough & Trim)", 5.00, False, "Underground PVC, PEX supply, 50-gal water heater, tub/shower, faucets."),
+    ("  - HVAC Heat Pump System", 6.00, False, "14.3+ SEER2 heat pump & air handler, R-6 flex ducting, thermostat."),
+    ("  - Electrical Rough & Trim", 4.50, False, "200A main service panel, Romex wiring, LED recessed lighting, smoke/CO."),
 
     ("DIVISION 5: INSULATION & DRYWALL", 6.50, True, ""),
-    ("  • Thermal Insulation Package", 2.25, False, "R-13/R-15 kraft-faced wall batts, R-38 blown attic cellulose/fiberglass."),
-    ("  • Drywall Materials", 1.75, False, "1/2\" drywall boards (moisture-resistant in wet areas), mud, beads."),
-    ("  • Drywall Hanging & Finishing", 2.50, False, "Hang, tape, 3-coat float, sand, spray light texture."),
+    ("  - Thermal Insulation Package", 2.25, False, "R-13/R-15 kraft-faced wall batts, R-38 blown attic cellulose/fiberglass."),
+    ("  - Drywall Materials", 1.75, False, "1/2\" drywall boards (moisture-resistant in wet areas), mud, beads."),
+    ("  - Drywall Hanging & Finishing", 2.50, False, "Hang, tape, 3-coat float, sand, spray light texture."),
 
     ("DIVISION 6: INTERIOR FINISHES & CABINETS", 10.50, True, ""),
-    ("  • Interior Doors & Trim Package", 2.50, False, "Hollow-core 6-panel doors, MDF baseboards, casing, hardware."),
-    ("  • Cabinetry & Countertops", 4.00, False, "Pre-fab flat panel shaker cabinets, Level 1 laminate/granite."),
-    ("  • Flooring (LVP & Carpet)", 2.75, False, "Waterproof click LVP in living/kitchen/baths; carpet in bedrooms."),
-    ("  • Interior Paint Labor & Paint", 1.25, False, "Production spray: 1-coat PVA primer, 2-coat wall/ceiling latex."),
+    ("  - Interior Doors & Trim Package", 2.50, False, "Hollow-core 6-panel doors, MDF baseboards, casing, hardware."),
+    ("  - Cabinetry & Countertops", 4.00, False, "Pre-fab flat panel shaker cabinets, Level 1 laminate/granite."),
+    ("  - Flooring (LVP & Carpet)", 2.75, False, "Waterproof click LVP in living/kitchen/baths; carpet in bedrooms."),
+    ("  - Interior Paint Labor & Paint", 1.25, False, "Production spray: 1-coat PVA primer, 2-coat wall/ceiling latex."),
 
     ("DIVISION 7: APPLIANCES & SPECIALTIES", 1.50, True, ""),
-    ("  • Kitchen Appliance Suite", 1.10, False, "Stainless/black electric range, microwave, built-in dishwasher."),
-    ("  • Bath Hardware & Shelving", 0.40, False, "Wire closet shelving, vanity mirrors, towel bars, paper holders."),
+    ("  - Kitchen Appliance Suite", 1.10, False, "Stainless/black electric range, microwave, built-in dishwasher."),
+    ("  - Bath Hardware & Shelving", 0.40, False, "Wire closet shelving, vanity mirrors, towel bars, paper holders."),
 
     ("DIVISION 8: EXTERIOR FLATWORK & SITE", 2.00, True, ""),
-    ("  • Driveway & Entry Flatwork", 1.25, False, "Broom-finished concrete lead walk and 2-car parking apron."),
-    ("  • Final Grading & Starter Sod", 0.75, False, "Tractor rough/finish grade, silt fence, front pallet sod.")
+    ("  - Driveway & Entry Flatwork", 1.25, False, "Broom-finished concrete lead walk and 2-car parking apron."),
+    ("  - Final Grading & Starter Sod", 0.75, False, "Tractor rough/finish grade, silt fence, front pallet sod.")
 ]
 
 raw_struct_divs = [
     ("AUXILIARY: CARPORT / GARAGE", 31.00, True),
-    ("  • Slab & Turned-Down Footings", 7.00, False),
-    ("  • Framing & Columns", 12.00, False),
-    ("  • Roofing & Exterior Trim", 8.00, False),
-    ("  • Electrical & Lighting", 2.50, False),
-    ("  • Paint & Column Wrap", 1.50, False)
+    ("  - Slab & Turned-Down Footings", 7.00, False),
+    ("  - Framing & Columns", 12.00, False),
+    ("  - Roofing & Exterior Trim", 8.00, False),
+    ("  - Electrical & Lighting", 2.50, False),
+    ("  - Paint & Column Wrap", 1.50, False)
 ]
 
 # --- PDF GENERATION ENGINE ---
