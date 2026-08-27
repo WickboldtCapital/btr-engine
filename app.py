@@ -361,7 +361,9 @@ with tab_main:
         target_heated_hard_cost = base_direct_cost_sf * sqft
         target_total_hard_cost = target_heated_hard_cost + our_aux_cost_total
 
+    # FIX: Ensure both structure and direct costs are assigned properly for the granular loop
     direct_cost_sf = base_direct_cost_sf
+    struct_cost_sf = base_struct_cost_sf
 
     with st.expander("🧮 View Comp Math Audit & Raw API Data", expanded=False):
         st.markdown("#### The Math Breakdown")
