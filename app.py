@@ -4,6 +4,7 @@ from fpdf import FPDF
 import tempfile
 import requests
 import os
+import re
 from datetime import datetime
 
 # Page Configuration
@@ -53,55 +54,63 @@ if comp_entry_mode == "Zillow Auto-Fetch (API)":
 
     if z_col2.button("Fetch Zillow Data", use_container_width=True):
         if zillow_url:
-            # Look in OS environ first (Railway), then Streamlit secrets
+            # Look directly in the OS environment variables for Railway compatibility
             rapidapi_key = os.environ.get("RAPIDAPI_KEY") or st.secrets.get("RAPIDAPI_KEY", "")
             
             if rapidapi_key:
-                try:
-                    with st.spinner("Fetching live data from Zillow..."):
-                        api_url = "https://zillow-com-realtime-scraper.p.rapidapi.com/property" 
-                        # EZ API sometimes uses url, sometimes property_url. We pass both to be safe.
-                        querystring = {"url": zillow_url, "property_url": zillow_url} 
-                        
-                        headers = {
-                            "X-RapidAPI-Key": rapidapi_key,
-                            "X-RapidAPI-Host": "zillow-com-realtime-scraper.p.rapidapi.com"
-                        }
-                        
-                        response = requests.get(api_url, headers=headers, params=querystring)
-                        
-                        if response.status_code == 200:
-                            data = response.json()
-                            st.session_state.raw_zillow_data = data # Save the raw feed for the audit panel
+                # Extract ZPID from the URL (e.g., 460367755_zpid -> 460367755)
+                zpid_match = re.search(r'(\d+)_zpid', zillow_url)
+                
+                if not zpid_match:
+                    st.error("Could not find a valid ZPID in that URL. Make sure it is a direct Zillow property link.")
+                else:
+                    zpid = zpid_match.group(1)
+                    
+                    try:
+                        with st.spinner("Fetching live data from Zillow..."):
+                            # Using the industry standard APIMaker Zillow API
+                            api_url = "https://zillow-com1.p.rapidapi.com/property" 
+                            querystring = {"zpid": zpid} 
                             
-                            # Universal Parser: Searches the JSON for the correct keys regardless of nesting
-                            def get_val(d, keys):
-                                for k in keys:
-                                    if k in d and d[k] is not None: return d[k]
-                                for v in d.values():
-                                    if isinstance(v, dict):
-                                        for k in keys:
-                                            if k in v and v[k] is not None: return v[k]
-                                return None
-
-                            fetched_price = get_val(data, ["price", "zestimate"])
-                            fetched_sf = get_val(data, ["livingArea", "livingAreaValue", "sqft"])
-                            fetched_addr = get_val(data, ["address"])
+                            headers = {
+                                "X-RapidAPI-Key": rapidapi_key,
+                                "X-RapidAPI-Host": "zillow-com1.p.rapidapi.com"
+                            }
                             
-                            if fetched_price: st.session_state.comp_price = int(fetched_price)
-                            if fetched_sf: st.session_state.comp_heated_sf = int(fetched_sf)
+                            response = requests.get(api_url, headers=headers, params=querystring)
                             
-                            if isinstance(fetched_addr, dict):
-                                st.session_state.comp_address = f"{fetched_addr.get('streetAddress', '')}, {fetched_addr.get('city', '')}, {fetched_addr.get('state', '')}"
-                            elif fetched_addr:
-                                st.session_state.comp_address = str(fetched_addr)
+                            if response.status_code == 200:
+                                data = response.json()
+                                st.session_state.raw_zillow_data = data # Save the raw feed for the audit panel
                                 
-                            st.success(f"Listing successfully imported: {st.session_state.comp_address}")
-                            st.rerun()
-                        else:
-                            st.error(f"Failed to fetch data. API returned Code: {response.status_code}")
-                except Exception as e:
-                    st.error(f"Error fetching data: {e}")
+                                # Universal Parser
+                                def get_val(d, keys):
+                                    for k in keys:
+                                        if k in d and d[k] is not None: return d[k]
+                                    for v in d.values():
+                                        if isinstance(v, dict):
+                                            for k in keys:
+                                                if k in v and v[k] is not None: return v[k]
+                                    return None
+
+                                fetched_price = get_val(data, ["price", "zestimate"])
+                                fetched_sf = get_val(data, ["livingArea", "livingAreaValue", "sqft"])
+                                fetched_addr = get_val(data, ["address"])
+                                
+                                if fetched_price: st.session_state.comp_price = int(fetched_price)
+                                if fetched_sf: st.session_state.comp_heated_sf = int(fetched_sf)
+                                
+                                if isinstance(fetched_addr, dict):
+                                    st.session_state.comp_address = f"{fetched_addr.get('streetAddress', '')}, {fetched_addr.get('city', '')}, {fetched_addr.get('state', '')}"
+                                elif fetched_addr:
+                                    st.session_state.comp_address = str(fetched_addr)
+                                    
+                                st.success(f"Listing successfully imported: {st.session_state.comp_address}")
+                                st.rerun()
+                            else:
+                                st.error(f"Failed to fetch data. API returned Code: {response.status_code}. Make sure you subscribed to the Zillow.com API by 'apimaker'.")
+                    except Exception as e:
+                        st.error(f"Error fetching data: {e}")
             else:
                 st.error("Missing RAPIDAPI_KEY. Please ensure you added it to your Railway Variables.")
             
