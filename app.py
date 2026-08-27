@@ -165,12 +165,20 @@ st.markdown("### 🏗️ Project Capital & Valuation Metrics")
 col1, col2, col3, col4 = st.columns(4)
 
 col1.metric("Takeout Loan Proceeds", f"${loan_total:,.0f}", f"{refi_ltv*100:.0f}% LTV")
-col2.metric("Total Project Basis", f"${total_project_basis:,.0f}", f"${total_project_basis/units:,.0f} per door", delta_color="off")
-col3.metric("Under-Roof Blended Cost", f"${blended_cost_per_sf:.2f} / SF", f"{total_under_roof_sqft:,} Total SF Under Roof")
+
+# Dynamic Logic for Conditional Coloring
 if cash_surplus >= 0:
-    col4.metric("Tax-Free Cash Surplus", f"${cash_surplus:,.0f}", "Capital Recovered")
+    deal_health_color = "normal"  # Renders as Green
+    surplus_title = "Tax-Free Cash Surplus"
+    surplus_delta = "Capital Recovered"
 else:
-    col4.metric("Trapped Seed Capital", f"${cash_surplus:,.0f}", "Loss at Closing")
+    deal_health_color = "inverse" # Renders as Red
+    surplus_title = "Trapped Seed Capital"
+    surplus_delta = "Loss at Closing"
+
+col2.metric("Total Project Basis", f"${total_project_basis:,.0f}", f"${total_project_basis/units:,.0f} per door", delta_color=deal_health_color)
+col3.metric("Under-Roof Blended Cost", f"${blended_cost_per_sf:.2f} / SF", f"{total_under_roof_sqft:,} Total SF Under Roof")
+col4.metric(surplus_title, f"${cash_surplus:,.0f}", surplus_delta, delta_color=deal_health_color)
 
 st.markdown("### 🏢 Operating & DSCR Metrics")
 op1, op2, op3, op4 = st.columns(4)
