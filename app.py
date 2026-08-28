@@ -18,6 +18,7 @@ DEFAULT_FILE = "global_defaults.json"
 HARDCODED_DRIVERS = {
     "units": 1,
     "sqft": 1173,
+    "aux_cost_mode": "Manual Component Costs",
     "structure_type": "Carport", 
     "struct_sqft": 213,
     "base_struct_cost_sf": 35.0,
@@ -42,6 +43,7 @@ HARDCODED_DRIVERS = {
     
     # Construction Lender Stress Constraints
     "const_bank_rent": 1500,
+    "const_bank_ltv_pct": 80.0,
     "const_bank_val_mode": "DSCR Stress Test",
     "const_bank_grm": 8.0,
     "const_bank_opex_pct": 30.0,
@@ -167,15 +169,26 @@ with st.sidebar.container():
 with st.sidebar.container():
     st.subheader("3. Physical Footprint & Aux Costs")
     st.number_input("Heated SqFt per Unit", step=50, format="%d", key="sqft")
+    
+    st.radio("Auxiliary Cost Mode", ["Manual Component Costs", "Single Blended Rate Across All SF"], key="aux_cost_mode")
+    
     st.selectbox("Aux Structure Type", ["Carport", "Garage"], key="structure_type")
     st.number_input(f"{st.session_state.structure_type} SqFt per Unit", step=25, format="%d", key="struct_sqft")
-    st.slider(f"{st.session_state.structure_type} Cost / SF ($)", min_value=15.0, max_value=90.0, step=1.0, key="base_struct_cost_sf")
+    if st.session_state.aux_cost_mode == "Manual Component Costs":
+        st.slider(f"{st.session_state.structure_type} Cost / SF ($)", min_value=15.0, max_value=90.0, step=1.0, key="base_struct_cost_sf")
+        
     st.number_input("Front Porch SqFt", step=10, format="%d", key="front_porch_sqft")
-    st.slider("Front Porch Cost / SF ($)", min_value=15.0, max_value=70.0, step=1.0, key="front_porch_cost_sf")
+    if st.session_state.aux_cost_mode == "Manual Component Costs":
+        st.slider("Front Porch Cost / SF ($)", min_value=15.0, max_value=70.0, step=1.0, key="front_porch_cost_sf")
+        
     st.number_input("Back Porch SqFt", step=10, format="%d", key="back_porch_sqft")
-    st.slider("Back Porch Cost / SF ($)", min_value=15.0, max_value=70.0, step=1.0, key="back_porch_cost_sf")
+    if st.session_state.aux_cost_mode == "Manual Component Costs":
+        st.slider("Back Porch Cost / SF ($)", min_value=15.0, max_value=70.0, step=1.0, key="back_porch_cost_sf")
+        
     st.number_input("Storage Room SqFt", step=5, format="%d", key="storage_sqft")
-    st.slider("Storage Room Cost / SF ($)", min_value=15.0, max_value=90.0, step=1.0, key="storage_cost_sf")
+    if st.session_state.aux_cost_mode == "Manual Component Costs":
+        st.slider("Storage Room Cost / SF ($)", min_value=15.0, max_value=90.0, step=1.0, key="storage_cost_sf")
+        
     st.number_input("Additional Foundation / Elevation Cost ($)", step=500, format="%d", key="additional_foundation_cost")
 
 with st.sidebar.container():
@@ -251,14 +264,11 @@ with st.sidebar.container():
 # ==========================================
 units = st.session_state.units
 sqft = st.session_state.sqft
+aux_cost_mode = st.session_state.aux_cost_mode
 struct_sqft = st.session_state.struct_sqft
-base_struct_cost_sf = st.session_state.base_struct_cost_sf
 front_porch_sqft = st.session_state.front_porch_sqft
-front_porch_cost_sf = st.session_state.front_porch_cost_sf
 back_porch_sqft = st.session_state.back_porch_sqft
-back_porch_cost_sf = st.session_state.back_porch_cost_sf
 storage_sqft = st.session_state.storage_sqft
-storage_cost_sf = st.session_state.storage_cost_sf
 additional_foundation_cost = st.session_state.additional_foundation_cost
 
 gross_monthly_rent = st.session_state.gross_monthly_rent
@@ -272,6 +282,7 @@ avg_draw_pct = st.session_state.avg_draw_pct / 100.0
 const_closing_fee = st.session_state.const_closing_fee
 
 const_bank_rent = st.session_state.const_bank_rent
+const_bank_ltv = st.session_state.const_bank_ltv_pct / 100.0
 const_bank_val_mode = st.session_state.const_bank_val_mode
 const_bank_grm = st.session_state.const_bank_grm
 const_bank_opex_pct = st.session_state.const_bank_opex_pct / 100.0
@@ -295,7 +306,6 @@ land_basis = st.session_state.land_basis
 appraisal_mode = st.session_state.appraisal_mode
 target_grm = st.session_state.target_grm
 cost_calc_mode = st.session_state.cost_calc_mode
-base_direct_cost_sf = st.session_state.base_direct_cost_sf
 lot_cost_pct = st.session_state.lot_cost_pct / 100.0
 margin_pct = st.session_state.margin_pct / 100.0
 sales_pct = st.session_state.sales_pct / 100.0
@@ -312,44 +322,104 @@ comp_storage_sf = st.session_state.comp_storage_sf
 # ==========================================
 # --- CORE PRE-RENDER MATHEMATICS ---
 # ==========================================
-struct_total_cost = struct_sqft * base_struct_cost_sf
-front_porch_cost = front_porch_sqft * front_porch_cost_sf
-back_porch_cost = back_porch_sqft * back_porch_cost_sf
-storage_cost = storage_sqft * storage_cost_sf
-our_aux_cost_total = struct_total_cost + front_porch_cost + back_porch_cost + storage_cost + additional_foundation_cost
+total_under_roof_sqft = sqft + struct_sqft + front_porch_sqft + back_porch_sqft + storage_sqft
+aux_sqft_total = struct_sqft + front_porch_sqft + back_porch_sqft + storage_sqft
 
 comp_total_sf = comp_heated_sf + comp_struct_sf + comp_front_sf + comp_back_sf + comp_storage_sf
 raw_comp_price_sf = comp_price / comp_heated_sf if comp_heated_sf > 0 else 0
-comp_aux_value = (comp_struct_sf * base_struct_cost_sf) + (comp_front_sf * front_porch_cost_sf) + (comp_back_sf * back_porch_cost_sf) + (comp_storage_sf * storage_cost_sf)
+
+# Comp auxiliary stripping uses underlying session state values to remain mathematically stable
+comp_aux_value = (comp_struct_sf * st.session_state.get('base_struct_cost_sf', 35.0)) + \
+                 (comp_front_sf * st.session_state.get('front_porch_cost_sf', 35.0)) + \
+                 (comp_back_sf * st.session_state.get('back_porch_cost_sf', 35.0)) + \
+                 (comp_storage_sf * st.session_state.get('storage_cost_sf', 45.0))
+
 comp_isolated_heated_value = max(0, comp_price - comp_aux_value)
 isolated_heated_rate = comp_isolated_heated_value / comp_heated_sf if comp_heated_sf > 0 else 0
+
+target_hard_cost_pct = 1.0 - (lot_cost_pct + margin_pct + sales_pct + finance_pct)
 
 if appraisal_mode == "Income Approach (GRM)":
     arv_per_unit = (gross_monthly_rent * 12) * target_grm
 else:
-    arv_per_unit = (isolated_heated_rate * sqft) + our_aux_cost_total
+    arv_per_unit = 0 # Will be assigned below based on toggle mode
 
-if cost_calc_mode == "Manual Set (Heated SF)":
-    target_heated_hard_cost = base_direct_cost_sf * sqft
-    target_total_hard_cost = target_heated_hard_cost + our_aux_cost_total
-    comp_equivalent_arv = 0 
-elif cost_calc_mode == "Reverse-Engineer from Appraisal":
-    target_hard_cost_pct = 1.0 - (lot_cost_pct + margin_pct + sales_pct + finance_pct)
-    target_total_hard_cost = arv_per_unit * target_hard_cost_pct
-    target_heated_hard_cost = max(0, target_total_hard_cost - our_aux_cost_total)
-    base_direct_cost_sf = target_heated_hard_cost / sqft if sqft > 0 else 0
-    comp_equivalent_arv = arv_per_unit
-else: # Reverse from Comp
-    comp_equivalent_arv = (isolated_heated_rate * sqft) + our_aux_cost_total
-    target_hard_cost_pct = 1.0 - (lot_cost_pct + margin_pct + sales_pct + finance_pct)
-    target_total_hard_cost = comp_equivalent_arv * target_hard_cost_pct
-    target_heated_hard_cost = max(0, target_total_hard_cost - our_aux_cost_total)
-    base_direct_cost_sf = target_heated_hard_cost / sqft if sqft > 0 else 0
+# Route math based on the new Auxiliary Toggle Mode
+if aux_cost_mode == "Single Blended Rate Across All SF":
+    if cost_calc_mode == "Manual Set (Heated SF)":
+        base_direct_cost_sf = st.session_state.base_direct_cost_sf
+        our_aux_cost_total = (aux_sqft_total * base_direct_cost_sf) + additional_foundation_cost
+        target_heated_hard_cost = base_direct_cost_sf * sqft
+        target_total_hard_cost = target_heated_hard_cost + our_aux_cost_total
+        comp_equivalent_arv = 0
+        if appraisal_mode != "Income Approach (GRM)":
+            arv_per_unit = (isolated_heated_rate * sqft) + our_aux_cost_total
+            
+    elif cost_calc_mode == "Reverse-Engineer from Appraisal":
+        target_total_hard_cost = arv_per_unit * target_hard_cost_pct
+        base_direct_cost_sf = max(0, (target_total_hard_cost - additional_foundation_cost) / total_under_roof_sqft) if total_under_roof_sqft > 0 else 0
+        our_aux_cost_total = (aux_sqft_total * base_direct_cost_sf) + additional_foundation_cost
+        target_heated_hard_cost = base_direct_cost_sf * sqft
+        comp_equivalent_arv = arv_per_unit
+        
+    else: # Reverse from Primary Comp
+        # Solves algebra for matching uniform rates across heated + unheated spaces
+        numerator = (isolated_heated_rate * sqft * target_hard_cost_pct) + (additional_foundation_cost * (target_hard_cost_pct - 1.0))
+        denominator = total_under_roof_sqft - (aux_sqft_total * target_hard_cost_pct)
+        base_direct_cost_sf = max(0, numerator / denominator) if denominator > 0 else 0
+        our_aux_cost_total = (aux_sqft_total * base_direct_cost_sf) + additional_foundation_cost
+        comp_equivalent_arv = (isolated_heated_rate * sqft) + our_aux_cost_total
+        target_total_hard_cost = comp_equivalent_arv * target_hard_cost_pct
+        target_heated_hard_cost = base_direct_cost_sf * sqft
+        if appraisal_mode != "Income Approach (GRM)":
+            arv_per_unit = comp_equivalent_arv
+
+    # Apply the solved blended rate to all components
+    struct_cost_sf = base_direct_cost_sf
+    front_porch_cost_sf = base_direct_cost_sf
+    back_porch_cost_sf = base_direct_cost_sf
+    storage_cost_sf = base_direct_cost_sf
+
+else:
+    # Manual Component Costs Mode (Standard original logic)
+    struct_cost_sf = st.session_state.base_struct_cost_sf
+    front_porch_cost_sf = st.session_state.front_porch_cost_sf
+    back_porch_cost_sf = st.session_state.back_porch_cost_sf
+    storage_cost_sf = st.session_state.storage_cost_sf
+    
+    struct_total_cost = struct_sqft * struct_cost_sf
+    front_porch_cost = front_porch_sqft * front_porch_cost_sf
+    back_porch_cost = back_porch_sqft * back_porch_cost_sf
+    storage_cost = storage_sqft * storage_cost_sf
+    our_aux_cost_total = struct_total_cost + front_porch_cost + back_porch_cost + storage_cost + additional_foundation_cost
+    
+    if appraisal_mode != "Income Approach (GRM)":
+        arv_per_unit = (isolated_heated_rate * sqft) + our_aux_cost_total
+
+    if cost_calc_mode == "Manual Set (Heated SF)":
+        base_direct_cost_sf = st.session_state.base_direct_cost_sf
+        target_heated_hard_cost = base_direct_cost_sf * sqft
+        target_total_hard_cost = target_heated_hard_cost + our_aux_cost_total
+        comp_equivalent_arv = 0 
+    elif cost_calc_mode == "Reverse-Engineer from Appraisal":
+        target_total_hard_cost = arv_per_unit * target_hard_cost_pct
+        target_heated_hard_cost = max(0, target_total_hard_cost - our_aux_cost_total)
+        base_direct_cost_sf = target_heated_hard_cost / sqft if sqft > 0 else 0
+        comp_equivalent_arv = arv_per_unit
+    else: # Reverse from Comp
+        comp_equivalent_arv = (isolated_heated_rate * sqft) + our_aux_cost_total
+        target_total_hard_cost = comp_equivalent_arv * target_hard_cost_pct
+        target_heated_hard_cost = max(0, target_total_hard_cost - our_aux_cost_total)
+        base_direct_cost_sf = target_heated_hard_cost / sqft if sqft > 0 else 0
 
 direct_cost_sf = base_direct_cost_sf
-struct_cost_sf = base_struct_cost_sf
 
-total_under_roof_sqft = sqft + struct_sqft + front_porch_sqft + back_porch_sqft + storage_sqft
+# Execute final component cost calculations based on determined rates
+struct_total_cost = struct_sqft * struct_cost_sf
+front_porch_cost = front_porch_sqft * front_porch_cost_sf
+back_porch_cost = back_porch_sqft * back_porch_cost_sf
+storage_cost = storage_sqft * storage_cost_sf
+
 heated_hard_cost = sqft * direct_cost_sf
 blended_cost_per_sf = (heated_hard_cost + our_aux_cost_total) / total_under_roof_sqft if total_under_roof_sqft > 0 else 0
 total_hard_cost = target_total_hard_cost * units if cost_calc_mode in ["Reverse-Engineer from Appraisal", "Reverse-Engineer from Primary Comp"] else (heated_hard_cost + our_aux_cost_total) * units
@@ -547,7 +617,7 @@ with tab_main:
             pdf_granular_data.append((row["Division / Trade Level"], live_sf, live_sf * sqft, live_sf * sqft * units, True))
         
         st.markdown(f"#### 2. {st.session_state.structure_type} Auxiliary ({struct_sqft} SF)")
-        hl_struct = [{"Component Level": name, "Cost / SF": base_struct_cost_sf * (base/35.0)} for name, base, is_h in raw_struct_divs]
+        hl_struct = [{"Component Level": name, "Cost / SF": struct_cost_sf * (base/35.0)} for name, base, is_h in raw_struct_divs]
         edited_s = st.data_editor(pd.DataFrame(hl_struct), column_config={"Component Level": st.column_config.TextColumn(disabled=True), "Cost / SF": st.column_config.NumberColumn(format="$%.2f", min_value=0.0, step=0.5)}, hide_index=True, use_container_width=True)
         struct_cost_sf = edited_s["Cost / SF"].sum()
 
