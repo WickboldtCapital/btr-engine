@@ -311,8 +311,8 @@ our_aux_cost_total = struct_total_cost + front_porch_cost + back_porch_cost + st
 
 comp_total_sf = comp_heated_sf + comp_struct_sf + comp_front_sf + comp_back_sf + comp_storage_sf
 raw_comp_price_sf = comp_price / comp_heated_sf if comp_heated_sf > 0 else 0
-comp_aux_value = (comp_struct_sf * base_struct_cost_sf) + (comp_front_sf * front_porch_cost_sf) + (comp_back_back_sf = comp_back_sf * back_porch_cost_sf if 'comp_back_sf' in locals() else 0) + (comp_storage_sf * storage_cost_sf)
-comp_isolated_heated_value = max(0, comp_price - ((comp_struct_sf * base_struct_cost_sf) + (comp_front_sf * front_porch_cost_sf) + (comp_back_sf * back_porch_cost_sf) + (comp_storage_sf * storage_cost_sf)))
+comp_aux_value = (comp_struct_sf * base_struct_cost_sf) + (comp_front_sf * front_porch_cost_sf) + (comp_back_sf * back_porch_cost_sf) + (comp_storage_sf * storage_cost_sf)
+comp_isolated_heated_value = max(0, comp_price - comp_aux_value)
 isolated_heated_rate = comp_isolated_heated_value / comp_heated_sf if comp_heated_sf > 0 else 0
 
 if appraisal_mode == "Income Approach (GRM)":
