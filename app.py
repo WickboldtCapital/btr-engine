@@ -42,6 +42,7 @@ HARDCODED_DRIVERS = {
     
     # Construction Lender Stress Constraints
     "const_bank_rent": 1500,
+    "const_bank_ltv_pct": 80.0,
     "const_bank_val_mode": "DSCR Stress Test",
     "const_bank_grm": 8.0,
     "const_bank_opex_pct": 30.0,
@@ -231,6 +232,7 @@ with st.sidebar.container():
     st.subheader("8. Const. Lender Limits")
     st.number_input("Bank Underwriting Rent ($)", step=50, format="%d", key="const_bank_rent")
     
+    st.slider("Bank Underwriting LTV (%)", min_value=50.0, max_value=100.0, step=5.0, key="const_bank_ltv_pct")
     st.radio("Bank Valuation Method", ["DSCR Stress Test", "Gross Rent Multiplier (GRM)"], key="const_bank_val_mode")
     
     if st.session_state.const_bank_val_mode == "DSCR Stress Test":
@@ -273,6 +275,7 @@ avg_draw_pct = st.session_state.avg_draw_pct / 100.0
 const_closing_fee = st.session_state.const_closing_fee
 
 const_bank_rent = st.session_state.const_bank_rent
+const_bank_ltv = st.session_state.const_bank_ltv_pct / 100.0
 const_bank_val_mode = st.session_state.const_bank_val_mode
 const_bank_grm = st.session_state.const_bank_grm
 const_bank_opex_pct = st.session_state.const_bank_opex_pct / 100.0
@@ -371,7 +374,7 @@ total_soft_default = default_soft_cost_per_unit * units
 total_const_default = fee_basis + default_gc_fee + default_premium
 total_project_costs_ex_interest_default = total_land_default + total_const_default + total_soft_default + const_closing_fee
 
-# 1. Determine Bank's Implied Asset Value (DSCR Constraint / Stress Test)
+# 1. Determine Bank's Implied Asset Value 
 cb_gross_annual_rent = const_bank_rent * units * 12.0
 
 if const_bank_val_mode == "DSCR Stress Test":
@@ -389,7 +392,7 @@ else:
     bank_stressed_value = cb_gross_annual_rent * const_bank_grm
 
 # 2. Bank applies LTV to this stressed "Refi" value to determine maximum allowable loan
-max_bank_loan_dscr_ltv = bank_stressed_value * const_ltv
+max_bank_loan_dscr_ltv = bank_stressed_value * const_bank_ltv
 
 # 3. Standard Unconstrained Construction Loan (LTC)
 time_years = build_months / 12.0
@@ -400,7 +403,7 @@ if interest_multiplier < 1.0:
 else:
     normal_const_loan = total_project_costs_ex_interest_default * const_ltv
 
-# 4. Final Capped Loan Proceeds
+# 4. Final Capped Loan Proceeds (Lesser of Bank Stressed LTV limit OR LTC limit)
 actual_const_loan = min(normal_const_loan, max_bank_loan_dscr_ltv)
 
 # 5. Actual Capitalized Interest Accrual
@@ -582,37 +585,60 @@ with tab_main:
         st.caption("The bank determines an implied asset value based on their DSCR test, then applies their LTV constraint.")
         stress_test_data = {
             "Bank Underwriting Step": [
-                "1. Gross Potential Rent (Bank Model)", "2. Less: Bank Vacancy Rate", "3. Less: Bank Operating Expenses (OpEx)",
-                "4. Bank Qualified Net Operating Income (NOI)", "5. Target Construction DSCR Constraint", "6. Maximum Allowed Annual Debt Service",
-                "7. Bank Implied Asset Value (Refi Stress Test)", f"8. Max Capped Loan Proceeds ({const_ltv*100:.1f}% LTV)",
-                "9. Total Capitalized Construction Basis (LTC)", "10. Total Required Reserve (Seed Capital)"
+                "1. Gross Potential Rent (Bank Model)",
+                "2. Less: Bank Vacancy & OpEx Deductions",
+                "3. Bank Qualified Net Operating Income (NOI)",
+                "4. Target Construction DSCR Constraint",
+                "5. Bank Implied Asset Value (Refi Stress Test)",
+                f"6. Max Loan from Stressed Value ({const_bank_ltv*100:.1f}% Bank LTV)",
+                f"7. Max Loan from Costs ({const_ltv*100:.1f}% LTC)",
+                "8. Final Funded Loan Proceeds (Lesser of 6 or 7)",
+                "9. Total Capitalized Construction Basis",
+                "10. Required Seed Capital Reserve (Basis - Funded Loan)"
             ],
             "Value": [
-                f"${cb_gross_annual_rent:,.0f} / yr", f"{const_bank_vac_pct*100:.1f}%", f"{const_bank_opex_pct*100:.1f}% of EGI",
-                f"${cb_noi:,.0f} / yr", f"{const_bank_dscr:.2f}x", f"${cb_max_annual_ds:,.0f} / yr",
-                f"${bank_stressed_value:,.0f} (@ {const_bank_qual_rate*100:.2f}%)", f"${max_bank_loan_dscr_ltv:,.0f}",
-                f"${total_construction_basis:,.0f}", f"${seed_capital:,.0f}"
+                f"${cb_gross_annual_rent:,.0f} / yr",
+                f"-${cb_gross_annual_rent - cb_noi:,.0f} / yr",
+                f"${cb_noi:,.0f} / yr",
+                f"{const_bank_dscr:.2f}x",
+                f"${bank_stressed_value:,.0f}",
+                f"${max_bank_loan_dscr_ltv:,.0f}",
+                f"${normal_const_loan:,.0f}",
+                f"${actual_const_loan:,.0f}",
+                f"${total_construction_basis:,.0f}",
+                f"${seed_capital:,.0f}"
             ]
         }
     else:
         st.caption("The bank determines an implied asset value based on a Gross Rent Multiplier (GRM), then applies their LTV constraint.")
         stress_test_data = {
             "Bank Underwriting Step": [
-                "1. Gross Potential Rent (Bank Model)", "2. Bank Underwriting GRM", "3. Bank Implied Asset Value",
-                f"4. Max Capped Loan Proceeds ({const_ltv*100:.1f}% LTV)", "5. Total Capitalized Construction Basis (LTC)",
-                "6. Total Required Reserve (Seed Capital)"
+                "1. Gross Potential Rent (Bank Model)",
+                "2. Bank Underwriting GRM",
+                "3. Bank Implied Asset Value",
+                f"4. Max Loan from Stressed Value ({const_bank_ltv*100:.1f}% Bank LTV)",
+                f"5. Max Loan from Costs ({const_ltv*100:.1f}% LTC)",
+                "6. Final Funded Loan Proceeds (Lesser of 4 or 5)",
+                "7. Total Capitalized Construction Basis",
+                "8. Required Seed Capital Reserve (Basis - Funded Loan)"
             ],
             "Value": [
-                f"${cb_gross_annual_rent:,.0f} / yr", f"{const_bank_grm:.1f}x", f"${bank_stressed_value:,.0f}",
-                f"${max_bank_loan_dscr_ltv:,.0f}", f"${total_construction_basis:,.0f}", f"${seed_capital:,.0f}"
+                f"${cb_gross_annual_rent:,.0f} / yr",
+                f"{const_bank_grm:.1f}x",
+                f"${bank_stressed_value:,.0f}",
+                f"${max_bank_loan_dscr_ltv:,.0f}",
+                f"${normal_const_loan:,.0f}",
+                f"${actual_const_loan:,.0f}",
+                f"${total_construction_basis:,.0f}",
+                f"${seed_capital:,.0f}"
             ]
         }
     st.dataframe(pd.DataFrame(stress_test_data), hide_index=True, use_container_width=True)
 
     if actual_const_loan < normal_const_loan:
-        st.error(f"**Constraint Active:** The bank's limits cap the loan to **${actual_const_loan:,.0f}**. Compared to your Total Construction Basis of **${total_construction_basis:,.0f}**, you must bring **${seed_capital:,.0f}** in Day-1 Seed Capital (Reserves).")
+        st.error(f"**Constraint Active:** The bank's Stressed LTV limits cap the loan to **${actual_const_loan:,.0f}**. Compared to your Total Construction Basis of **${total_construction_basis:,.0f}**, you must bring **${seed_capital:,.0f}** in Day-1 Seed Capital (Reserves).")
     else:
-        st.success(f"**Loan Unconstrained:** Your qualifying limit is higher than your requested LTC. The bank will fund **${actual_const_loan:,.0f}**. You must fund the remaining balance of the Total Cost Basis, requiring **${seed_capital:,.0f}** in Day-1 Seed Capital.")
+        st.success(f"**Loan Unconstrained:** Your qualifying limit is higher than your requested LTC. The bank will fund based on costs at **${actual_const_loan:,.0f}**. You must fund the remaining balance of the Total Cost Basis, requiring **${seed_capital:,.0f}** in Day-1 Seed Capital.")
     st.divider()
 
     # --- LEDGER & CAP STACK ---
@@ -847,10 +873,17 @@ with tab_main:
             pdf.cell(90, 7, f"${bank_stressed_value:,.0f}", 0, 1, 'R')
         
         pdf.set_font("Arial", 'B', 10)
-        pdf.cell(100, 7, f"Max Capped Loan Proceeds ({const_ltv*100:.1f}% LTV):", 0, 0)
-        pdf.cell(90, 7, f"${max_bank_loan_dscr_ltv:,.0f}", 0, 1, 'R')
-        pdf.cell(100, 7, "Total Day-1 Equity (Seed Capital Required):", 0, 0)
-        pdf.cell(90, 7, f"${seed_capital:,.0f}", 0, 1, 'R')
+        pdf.cell(130, 7, f"Max Loan from Stressed Value ({const_bank_ltv*100:.1f}% Bank LTV):", 0, 0)
+        pdf.cell(60, 7, f"${max_bank_loan_dscr_ltv:,.0f}", 0, 1, 'R')
+        
+        pdf.cell(130, 7, f"Max Loan from Costs ({const_ltv*100:.1f}% LTC):", 0, 0)
+        pdf.cell(60, 7, f"${normal_const_loan:,.0f}", 0, 1, 'R')
+        
+        pdf.cell(130, 7, "Final Funded Loan Proceeds (Lesser of Above):", 0, 0)
+        pdf.cell(60, 7, f"${actual_const_loan:,.0f}", 0, 1, 'R')
+        
+        pdf.cell(130, 7, "Total Day-1 Equity (Seed Capital Required):", 0, 0)
+        pdf.cell(60, 7, f"${seed_capital:,.0f}", 0, 1, 'R')
         pdf.ln(5)
 
         pdf.set_font("Arial", 'B', 12)
