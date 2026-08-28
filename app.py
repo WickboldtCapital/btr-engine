@@ -17,44 +17,44 @@ DEFAULT_FILE = "global_defaults.json"
 
 HARDCODED_DRIVERS = {
     "units": 1,
-    "sqft": 1150,
+    "sqft": 1173,
     "structure_type": "Carport", 
-    "struct_sqft": 200,
-    "base_struct_cost_sf": 31.0,
-    "front_porch_sqft": 60,
+    "struct_sqft": 213,
+    "base_struct_cost_sf": 35.0,
+    "front_porch_sqft": 40,
     "front_porch_cost_sf": 35.0,
-    "back_porch_sqft": 120,
+    "back_porch_sqft": 58,
     "back_porch_cost_sf": 35.0,
-    "storage_sqft": 40,
+    "storage_sqft": 0,
     "storage_cost_sf": 45.0,
     "additional_foundation_cost": 0,
     
-    "gross_monthly_rent": 1650,
+    "gross_monthly_rent": 1600,
     "target_dscr_rate": 1.20,
     "vacancy_rate_pct": 5.0,
-    "opex_rate_pct": 30.0,
+    "opex_rate_pct": 25.0,
     
-    "const_ltv_pct": 85.0,
-    "build_months": 9,
-    "const_rate_pct": 8.5,
+    "const_ltv_pct": 80.0,
+    "build_months": 7,
+    "const_rate_pct": 7.50,
     "avg_draw_pct": 50.0,
     "const_closing_fee": 6000,
     
     # Construction Lender DSCR Stress Constraints
     "const_bank_rent": 1500,
-    "const_bank_opex_pct": 35.0,
-    "const_bank_vac_pct": 7.0,
-    "const_bank_dscr": 1.25,
-    "const_bank_qual_rate_pct": 7.5,
+    "const_bank_opex_pct": 30.0,
+    "const_bank_vac_pct": 5.0,
+    "const_bank_dscr": 1.20,
+    "const_bank_qual_rate_pct": 7.25,
     "const_bank_amort_yrs": 30,
     "reserve_accrual_pct": 100.0,
     
     "refi_ltv_pct": 80.0,
     "refi_term_years": 30,
-    "base_refi_rate_pct": 6.5,
+    "base_refi_rate_pct": 7.00,
     "refi_closing_fee": 3650,
-    "apply_buydown": False,
-    "buydown_pts": 2.0,
+    "apply_buydown": True,
+    "buydown_pts": 3.0,
     
     "gc_fee_mode": "Percentage of Hard Costs (%)",
     "gc_fee_pct": 10.0,
@@ -62,10 +62,10 @@ HARDCODED_DRIVERS = {
     "land_basis": 15000,
     
     "appraisal_mode": "Income Approach (GRM)",
-    "target_grm": 10.5,
+    "target_grm": 10.0,
     
     "cost_calc_mode": "Reverse-Engineer from Appraisal",
-    "base_direct_cost_sf": 74.0,
+    "base_direct_cost_sf": 66.58,
     "lot_cost_pct": 18.0,
     "margin_pct": 20.0,
     "sales_pct": 8.0,
@@ -311,8 +311,8 @@ our_aux_cost_total = struct_total_cost + front_porch_cost + back_porch_cost + st
 
 comp_total_sf = comp_heated_sf + comp_struct_sf + comp_front_sf + comp_back_sf + comp_storage_sf
 raw_comp_price_sf = comp_price / comp_heated_sf if comp_heated_sf > 0 else 0
-comp_aux_value = (comp_struct_sf * base_struct_cost_sf) + (comp_front_sf * front_porch_cost_sf) + (comp_back_sf * back_porch_cost_sf) + (comp_storage_sf * storage_cost_sf)
-comp_isolated_heated_value = max(0, comp_price - comp_aux_value)
+comp_aux_value = (comp_struct_sf * base_struct_cost_sf) + (comp_front_sf * front_porch_cost_sf) + (comp_back_back_sf = comp_back_sf * back_porch_cost_sf if 'comp_back_sf' in locals() else 0) + (comp_storage_sf * storage_cost_sf)
+comp_isolated_heated_value = max(0, comp_price - ((comp_struct_sf * base_struct_cost_sf) + (comp_front_sf * front_porch_cost_sf) + (comp_back_sf * back_porch_cost_sf) + (comp_storage_sf * storage_cost_sf)))
 isolated_heated_rate = comp_isolated_heated_value / comp_heated_sf if comp_heated_sf > 0 else 0
 
 if appraisal_mode == "Income Approach (GRM)":
@@ -354,7 +354,6 @@ default_premium = total_hard_cost * 0.05
 total_land_default = land_basis * units
 default_soft_cost_per_unit = 5500
 total_soft_default = default_soft_cost_per_unit * units
-
 
 # =========================================================================
 # --- ACCURATE CONSTRUCTION SIZING, DSCR CAP & CAPITALIZED INTEREST ---
@@ -514,7 +513,7 @@ with tab_main:
         ("DIVISION 7: APPLIANCES & SPECIALTIES", 1.50, True, ""),
         ("DIVISION 8: EXTERIOR FLATWORK & SITE", 2.00, True, "")
     ]
-    raw_struct_divs = [("AUXILIARY: CARPORT / GARAGE", 31.00, True)]
+    raw_struct_divs = [("AUXILIARY: CARPORT / GARAGE", 35.00, True)]
     pdf_granular_data = []
 
     if granular_mode == "Auto-Proportional (Linked to Master Model)":
@@ -531,7 +530,7 @@ with tab_main:
         st.markdown(f"#### 2. {st.session_state.structure_type} Auxiliary ({struct_sqft} SF @ ${struct_cost_sf:.2f} / SF)")
         s_data = {"Component Level": [], "Live Cost / SF": [], "Per Unit Cost": []}
         for name, base_val, is_header in raw_struct_divs:
-            live_sf = struct_cost_sf * (base_val / 31.0)
+            live_sf = struct_cost_sf * (base_val / 35.0)
             s_data["Component Level"].append(name)
             s_data["Live Cost / SF"].append(f"${live_sf:.2f}")
             s_data["Per Unit Cost"].append(f"${live_sf * struct_sqft:,.0f}")
@@ -546,7 +545,7 @@ with tab_main:
             pdf_granular_data.append((row["Division / Trade Level"], live_sf, live_sf * sqft, live_sf * sqft * units, True))
         
         st.markdown(f"#### 2. {st.session_state.structure_type} Auxiliary ({struct_sqft} SF)")
-        hl_struct = [{"Component Level": name, "Cost / SF": base_struct_cost_sf * (base/31.0)} for name, base, is_h in raw_struct_divs]
+        hl_struct = [{"Component Level": name, "Cost / SF": base_struct_cost_sf * (base/35.0)} for name, base, is_h in raw_struct_divs]
         edited_s = st.data_editor(pd.DataFrame(hl_struct), column_config={"Component Level": st.column_config.TextColumn(disabled=True), "Cost / SF": st.column_config.NumberColumn(format="$%.2f", min_value=0.0, step=0.5)}, hide_index=True, use_container_width=True)
         struct_cost_sf = edited_s["Cost / SF"].sum()
 
