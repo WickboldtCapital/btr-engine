@@ -21,13 +21,10 @@ HARDCODED_DRIVERS = {
     "aux_cost_mode": "Manual Component Costs",
     "structure_type": "Carport", 
     "struct_sqft": 213,
-    "base_struct_cost_sf": 35.0,
+    "aux_cost_sf": 35.0,
     "front_porch_sqft": 40,
-    "front_porch_cost_sf": 35.0,
     "back_porch_sqft": 58,
-    "back_porch_cost_sf": 35.0,
     "storage_sqft": 0,
-    "storage_cost_sf": 45.0,
     "additional_foundation_cost": 0,
     
     "gross_monthly_rent": 1600,
@@ -172,22 +169,13 @@ with st.sidebar.container():
     
     st.radio("Auxiliary Cost Mode", ["Manual Component Costs", "Single Blended Rate Across All SF"], key="aux_cost_mode")
     
+    st.slider("Assumed Auxiliary Cost / SF ($)", min_value=15.0, max_value=90.0, step=1.0, key="aux_cost_sf", help="Determines the value of unheated space to accurately isolate the Comp's Heated Shell rate. Also used to price your project's unheated spaces if using Manual Mode.")
+    
     st.selectbox("Aux Structure Type", ["Carport", "Garage"], key="structure_type")
     st.number_input(f"{st.session_state.structure_type} SqFt per Unit", step=25, format="%d", key="struct_sqft")
-    if st.session_state.aux_cost_mode == "Manual Component Costs":
-        st.slider(f"{st.session_state.structure_type} Cost / SF ($)", min_value=15.0, max_value=90.0, step=1.0, key="base_struct_cost_sf")
-        
     st.number_input("Front Porch SqFt", step=10, format="%d", key="front_porch_sqft")
-    if st.session_state.aux_cost_mode == "Manual Component Costs":
-        st.slider("Front Porch Cost / SF ($)", min_value=15.0, max_value=70.0, step=1.0, key="front_porch_cost_sf")
-        
     st.number_input("Back Porch SqFt", step=10, format="%d", key="back_porch_sqft")
-    if st.session_state.aux_cost_mode == "Manual Component Costs":
-        st.slider("Back Porch Cost / SF ($)", min_value=15.0, max_value=70.0, step=1.0, key="back_porch_cost_sf")
-        
     st.number_input("Storage Room SqFt", step=5, format="%d", key="storage_sqft")
-    if st.session_state.aux_cost_mode == "Manual Component Costs":
-        st.slider("Storage Room Cost / SF ($)", min_value=15.0, max_value=90.0, step=1.0, key="storage_cost_sf")
         
     st.number_input("Additional Foundation / Elevation Cost ($)", step=500, format="%d", key="additional_foundation_cost")
 
@@ -243,6 +231,7 @@ with st.sidebar.container():
 with st.sidebar.container():
     st.subheader("8. Const. Lender Limits")
     st.number_input("Bank Underwriting Rent ($)", step=50, format="%d", key="const_bank_rent")
+    st.slider("Bank Underwriting LTV (%)", min_value=50.0, max_value=100.0, step=5.0, key="const_bank_ltv_pct")
     st.radio("Bank Valuation Method", ["DSCR Stress Test", "Gross Rent Multiplier (GRM)"], key="const_bank_val_mode")
     
     if st.session_state.const_bank_val_mode == "DSCR Stress Test":
@@ -266,6 +255,7 @@ units = st.session_state.units
 sqft = st.session_state.sqft
 aux_cost_mode = st.session_state.aux_cost_mode
 struct_sqft = st.session_state.struct_sqft
+aux_cost_sf = st.session_state.aux_cost_sf
 front_porch_sqft = st.session_state.front_porch_sqft
 back_porch_sqft = st.session_state.back_porch_sqft
 storage_sqft = st.session_state.storage_sqft
@@ -322,18 +312,16 @@ comp_storage_sf = st.session_state.comp_storage_sf
 # ==========================================
 # --- CORE PRE-RENDER MATHEMATICS ---
 # ==========================================
-total_under_roof_sqft = sqft + struct_sqft + front_porch_sqft + back_porch_sqft + storage_sqft
 aux_sqft_total = struct_sqft + front_porch_sqft + back_porch_sqft + storage_sqft
+total_under_roof_sqft = sqft + aux_sqft_total
 
-comp_total_sf = comp_heated_sf + comp_struct_sf + comp_front_sf + comp_back_sf + comp_storage_sf
+comp_aux_sqft = comp_struct_sf + comp_front_sf + comp_back_sf + comp_storage_sf
+comp_total_sf = comp_heated_sf + comp_aux_sqft
+
 raw_comp_price_sf = comp_price / comp_heated_sf if comp_heated_sf > 0 else 0
 
-# Comp auxiliary stripping uses underlying session state values to remain mathematically stable
-comp_aux_value = (comp_struct_sf * st.session_state.get('base_struct_cost_sf', 35.0)) + \
-                 (comp_front_sf * st.session_state.get('front_porch_cost_sf', 35.0)) + \
-                 (comp_back_sf * st.session_state.get('back_porch_cost_sf', 35.0)) + \
-                 (comp_storage_sf * st.session_state.get('storage_cost_sf', 45.0))
-
+# Comp auxiliary stripping ALWAYS uses the explicitly set aux_cost_sf
+comp_aux_value = comp_aux_sqft * aux_cost_sf
 comp_isolated_heated_value = max(0, comp_price - comp_aux_value)
 isolated_heated_rate = comp_isolated_heated_value / comp_heated_sf if comp_heated_sf > 0 else 0
 
@@ -342,9 +330,9 @@ target_hard_cost_pct = 1.0 - (lot_cost_pct + margin_pct + sales_pct + finance_pc
 if appraisal_mode == "Income Approach (GRM)":
     arv_per_unit = (gross_monthly_rent * 12) * target_grm
 else:
-    arv_per_unit = 0 # Will be assigned below based on toggle mode
+    arv_per_unit = 0 # Populated below based on mode
 
-# Route math based on the new Auxiliary Toggle Mode
+# --- MATH ROUTING BASED ON AUX TOGGLE ---
 if aux_cost_mode == "Single Blended Rate Across All SF":
     if cost_calc_mode == "Manual Set (Heated SF)":
         base_direct_cost_sf = st.session_state.base_direct_cost_sf
@@ -362,8 +350,7 @@ if aux_cost_mode == "Single Blended Rate Across All SF":
         target_heated_hard_cost = base_direct_cost_sf * sqft
         comp_equivalent_arv = arv_per_unit
         
-    else: # Reverse from Primary Comp
-        # Solves algebra for matching uniform rates across heated + unheated spaces
+    else: # Reverse-Engineer from Primary Comp
         numerator = (isolated_heated_rate * sqft * target_hard_cost_pct) + (additional_foundation_cost * (target_hard_cost_pct - 1.0))
         denominator = total_under_roof_sqft - (aux_sqft_total * target_hard_cost_pct)
         base_direct_cost_sf = max(0, numerator / denominator) if denominator > 0 else 0
@@ -374,24 +361,20 @@ if aux_cost_mode == "Single Blended Rate Across All SF":
         if appraisal_mode != "Income Approach (GRM)":
             arv_per_unit = comp_equivalent_arv
 
-    # Apply the solved blended rate to all components
+    # Apply the solved blended rate to all components for the UI display
     struct_cost_sf = base_direct_cost_sf
     front_porch_cost_sf = base_direct_cost_sf
     back_porch_cost_sf = base_direct_cost_sf
     storage_cost_sf = base_direct_cost_sf
 
 else:
-    # Manual Component Costs Mode (Standard original logic)
-    struct_cost_sf = st.session_state.base_struct_cost_sf
-    front_porch_cost_sf = st.session_state.front_porch_cost_sf
-    back_porch_cost_sf = st.session_state.back_porch_cost_sf
-    storage_cost_sf = st.session_state.storage_cost_sf
+    # Manual Component Costs Mode (Uses the single specified Assumed Aux rate for subject project)
+    struct_cost_sf = aux_cost_sf
+    front_porch_cost_sf = aux_cost_sf
+    back_porch_cost_sf = aux_cost_sf
+    storage_cost_sf = aux_cost_sf
     
-    struct_total_cost = struct_sqft * struct_cost_sf
-    front_porch_cost = front_porch_sqft * front_porch_cost_sf
-    back_porch_cost = back_porch_sqft * back_porch_cost_sf
-    storage_cost = storage_sqft * storage_cost_sf
-    our_aux_cost_total = struct_total_cost + front_porch_cost + back_porch_cost + storage_cost + additional_foundation_cost
+    our_aux_cost_total = (aux_sqft_total * aux_cost_sf) + additional_foundation_cost
     
     if appraisal_mode != "Income Approach (GRM)":
         arv_per_unit = (isolated_heated_rate * sqft) + our_aux_cost_total
@@ -565,7 +548,7 @@ with tab_main:
     with st.expander("🧮 View Comp Math Audit & Raw API Data", expanded=False):
         st.markdown("**1. Raw Retail Heated Rate (Unadjusted)**")
         st.code(f"${comp_price:,.0f} ÷ {comp_heated_sf:,.0f} SF = ${raw_comp_price_sf:.2f} / SF")
-        st.markdown("**2. True Isolated Heated Shell Rate**")
+        st.markdown(f"**2. True Isolated Heated Shell Rate (Using ${aux_cost_sf:.2f}/SF for unheated space)**")
         st.code(f"(${comp_price:,.0f} - ${comp_aux_value:,.0f} Aux) ÷ {comp_heated_sf:,.0f} SF = ${isolated_heated_rate:.2f} / SF")
         if st.session_state.raw_api_data and st.session_state.get("comp_entry_mode") == "RentCast Live API Fetch":
             st.json(st.session_state.raw_api_data)
