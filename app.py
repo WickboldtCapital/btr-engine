@@ -170,7 +170,7 @@ with st.sidebar.container():
     st.radio("Auxiliary Rate Method", ["Percentage of Heated Rate (%)", "Fixed Cost ($ / SF)"], key="aux_cost_mode")
     
     if st.session_state.aux_cost_mode == "Percentage of Heated Rate (%)":
-        st.slider("Auxiliary Rate (% of Heated Cost)", min_value=10.0, max_value=100.0, step=5.0, key="aux_rate_pct", help="Values unheated carport/porch space as a direct percentage of the heated shell rate per square foot for both the Comp and Project.")
+        st.slider("Auxiliary Rate (% of Heated Cost)", min_value=10.0, max_value=100.0, step=5.0, key="aux_rate_pct")
     else:
         st.slider("Auxiliary Fixed Cost ($ / SF)", min_value=15.0, max_value=90.0, step=1.0, key="aux_fixed_cost_sf")
     
@@ -179,7 +179,6 @@ with st.sidebar.container():
     st.number_input("Front Porch SqFt", step=10, format="%d", key="front_porch_sqft")
     st.number_input("Back Porch SqFt", step=10, format="%d", key="back_porch_sqft")
     st.number_input("Storage Room SqFt", step=5, format="%d", key="storage_sqft")
-        
     st.number_input("Additional Foundation / Elevation Cost ($)", step=500, format="%d", key="additional_foundation_cost")
 
 with st.sidebar.container():
@@ -342,7 +341,7 @@ else:
 if appraisal_mode == "Income Approach (GRM)":
     arv_per_unit = (gross_monthly_rent * 12) * target_grm
 else:
-    arv_per_unit = 0 # Solved dynamically below
+    arv_per_unit = 0 
 
 if aux_cost_mode == "Percentage of Heated Rate (%)":
     if cost_calc_mode == "Manual Set (Heated SF)":
@@ -427,7 +426,6 @@ total_soft_default = default_soft_cost_per_unit * units
 # --- ACCURATE CONSTRUCTION SIZING, DSCR CAP & CAPITALIZED INTEREST ---
 # =========================================================================
 
-# 1. Determine Bank's Implied Asset Value (Value of the House)
 cb_gross_annual_rent = const_bank_rent * units * 12.0
 
 if const_bank_val_mode == "DSCR Stress Test":
@@ -441,17 +439,13 @@ if const_bank_val_mode == "DSCR Stress Test":
     else:
         bank_stressed_value = (cb_max_annual_ds / 12.0) * cb_term_months
 else:
-    # GRM Approach
     bank_stressed_value = cb_gross_annual_rent * const_bank_grm
 
-# 2. Get the Loan Value by multiplying Value of the House by Bank LTV
 actual_const_loan = bank_stressed_value * const_bank_ltv
 
-# 3. Calculate Interest Accrual based on the exact Loan Value
 time_years = build_months / 12.0
 carry_int_base = actual_const_loan * avg_draw_pct * const_rate * time_years
 
-# 4. Total Capitalized Construction Basis
 default_buydown_cost = loan_total * (buydown_pts / 100.0) if apply_buydown else 0
 total_const = total_hard_cost + default_gcond + default_gc_fee + default_premium
 total_project_costs_ex_interest = total_land_default + total_const + total_soft_default + const_closing_fee
@@ -459,7 +453,6 @@ total_project_costs_ex_interest = total_land_default + total_const + total_soft_
 total_construction_basis = total_project_costs_ex_interest + carry_int_base
 total_project_basis = total_construction_basis + refi_closing_fee + default_buydown_cost
 
-# 5. Subtract Loan Value from Total Capitalized Const Basis to get Seed Capital Required
 seed_capital = total_construction_basis - actual_const_loan
 
 
@@ -486,7 +479,6 @@ actual_dscr = annual_noi / annual_debt_service if annual_debt_service > 0 else 0
 monthly_cash_flow = monthly_noi - total_monthly_pi
 dscr_variance = actual_dscr - target_dscr_rate
 
-# Refinance Waterfall at Title Close
 net_cash_at_closing = loan_total - actual_const_loan - refi_closing_fee - default_buydown_cost
 cash_surplus = net_cash_at_closing - seed_capital
 retained_equity = total_arv - loan_total
