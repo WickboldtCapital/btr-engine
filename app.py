@@ -170,7 +170,7 @@ with st.sidebar.container():
     st.radio("Auxiliary Rate Method", ["Percentage of Heated Rate (%)", "Fixed Cost ($ / SF)"], key="aux_cost_mode")
     
     if st.session_state.aux_cost_mode == "Percentage of Heated Rate (%)":
-        st.slider("Auxiliary Rate (% of Heated Cost)", min_value=20.0, max_value=100.0, step=5.0, key="aux_rate_pct", help="Scales carport/porch cost relative to heated living cost/SF for both the Comp and the Project.")
+        st.slider("Auxiliary Rate (% of Heated Cost)", min_value=10.0, max_value=100.0, step=5.0, key="aux_rate_pct", help="Values unheated carport/porch space as a direct percentage of the heated shell rate per square foot for both the Comp and Project.")
     else:
         st.slider("Auxiliary Fixed Cost ($ / SF)", min_value=15.0, max_value=90.0, step=1.0, key="aux_fixed_cost_sf")
     
@@ -234,6 +234,7 @@ with st.sidebar.container():
 with st.sidebar.container():
     st.subheader("8. Const. Lender Limits")
     st.number_input("Bank Underwriting Rent ($)", step=50, format="%d", key="const_bank_rent")
+    st.slider("Bank Underwriting LTV (%)", min_value=50.0, max_value=100.0, step=5.0, key="const_bank_ltv_pct")
     st.radio("Bank Valuation Method", ["DSCR Stress Test", "Gross Rent Multiplier (GRM)"], key="const_bank_val_mode")
     
     if st.session_state.const_bank_val_mode == "DSCR Stress Test":
@@ -256,7 +257,7 @@ with st.sidebar.container():
 units = st.session_state.units
 sqft = st.session_state.sqft
 aux_cost_mode = st.session_state.aux_cost_mode
-aux_ratio = (st.session_state.aux_rate_pct / 100.0) if aux_cost_mode == "Percentage of Heated Rate (%)" else None
+aux_ratio = st.session_state.aux_rate_pct / 100.0
 aux_fixed_cost_sf = st.session_state.aux_fixed_cost_sf
 
 struct_sqft = st.session_state.struct_sqft
@@ -323,7 +324,9 @@ comp_aux_sqft = comp_struct_sf + comp_front_sf + comp_back_sf + comp_storage_sf
 comp_total_sf = comp_heated_sf + comp_aux_sqft
 raw_comp_price_sf = comp_price / comp_heated_sf if comp_heated_sf > 0 else 0
 
-# 1. Evaluate Primary Comp
+target_hard_cost_pct = 1.0 - (lot_cost_pct + margin_pct + sales_pct + finance_pct)
+
+# 1. Evaluate Primary Comp and Isolate Heated Shell Rate
 if aux_cost_mode == "Percentage of Heated Rate (%)":
     effective_comp_heated_sf = comp_heated_sf + (comp_aux_sqft * aux_ratio)
     isolated_heated_rate = comp_price / effective_comp_heated_sf if effective_comp_heated_sf > 0 else 0
@@ -335,8 +338,6 @@ else:
     comp_isolated_heated_value = max(0, comp_price - comp_aux_value)
     isolated_heated_rate = comp_isolated_heated_value / comp_heated_sf if comp_heated_sf > 0 else 0
 
-target_hard_cost_pct = 1.0 - (lot_cost_pct + margin_pct + sales_pct + finance_pct)
-
 # 2. Derive Valuation & Hard Cost Target
 if appraisal_mode == "Income Approach (GRM)":
     arv_per_unit = (gross_monthly_rent * 12) * target_grm
@@ -344,8 +345,6 @@ else:
     arv_per_unit = 0 # Solved dynamically below
 
 if aux_cost_mode == "Percentage of Heated Rate (%)":
-    effective_project_heated_sf = sqft + (aux_sqft_total * aux_ratio)
-    
     if cost_calc_mode == "Manual Set (Heated SF)":
         direct_cost_sf = st.session_state.base_direct_cost_sf
         struct_cost_sf = direct_cost_sf * aux_ratio
@@ -358,15 +357,17 @@ if aux_cost_mode == "Percentage of Heated Rate (%)":
             
     elif cost_calc_mode == "Reverse-Engineer from Appraisal":
         target_total_hard_cost = arv_per_unit * target_hard_cost_pct
+        effective_project_heated_sf = sqft + (aux_sqft_total * aux_ratio)
         direct_cost_sf = max(0, (target_total_hard_cost - additional_foundation_cost) / effective_project_heated_sf) if effective_project_heated_sf > 0 else 0
         struct_cost_sf = direct_cost_sf * aux_ratio
         our_aux_cost_total = (aux_sqft_total * struct_cost_sf) + additional_foundation_cost
         target_heated_hard_cost = direct_cost_sf * sqft
         comp_equivalent_arv = arv_per_unit
         
-    else: # Reverse from Comp
+    else: # Reverse-Engineer from Primary Comp
         comp_equivalent_arv = (isolated_heated_rate * sqft) + (aux_sqft_total * (isolated_heated_rate * aux_ratio)) + additional_foundation_cost
         target_total_hard_cost = comp_equivalent_arv * target_hard_cost_pct
+        effective_project_heated_sf = sqft + (aux_sqft_total * aux_ratio)
         direct_cost_sf = max(0, (target_total_hard_cost - additional_foundation_cost) / effective_project_heated_sf) if effective_project_heated_sf > 0 else 0
         struct_cost_sf = direct_cost_sf * aux_ratio
         our_aux_cost_total = (aux_sqft_total * struct_cost_sf) + additional_foundation_cost
@@ -397,7 +398,7 @@ else: # Fixed Aux Cost Mode
         target_heated_hard_cost = max(0, target_total_hard_cost - our_aux_cost_total)
         direct_cost_sf = target_heated_hard_cost / sqft if sqft > 0 else 0
 
-# Unified component rates
+# Unified component rates across UI display
 front_porch_cost_sf = struct_cost_sf
 back_porch_cost_sf = struct_cost_sf
 storage_cost_sf = struct_cost_sf
@@ -443,8 +444,8 @@ else:
     # GRM Approach
     bank_stressed_value = cb_gross_annual_rent * const_bank_grm
 
-# 2. Get the Loan Value by multiplying Value of the House by LTV
-actual_const_loan = bank_stressed_value * const_ltv
+# 2. Get the Loan Value by multiplying Value of the House by Bank LTV
+actual_const_loan = bank_stressed_value * const_bank_ltv
 
 # 3. Calculate Interest Accrual based on the exact Loan Value
 time_years = build_months / 12.0
@@ -636,7 +637,7 @@ with tab_main:
                 "3. Bank Qualified Net Operating Income (NOI)",
                 "4. Target Construction DSCR Constraint",
                 "5. Bank Implied Asset Value (Value of the House)",
-                f"6. Const. Lender Loan Value ({const_ltv*100:.1f}% LTV)",
+                f"6. Const. Lender Loan Value ({const_bank_ltv*100:.1f}% Bank LTV)",
                 "7. Total Capitalized Construction Basis",
                 "8. Required Seed Capital Reserve (Basis - Loan Value)"
             ],
@@ -658,7 +659,7 @@ with tab_main:
                 "1. Gross Potential Rent (Bank Model)",
                 "2. Bank Underwriting GRM",
                 "3. Bank Implied Asset Value (Value of the House)",
-                f"4. Const. Lender Loan Value ({const_ltv*100:.1f}% LTV)",
+                f"4. Const. Lender Loan Value ({const_bank_ltv*100:.1f}% Bank LTV)",
                 "5. Total Capitalized Construction Basis",
                 "6. Required Seed Capital Reserve (Basis - Loan Value)"
             ],
@@ -836,7 +837,7 @@ with tab_main:
         ],
         "Annual": [
             f"${total_gross_monthly_income * 12:,.2f}", f"-${annual_vacancy_loss:,.2f}", f"${annual_egi:,.2f}", 
-            f"-${annual_opex:,.2f}", f"${annual_noi:,.2f}", f"${annual_debt_service:,.2f}", f"${monthly_cash_flow * 12:,.2f}",
+            f"-${annual_opex / 12:,.2f}", f"${annual_noi:,.2f}", f"${annual_debt_service:,.2f}", f"${monthly_cash_flow * 12:,.2f}",
             "---", f"{actual_dscr:.2f}x", f"{target_dscr_rate:.2f}x", f"{dscr_variance:+.2f}x"
         ]
     }
@@ -911,7 +912,7 @@ with tab_main:
             pdf.cell(90, 7, f"${bank_stressed_value:,.0f}", 0, 1, 'R')
         
         pdf.set_font("Arial", 'B', 10)
-        pdf.cell(130, 7, f"Const. Lender Loan Value ({const_ltv*100:.1f}% LTV):", 0, 0)
+        pdf.cell(130, 7, f"Const. Lender Loan Value ({const_bank_ltv*100:.1f}% Bank LTV):", 0, 0)
         pdf.cell(60, 7, f"${actual_const_loan:,.0f}", 0, 1, 'R')
         
         pdf.cell(130, 7, "Total Capitalized Construction Basis:", 0, 0)
