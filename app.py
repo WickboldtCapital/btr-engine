@@ -155,7 +155,7 @@ with st.sidebar.container():
     st.slider("Vacancy Rate (%)", min_value=0.0, max_value=15.0, step=1.0, key="vacancy_rate_pct")
     st.slider("Operating Expenses (OpEx) Rate of EGI (%)", min_value=15.0, max_value=50.0, step=1.0, key="opex_rate_pct")
     
-    st.slider("Construction Loan LTV (%)", min_value=60.0, max_value=100.0, step=5.0, key="const_ltv_pct")
+    st.slider("Construction Loan LTC / LTV (%)", min_value=60.0, max_value=100.0, step=5.0, key="const_ltv_pct")
     st.slider("Construction Duration (Months)", min_value=3, max_value=18, step=1, key="build_months")
     st.slider("Construction Loan Rate (%)", min_value=4.0, max_value=14.0, step=0.5, key="const_rate_pct")
     st.slider("Avg Draw Utilization (%)", min_value=20.0, max_value=100.0, step=5.0, key="avg_draw_pct")
@@ -211,7 +211,6 @@ const_rate = st.session_state.const_rate_pct / 100.0
 avg_draw_pct = st.session_state.avg_draw_pct / 100.0
 const_closing_fee = st.session_state.const_closing_fee
 
-# Const DSCR Limits Extraction
 const_bank_rent = st.session_state.const_bank_rent
 const_bank_opex_pct = st.session_state.const_bank_opex_pct / 100.0
 const_bank_vac_pct = st.session_state.const_bank_vac_pct / 100.0
@@ -321,13 +320,13 @@ else:
 normal_const_loan = total_project_costs_ex_interest_default * const_ltv
 actual_const_loan = min(normal_const_loan, max_const_loan_dscr)
 
-# 2. Base Interest (Calculated strictly on the finalized Const Loan)
+# 2. Base Interest
 carry_int_base = actual_const_loan * avg_draw_pct * const_rate * (build_months / 12.0)
 
 # 3. Solve the Circular Reference algebraically
 gap_proceeds = max(0, normal_const_loan - actual_const_loan)
 res_int_factor = reserve_accrual_pct * const_rate * (build_months / 12.0)
-if res_int_factor >= 1.0: res_int_factor = 0.99  # Math safety catch
+if res_int_factor >= 1.0: res_int_factor = 0.99 
 dscr_shortfall_reserve = gap_proceeds / (1.0 - res_int_factor)
 carry_int_reserve = dscr_shortfall_reserve - gap_proceeds
 
@@ -338,9 +337,9 @@ total_const = total_hard_cost + default_gcond + default_gc_fee + default_premium
 total_project_costs_ex_interest = total_land_default + total_const + total_soft_default + const_closing_fee + dscr_shortfall_reserve
 total_project_basis = total_project_costs_ex_interest + default_carry_int + refi_closing_fee + default_buydown_cost
 
-# Seed Capital is upfront cash the Sponsor must bring (Total Project minus Loan)
 seed_capital = total_project_costs_ex_interest - actual_const_loan
 
+# --- REFI DSCR ---
 monthly_interest_rate = net_refi_rate / 12.0
 total_payments = refi_term_years * 12
 if monthly_interest_rate > 0:
@@ -363,7 +362,6 @@ actual_dscr = annual_noi / annual_debt_service if annual_debt_service > 0 else 0
 monthly_cash_flow = monthly_noi - total_monthly_pi
 dscr_variance = actual_dscr - target_dscr_rate
 
-# Waterfall Cash Out Calculations
 net_cash_at_closing = loan_total + dscr_shortfall_reserve - actual_const_loan - default_carry_int - refi_closing_fee - default_buydown_cost
 cash_surplus = net_cash_at_closing - seed_capital
 retained_equity = total_arv - loan_total
@@ -414,7 +412,6 @@ with tab_main:
     download_placeholder = sub_col3.empty()
     st.divider()
 
-    # INVISIBLE CONTAINERS FOR TOP DASHBOARDS
     ui_top_metrics = st.container()
     ui_op_metrics = st.container()
     ui_decision_dashboard = st.container()
@@ -551,6 +548,44 @@ with tab_main:
     }
     st.dataframe(pd.DataFrame(p_data), hide_index=True, use_container_width=True)
     st.divider()
+    
+    # --- BANK DSCR STRESS TEST BREAKDOWN ---
+    st.markdown("### 🏦 Construction Lender Stress-Test & DSCR Limit")
+    st.caption("Banks apply higher OpEx, higher vacancy, and worst-case interest rates to cap your maximum construction loan. If this cap is lower than your target Loan-to-Cost, you must bring a reserve.")
+    
+    stress_test_data = {
+        "Bank Underwriting Step": [
+            "1. Gross Potential Rent (Bank Model)",
+            "2. Less: Bank Vacancy Rate",
+            "3. Less: Bank Operating Expenses (OpEx)",
+            "4. Bank Qualified Net Operating Income (NOI)",
+            "5. Target Construction DSCR Constraint",
+            "6. Maximum Allowed Annual Debt Service",
+            "7. Maximum DSCR-Supported Loan Proceeds",
+            "8. Standard Baseline Const. Loan (LTC Request)",
+            "9. Final Capped Construction Loan Proceeds",
+            "10. Capital Gap (Requires Day-1 Reserve)"
+        ],
+        "Value": [
+            f"${const_bank_rent * units * 12:,.0f} / yr",
+            f"{const_bank_vac_pct*100:.1f}%",
+            f"{const_bank_opex_pct*100:.1f}% of EGI",
+            f"${cb_noi:,.0f} / yr",
+            f"{const_bank_dscr:.2f}x",
+            f"${cb_max_annual_ds:,.0f} / yr",
+            f"${max_const_loan_dscr:,.0f} (@ {const_bank_qual_rate*100:.2f}%)",
+            f"${normal_const_loan:,.0f} (@ {const_ltv*100:.1f}% Target)",
+            f"${actual_const_loan:,.0f}",
+            f"${gap_proceeds:,.0f}"
+        ]
+    }
+    st.dataframe(pd.DataFrame(stress_test_data), hide_index=True, use_container_width=True)
+
+    if dscr_shortfall_reserve > 0:
+        st.error(f"**Shortfall Detected:** The bank capped your loan **${gap_proceeds:,.0f}** below your target. To cover this gap PLUS the reserve's own compounding interest over {build_months} months, you must bring a precise Day-1 Capital Reserve of **${dscr_shortfall_reserve:,.0f}**.")
+    else:
+        st.success("**Loan Unconstrained:** Your DSCR-supported loan limit is higher than your requested LTC baseline. No shortfall reserve is required.")
+    st.divider()
 
     # --- LEDGER & CAP STACK ---
     st.markdown("### 📊 Detailed Construction Cost & Capital Ledger")
@@ -566,7 +601,6 @@ with tab_main:
     st.dataframe(pd.DataFrame(direct_data).style.format({"Total Amount ($)": "${:,.0f}"}), hide_index=True, use_container_width=True)
 
     st.markdown("#### 2. Indirect, Land & Capital Costs")
-    
     indirects_data = [
         {"Cost Category": "General Conditions", "Metric / Basis": "5.0% of Direct", "Amount ($)": default_gcond},
         {"Cost Category": "GC Management Fee", "Metric / Basis": "Flat Fee" if gc_fee_mode == "Consolidated Flat Fee ($ Total)" else f"{gc_fee_pct*100:.1f}% Basis", "Amount ($)": default_gc_fee},
@@ -594,9 +628,6 @@ with tab_main:
     # --- POPULATE INVISIBLE DASHBOARDS ---
     # ==========================================
     with ui_top_metrics:
-        if dscr_shortfall_reserve > 0:
-            st.warning(f"⚠️ **Construction Loan DSCR Constrained:** The Bank capped construction proceeds at **${actual_const_loan:,.0f}**, creating a gap of ${gap_proceeds:,.0f} vs normal LTV. A precise Day-1 capital reserve of **${dscr_shortfall_reserve:,.0f}** is required to bridge the gap and cover the reserve's own compounding interest. **Total Initial Sponsor Cash Required: ${seed_capital:,.0f}**.")
-
         st.markdown("### 🏗️ Project Capital & Valuation Metrics")
         col1, col2, col3, col4 = st.columns(4)
         col1.metric("Takeout Loan Proceeds", f"${loan_total:,.0f}", f"Const. Loan: ${actual_const_loan:,.0f}", delta_color="off")
@@ -777,27 +808,20 @@ with tab_main:
         pdf.ln(5)
 
         pdf.set_font("Arial", 'B', 12)
-        pdf.cell(0, 8, " 2. Operating Performance & DSCR (Annualized)", ln=1, fill=True)
+        pdf.cell(0, 8, " 2. Const. Bank DSCR Limits & Loan Cap", ln=1, fill=True)
         pdf.set_font("Arial", '', 10)
-        
-        pdf.cell(100, 7, "Gross Potential Rent (GPR):", 0, 0)
-        pdf.cell(90, 7, f"${total_gross_monthly_income * 12:,.2f}", 0, 1, 'R')
-        pdf.cell(100, 7, f"(-) Vacancy Loss ({vacancy_rate*100:.1f}%):", 0, 0)
-        pdf.cell(90, 7, f"-${annual_vacancy_loss:,.2f}", 0, 1, 'R')
-        pdf.cell(100, 7, "= Effective Gross Income (EGI):", 0, 0)
-        pdf.cell(90, 7, f"${annual_egi:,.2f}", 0, 1, 'R')
-        pdf.cell(100, 7, f"(-) Operating Expenses ({opex_rate*100:.1f}% EGI):", 0, 0)
-        pdf.cell(90, 7, f"-${annual_opex:,.2f}", 0, 1, 'R')
-        pdf.cell(100, 7, "= Net Operating Income (NOI):", 0, 0)
-        pdf.cell(90, 7, f"${annual_noi:,.2f}", 0, 1, 'R')
-        pdf.cell(100, 7, "(-) Total Debt Service (P&I):", 0, 0)
-        pdf.cell(90, 7, f"-${annual_debt_service:,.2f}", 0, 1, 'R')
+        pdf.cell(100, 7, "Bank Assumed Rent & Target DSCR:", 0, 0)
+        pdf.cell(90, 7, f"${const_bank_rent:,.0f}/mo | {const_bank_dscr:.2f}x DSCR", 0, 1, 'R')
+        pdf.cell(100, 7, "Bank OpEx & Vacancy Deductions:", 0, 0)
+        pdf.cell(90, 7, f"{const_bank_opex_pct*100:.1f}% OpEx | {const_bank_vac_pct*100:.1f}% Vac", 0, 1, 'R')
+        pdf.cell(100, 7, "Standard Const. Loan Baseline:", 0, 0)
+        pdf.cell(90, 7, f"${normal_const_loan:,.0f}", 0, 1, 'R')
         
         pdf.set_font("Arial", 'B', 10)
-        pdf.cell(100, 7, "= Net Cash Flow:", 0, 0)
-        pdf.cell(90, 7, f"${monthly_cash_flow * 12:,.2f}", 0, 1, 'R')
-        pdf.cell(100, 7, "Actual DSCR Rate:", 0, 0)
-        pdf.cell(90, 7, f"{actual_dscr:.2f}x (Variance: {dscr_variance:+.2f}x)", 0, 1, 'R')
+        pdf.cell(100, 7, "Bank DSCR Capped Proceeds:", 0, 0)
+        pdf.cell(90, 7, f"${actual_const_loan:,.0f}", 0, 1, 'R')
+        pdf.cell(100, 7, "Capital Gap (Requires Day-1 Reserve):", 0, 0)
+        pdf.cell(90, 7, f"${gap_proceeds:,.0f}", 0, 1, 'R')
         pdf.ln(5)
 
         pdf.set_font("Arial", 'B', 12)
@@ -816,9 +840,9 @@ with tab_main:
         pdf.cell(100, 7, "Land Acquisition Basis:", 0, 0)
         pdf.cell(90, 7, f"${total_land_default:,.0f}", 0, 1, 'R')
         
-        if dscr_reserve_active > 0:
+        if dscr_shortfall_reserve > 0:
             pdf.cell(100, 7, "Const. DSCR Shortfall Reserve Fund:", 0, 0)
-            pdf.cell(90, 7, f"${dscr_reserve_active:,.0f}", 0, 1, 'R')
+            pdf.cell(90, 7, f"${dscr_shortfall_reserve:,.0f}", 0, 1, 'R')
             
         pdf.cell(100, 7, "Const. Loan Interest:", 0, 0)
         pdf.cell(90, 7, f"${carry_int_base:,.0f}", 0, 1, 'R')
