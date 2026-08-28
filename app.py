@@ -355,23 +355,28 @@ total_land_default = land_basis * units
 default_soft_cost_per_unit = 5500
 total_soft_default = default_soft_cost_per_unit * units
 
+
 # =========================================================================
 # --- ACCURATE CONSTRUCTION SIZING, DSCR CAP & CAPITALIZED INTEREST ---
 # =========================================================================
 total_const_default = fee_basis + default_gc_fee + default_premium
 total_project_costs_ex_interest_default = total_land_default + total_const_default + total_soft_default + const_closing_fee
 
-# 1. Determine Bank's Capped Loan Size (DSCR Constraint)
+# 1. Determine Bank's Implied Asset Value (DSCR Constraint / Stress Test)
 cb_noi = (const_bank_rent * units * 12.0) * (1.0 - const_bank_vac_pct) * (1.0 - const_bank_opex_pct)
 cb_max_annual_ds = cb_noi / const_bank_dscr
 cb_monthly_rate = const_bank_qual_rate / 12.0
 cb_term_months = const_bank_amort_yrs * 12
-if cb_monthly_rate > 0:
-    max_const_loan_dscr = (cb_max_annual_ds / 12.0) * ((1.0 - (1.0 + cb_monthly_rate)**-cb_term_months) / cb_monthly_rate)
-else:
-    max_const_loan_dscr = (cb_max_annual_ds / 12.0) * cb_term_months
 
-# 2. Mathematically Pure Unconstrained Construction LTC Loan (includes interest carry)
+if cb_monthly_rate > 0:
+    bank_stressed_value = (cb_max_annual_ds / 12.0) * ((1.0 - (1.0 + cb_monthly_rate)**-cb_term_months) / cb_monthly_rate)
+else:
+    bank_stressed_value = (cb_max_annual_ds / 12.0) * cb_term_months
+
+# 2. Bank applies LTV to this stressed "Refi" value to determine maximum allowable loan
+max_bank_loan_dscr_ltv = bank_stressed_value * const_ltv
+
+# 3. Standard Unconstrained Construction Loan (LTC)
 time_years = build_months / 12.0
 interest_multiplier = const_ltv * avg_draw_pct * const_rate * time_years
 
@@ -380,28 +385,23 @@ if interest_multiplier < 1.0:
 else:
     normal_const_loan = total_project_costs_ex_interest_default * const_ltv
 
-# 3. Apply Bank DSCR Cap
-actual_const_loan = min(normal_const_loan, max_const_loan_dscr)
+# 4. Final Capped Loan Proceeds
+actual_const_loan = min(normal_const_loan, max_bank_loan_dscr_ltv)
 
-# 4. Actual Interest Accrual (Derived directly from actual bank proceeds)
+# 5. Actual Capitalized Interest Accrual
 default_carry_int = actual_const_loan * avg_draw_pct * const_rate * time_years
 carry_int_base = default_carry_int
-carry_int_reserve = 0.0  # Sponsor equity does not accrue bank loan interest
+carry_int_reserve = 0.0
 
-# 5. Shortfall Determination
-gap_proceeds = max(0.0, normal_const_loan - actual_const_loan)
-dscr_shortfall_reserve = gap_proceeds
-
-# 6. Total Project Basis & Required Cash to Close
+# 6. Total Construction Basis (LTC Cost Stack, excluding backend refi fees)
 default_buydown_cost = loan_total * (buydown_pts / 100.0) if apply_buydown else 0
 total_const = total_hard_cost + default_gcond + default_gc_fee + default_premium
 total_project_costs_ex_interest = total_land_default + total_const + total_soft_default + const_closing_fee
 
-# Explicitly isolate Day-1 Capitalized Construction Costs
 total_construction_basis = total_project_costs_ex_interest + default_carry_int
 total_project_basis = total_construction_basis + refi_closing_fee + default_buydown_cost
 
-# Seed Capital (Total construction cash requirement minus proceeds provided by construction lender)
+# 7. Total Reserve (Seed Capital) Needed to Fund the Basis
 seed_capital = total_construction_basis - actual_const_loan
 
 # --- REFINANCE & OPERATING UNDERWRITING ---
@@ -428,7 +428,6 @@ monthly_cash_flow = monthly_noi - total_monthly_pi
 dscr_variance = actual_dscr - target_dscr_rate
 
 # Refinance Waterfall at Title Close
-# FIX: actual_const_loan already includes principal AND accrued capitalized interest.
 net_cash_at_closing = loan_total - actual_const_loan - refi_closing_fee - default_buydown_cost
 cash_surplus = net_cash_at_closing - seed_capital
 retained_equity = total_arv - loan_total
@@ -563,7 +562,7 @@ with tab_main:
     
     # --- BANK DSCR STRESS TEST BREAKDOWN ---
     st.markdown("### 🏦 Construction Lender Stress-Test & DSCR Limit")
-    st.caption("Banks apply higher OpEx, higher vacancy, and worst-case interest rates to cap your maximum construction loan. If this cap is lower than your target Loan-to-Cost, an upfront Day-1 equity injection is required.")
+    st.caption("The bank determines an implied asset value based on their DSCR test, then applies their LTV constraint. Your required Seed Capital is simply the remaining Total Construction Basis minus this capped loan amount.")
     
     stress_test_data = {
         "Bank Underwriting Step": [
@@ -573,10 +572,10 @@ with tab_main:
             "4. Bank Qualified Net Operating Income (NOI)",
             "5. Target Construction DSCR Constraint",
             "6. Maximum Allowed Annual Debt Service",
-            "7. Maximum DSCR-Supported Loan Proceeds",
-            "8. Total Capitalized Construction Basis",
-            "9. Final Capped Construction Loan Proceeds",
-            "10. Total Day-1 Seed Capital (Required Equity)"
+            "7. Bank Implied Asset Value (Refi Stress Test)",
+            f"8. Max Capped Loan Proceeds ({const_ltv*100:.1f}% LTV)",
+            "9. Total Capitalized Construction Basis (LTC)",
+            "10. Total Required Reserve (Seed Capital)"
         ],
         "Value": [
             f"${const_bank_rent * units * 12:,.0f} / yr",
@@ -585,19 +584,18 @@ with tab_main:
             f"${cb_noi:,.0f} / yr",
             f"{const_bank_dscr:.2f}x",
             f"${cb_max_annual_ds:,.0f} / yr",
-            f"${max_const_loan_dscr:,.0f} (@ {const_bank_qual_rate*100:.2f}%)",
+            f"${bank_stressed_value:,.0f} (@ {const_bank_qual_rate*100:.2f}%)",
+            f"${max_bank_loan_dscr_ltv:,.0f}",
             f"${total_construction_basis:,.0f}",
-            f"${actual_const_loan:,.0f}",
             f"${seed_capital:,.0f}"
         ]
     }
     st.dataframe(pd.DataFrame(stress_test_data), hide_index=True, use_container_width=True)
 
-    # FIXED: Rounded to prevent floating-point mismatch on strictly unconstrained scenarios
-    if round(gap_proceeds, 2) > 0:
-        st.error(f"**Shortfall Detected:** The bank has capped your loan **${gap_proceeds:,.0f}** below your baseline LTC request due to qualifying DSCR constraints. You must bring a total of **${seed_capital:,.0f}** in Day-1 Seed Capital to close the construction loan.")
+    if actual_const_loan < normal_const_loan:
+        st.error(f"**DSCR Constraint Active:** The bank's stress test limits the loan to **${actual_const_loan:,.0f}**. Compared to your Total Construction Basis of **${total_construction_basis:,.0f}**, you must bring **${seed_capital:,.0f}** in Day-1 Seed Capital (Reserves).")
     else:
-        st.success(f"**Loan Unconstrained:** Your DSCR-supported loan limit is higher than your requested LTC baseline. Total Day-1 Seed Capital required is **${seed_capital:,.0f}**.")
+        st.success(f"**Loan Unconstrained by DSCR:** Your qualifying DSCR limit is higher than your requested LTC. The bank will fund **${actual_const_loan:,.0f}**. You must fund the remaining balance of the Total Cost Basis, requiring **${seed_capital:,.0f}** in Day-1 Seed Capital.")
     st.divider()
 
     # --- LEDGER & CAP STACK ---
@@ -822,13 +820,13 @@ with tab_main:
         pdf.cell(100, 7, "Bank OpEx & Vacancy Deductions:", 0, 0)
         pdf.cell(90, 7, f"{const_bank_opex_pct*100:.1f}% OpEx | {const_bank_vac_pct*100:.1f}% Vac", 0, 1, 'R')
         
-        pdf.cell(100, 7, "Total Capitalized Construction Basis:", 0, 0)
-        pdf.cell(90, 7, f"${total_construction_basis:,.0f}", 0, 1, 'R')
+        pdf.cell(100, 7, "Bank Implied Asset Value (Refi Stress Test):", 0, 0)
+        pdf.cell(90, 7, f"${bank_stressed_value:,.0f}", 0, 1, 'R')
         
         pdf.set_font("Arial", 'B', 10)
-        pdf.cell(100, 7, "Bank DSCR Capped Proceeds:", 0, 0)
-        pdf.cell(90, 7, f"${actual_const_loan:,.0f}", 0, 1, 'R')
-        pdf.cell(100, 7, "Total Day-1 Equity (Seed Capital):", 0, 0)
+        pdf.cell(100, 7, f"Max Capped Loan Proceeds ({const_ltv*100:.1f}% LTV):", 0, 0)
+        pdf.cell(90, 7, f"${max_bank_loan_dscr_ltv:,.0f}", 0, 1, 'R')
+        pdf.cell(100, 7, "Total Day-1 Equity (Seed Capital Required):", 0, 0)
         pdf.cell(90, 7, f"${seed_capital:,.0f}", 0, 1, 'R')
         pdf.ln(5)
 
