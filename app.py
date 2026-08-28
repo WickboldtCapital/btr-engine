@@ -374,7 +374,8 @@ monthly_cash_flow = monthly_noi - total_monthly_pi
 dscr_variance = actual_dscr - target_dscr_rate
 
 # Refinance Waterfall at Title Close
-net_cash_at_closing = loan_total - actual_const_loan - default_carry_int - refi_closing_fee - default_buydown_cost
+# FIX: actual_const_loan already includes principal AND accrued capitalized interest.
+net_cash_at_closing = loan_total - actual_const_loan - refi_closing_fee - default_buydown_cost
 cash_surplus = net_cash_at_closing - seed_capital
 retained_equity = total_arv - loan_total
 day1_wealth = default_gc_fee + max(0.0, cash_surplus) + retained_equity
@@ -593,7 +594,8 @@ with tab_main:
     }
     st.dataframe(pd.DataFrame(stress_test_data), hide_index=True, use_container_width=True)
 
-    if gap_proceeds > 0:
+    # FIXED: Rounded to prevent floating-point mismatch on strictly unconstrained scenarios
+    if round(gap_proceeds, 2) > 0:
         st.error(f"**Shortfall Detected:** The bank has capped your loan **${gap_proceeds:,.0f}** below your baseline LTC request due to qualifying DSCR constraints. You must bring a total of **${seed_capital:,.0f}** in Day-1 Seed Capital to close the construction loan.")
     else:
         st.success(f"**Loan Unconstrained:** Your DSCR-supported loan limit is higher than your requested LTC baseline. Total Day-1 Seed Capital required is **${seed_capital:,.0f}**.")
@@ -682,8 +684,7 @@ with tab_main:
     waterfall_data = {
         "Refinance Closing Line Item": [
             "(+) Permanent Takeout Loan Proceeds",
-            "(-) Construction Loan Principal Payoff",
-            "(-) Const. Loan Accrued Interest Payoff",
+            "(-) Construction Loan Payoff (Prin. & Int.)",
             "(-) Refinance Closing Fees",
             "(-) Rate Buydown Points Cost",
             "= Net Cash Distributed to Sponsor at Closing",
@@ -693,7 +694,6 @@ with tab_main:
         "Amount ($)": [
             f"${loan_total:,.0f}",
             f"-${actual_const_loan:,.0f}",
-            f"-${default_carry_int:,.0f}",
             f"-${refi_closing_fee:,.0f}",
             f"-${default_buydown_cost:,.0f}",
             f"${net_cash_at_closing:,.0f}",
@@ -892,10 +892,8 @@ with tab_main:
         
         pdf.cell(130, 7, "(+) Permanent Takeout Loan Proceeds:", 0, 0)
         pdf.cell(60, 7, f"${loan_total:,.0f}", 0, 1, 'R')
-        pdf.cell(130, 7, "(-) Construction Loan Principal Payoff:", 0, 0)
+        pdf.cell(130, 7, "(-) Construction Loan Payoff (Prin. & Int.):", 0, 0)
         pdf.cell(60, 7, f"-${actual_const_loan:,.0f}", 0, 1, 'R')
-        pdf.cell(130, 7, "(-) Const. Loan Accrued Interest Payoff:", 0, 0)
-        pdf.cell(60, 7, f"-${default_carry_int:,.0f}", 0, 1, 'R')
         pdf.cell(130, 7, "(-) Refinance Closing Fees & Buydown Points:", 0, 0)
         pdf.cell(60, 7, f"-${refi_closing_fee + default_buydown_cost:,.0f}", 0, 1, 'R')
         
