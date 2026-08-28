@@ -109,7 +109,61 @@ with st.sidebar.container():
     st.number_input("Number of Units (Doors)", min_value=1, step=1, format="%d", key="units")
 
 with st.sidebar.container():
-    st.subheader("2. Physical Footprint & Aux Costs")
+    st.subheader("2. Market Comp Valuation & Benchmark")
+    st.radio("Comparable Data Entry Mode", ["Manual Entry", "RentCast Live API Fetch"], key="comp_entry_mode")
+
+    if st.session_state.comp_entry_mode == "RentCast Live API Fetch":
+        search_address = st.text_input("Property Address", placeholder="e.g. 1103 S Spruce St, Hammond, LA")
+        with st.expander("⚙️ API Configuration (Optional)"):
+            manual_key = st.text_input("RentCast API Key Override", type="password")
+
+        if st.button("Fetch Live Data", use_container_width=True):
+            if search_address:
+                rentcast_key = manual_key or os.environ.get("RENTCAST_API_KEY") or st.secrets.get("RENTCAST_API_KEY", "")
+                if rentcast_key:
+                    try:
+                        with st.spinner("Fetching live data from RentCast MLS..."):
+                            api_url = "https://api.rentcast.io/v1/properties"
+                            headers = {"X-Api-Key": rentcast_key.strip(), "accept": "application/json"}
+                            response = requests.get(api_url, headers=headers, params={"address": search_address.strip()})
+                            if response.status_code == 200:
+                                data = response.json()
+                                st.session_state.raw_api_data = data 
+                                if data:
+                                    prop = data[0]
+                                    if prop.get("price") or prop.get("lastSalePrice"):
+                                        st.session_state.comp_price = int(prop.get("price") or prop.get("lastSalePrice"))
+                                    if prop.get("squareFootage"):
+                                        st.session_state.comp_heated_sf = int(prop.get("squareFootage"))
+                                    if prop.get("formattedAddress"):
+                                        st.session_state.comp_address = str(prop.get("formattedAddress"))
+                                    st.success(f"Imported: {st.session_state.comp_address}")
+                                    st.rerun()
+                                else:
+                                    st.error("No exact match found.")
+                    except Exception as e:
+                        st.error(f"API Error: {e}")
+
+    st.markdown("##### 1. Primary Comp Metrics")
+    if st.session_state.comp_entry_mode == "RentCast Live API Fetch":
+        st.text_input("Comparable Property Address", value=st.session_state.comp_address, disabled=True)
+        st.number_input("Comp Sale Price ($)", value=st.session_state.comp_price, disabled=True)
+        st.number_input("Comp Heated SF", value=st.session_state.comp_heated_sf, disabled=True)
+    else:
+        st.text_input("Comparable Property Address", key="comp_address")
+        st.number_input("Comp Sale Price ($)", step=1000, key="comp_price")
+        st.number_input("Comp Heated SF", step=50, key="comp_heated_sf")
+
+    st.markdown("##### 2. Comp Auxiliary Spaces (Always Editable)")
+    c_aux1, c_aux2 = st.columns(2)
+    c_aux1.number_input("Aux SF", step=25, format="%d", key="comp_struct_sf", help="Garage or Carport")
+    c_aux2.number_input("Front Porch SF", step=10, format="%d", key="comp_front_sf")
+    c_aux3, c_aux4 = st.columns(2)
+    c_aux3.number_input("Back Porch SF", step=10, format="%d", key="comp_back_sf")
+    c_aux4.number_input("Storage SF", step=5, format="%d", key="comp_storage_sf")
+
+with st.sidebar.container():
+    st.subheader("3. Physical Footprint & Aux Costs")
     st.number_input("Heated SqFt per Unit", step=50, format="%d", key="sqft")
     st.selectbox("Aux Structure Type", ["Carport", "Garage"], key="structure_type")
     st.number_input(f"{st.session_state.structure_type} SqFt per Unit", step=25, format="%d", key="struct_sqft")
@@ -123,13 +177,13 @@ with st.sidebar.container():
     st.number_input("Additional Foundation / Elevation Cost ($)", step=500, format="%d", key="additional_foundation_cost")
 
 with st.sidebar.container():
-    st.subheader("3. Takeout Appraisal Methodology")
+    st.subheader("4. Takeout Appraisal Methodology")
     st.radio("Valuation Mode", ["Sales Comp (Price/SF)", "Income Approach (GRM)"], key="appraisal_mode")
     if st.session_state.appraisal_mode == "Income Approach (GRM)":
         st.number_input("Gross Rent Multiplier (GRM)", min_value=4.0, max_value=25.0, step=0.1, key="target_grm")
 
 with st.sidebar.container():
-    st.subheader("4. Cost Target Mode (Reverse Engineer)")
+    st.subheader("5. Cost Target Mode (Reverse Engineer)")
     st.radio("Calculation Logic", ["Manual Set (Heated SF)", "Reverse-Engineer from Appraisal", "Reverse-Engineer from Primary Comp"], key="cost_calc_mode")
     if st.session_state.cost_calc_mode == "Manual Set (Heated SF)":
         st.slider("Direct Build Cost / SF ($)", min_value=40.0, max_value=150.0, step=1.0, key="base_direct_cost_sf")
@@ -140,7 +194,7 @@ with st.sidebar.container():
         st.slider("Soft Costs & Finance (%)", min_value=0.0, max_value=15.0, step=0.5, key="finance_pct")
 
 with st.sidebar.container():
-    st.subheader("5. GC Fee & Land Costs")
+    st.subheader("6. GC Fee & Land Costs")
     st.radio("GC Fee Structure", ["Percentage of Hard Costs (%)", "Consolidated Flat Fee ($ Total)"], key="gc_fee_mode")
     if st.session_state.gc_fee_mode == "Percentage of Hard Costs (%)":
         st.number_input("GC Management Fee (%)", min_value=0.0, max_value=50.0, step=0.5, key="gc_fee_pct")
@@ -149,7 +203,7 @@ with st.sidebar.container():
     st.number_input("Land Basis per Lot ($)", step=1000, format="%d", key="land_basis")
 
 with st.sidebar.container():
-    st.subheader("6. Financing & Operations")
+    st.subheader("7. Financing & Operations")
     st.number_input("Gross Monthly Rental Income per Unit ($)", step=50, format="%d", key="gross_monthly_rent")
     st.number_input("Target Lender DSCR Rate", min_value=1.0, max_value=1.5, step=0.05, key="target_dscr_rate")
     st.slider("Vacancy Rate (%)", min_value=0.0, max_value=15.0, step=1.0, key="vacancy_rate_pct")
@@ -172,7 +226,7 @@ with st.sidebar.container():
         st.markdown(f"📉 **Buydown Net Rate:** `{net_rate*100:.3f}%`")
 
 with st.sidebar.container():
-    st.subheader("7. Const. Lender DSCR Limits")
+    st.subheader("8. Const. Lender DSCR Limits")
     st.number_input("Bank Underwriting Rent ($)", step=50, format="%d", key="const_bank_rent")
     st.slider("Bank Underwriting OpEx (%)", min_value=15.0, max_value=50.0, step=1.0, key="const_bank_opex_pct")
     st.slider("Bank Underwriting Vacancy (%)", min_value=0.0, max_value=15.0, step=1.0, key="const_bank_vac_pct")
@@ -430,64 +484,9 @@ with tab_main:
     ui_decision_dashboard = st.container()
     st.divider()
 
-    # --- COMP TOOL ---
-    st.markdown("### 🔍 Market Comp Valuation & Blended Rate Benchmark")
-    comp_entry_mode = st.radio("Comparable Data Entry Mode", ["Manual Entry", "RentCast Live API Fetch"], horizontal=True)
-
-    if comp_entry_mode == "RentCast Live API Fetch":
-        rc_col1, rc_col2 = st.columns([4, 1])
-        search_address = rc_col1.text_input("Property Address", placeholder="e.g. 1103 S Spruce St, Hammond, LA 70403")
-        with st.expander("⚙️ API Configuration (Optional)"):
-            manual_key = st.text_input("RentCast API Key Override", type="password")
-
-        if rc_col2.button("Fetch Live Data", use_container_width=True):
-            if search_address:
-                rentcast_key = manual_key or os.environ.get("RENTCAST_API_KEY") or st.secrets.get("RENTCAST_API_KEY", "")
-                if rentcast_key:
-                    try:
-                        with st.spinner("Fetching live data from RentCast MLS..."):
-                            api_url = "https://api.rentcast.io/v1/properties"
-                            headers = {"X-Api-Key": rentcast_key.strip(), "accept": "application/json"}
-                            response = requests.get(api_url, headers=headers, params={"address": search_address.strip()})
-                            if response.status_code == 200:
-                                data = response.json()
-                                st.session_state.raw_api_data = data 
-                                if data:
-                                    prop = data[0]
-                                    if prop.get("price") or prop.get("lastSalePrice"):
-                                        st.session_state.comp_price = int(prop.get("price") or prop.get("lastSalePrice"))
-                                    if prop.get("squareFootage"):
-                                        st.session_state.comp_heated_sf = int(prop.get("squareFootage"))
-                                    if prop.get("formattedAddress"):
-                                        st.session_state.comp_address = str(prop.get("formattedAddress"))
-                                    st.success(f"Imported: {st.session_state.comp_address}")
-                                    st.rerun()
-                                else:
-                                    st.error("No exact match found.")
-                    except Exception as e:
-                        st.error(f"API Error: {e}")
-
-    st.markdown("##### 1. Primary Comp Metrics")
-    col_addr, col_price, col_hsf = st.columns([2, 1, 1])
-    if comp_entry_mode == "RentCast Live API Fetch":
-        col_addr.text_input("Comparable Property Address", value=st.session_state.comp_address, disabled=True)
-        col_price.number_input("Comp Sale Price ($)", value=st.session_state.comp_price, disabled=True)
-        col_hsf.number_input("Comp Heated SF", value=st.session_state.comp_heated_sf, disabled=True)
-    else:
-        c_add = col_addr.text_input("Comparable Property Address", value=st.session_state.comp_address)
-        c_prc = col_price.number_input("Comp Sale Price ($)", value=st.session_state.comp_price, step=1000)
-        c_hsf = col_hsf.number_input("Comp Heated SF", value=st.session_state.comp_heated_sf, step=50)
-        if c_add != st.session_state.comp_address or c_prc != st.session_state.comp_price or c_hsf != st.session_state.comp_heated_sf:
-            st.session_state.comp_address = c_add; st.session_state.comp_price = c_prc; st.session_state.comp_heated_sf = c_hsf
-            st.rerun()
-
-    st.markdown("##### 2. Comp Auxiliary Spaces (Always Editable)")
-    c_aux1, c_aux2, c_aux3, c_aux4 = st.columns(4)
-    c_aux1.number_input("Comp Aux. SF (Garage/Carport)", step=25, format="%d", key="comp_struct_sf")
-    c_aux2.number_input("Comp Front Porch SF", step=10, format="%d", key="comp_front_sf")
-    c_aux3.number_input("Comp Back Porch SF", step=10, format="%d", key="comp_back_sf")
-    c_aux4.number_input("Comp Storage Room SF", step=5, format="%d", key="comp_storage_sf")
-
+    # --- COMP AUDIT DASHBOARD ---
+    st.markdown("### 🔍 Market Comp Valuation Audit")
+    
     if st.session_state.comp_address:
         st.caption(f"📍 **Active Comp:** {st.session_state.comp_address} | Isolated Heated Rate: **${isolated_heated_rate:.2f} / SF**")
     else:
@@ -498,7 +497,7 @@ with tab_main:
         st.code(f"${comp_price:,.0f} ÷ {comp_heated_sf:,.0f} SF = ${raw_comp_price_sf:.2f} / SF")
         st.markdown("**2. True Isolated Heated Shell Rate**")
         st.code(f"(${comp_price:,.0f} - ${comp_aux_value:,.0f} Aux) ÷ {comp_heated_sf:,.0f} SF = ${isolated_heated_rate:.2f} / SF")
-        if st.session_state.raw_api_data and comp_entry_mode == "RentCast Live API Fetch":
+        if st.session_state.raw_api_data and st.session_state.get("comp_entry_mode") == "RentCast Live API Fetch":
             st.json(st.session_state.raw_api_data)
     st.divider()
 
