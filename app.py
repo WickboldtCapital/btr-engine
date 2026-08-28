@@ -334,18 +334,21 @@ default_carry_int = actual_const_loan * avg_draw_pct * const_rate * time_years
 carry_int_base = default_carry_int
 carry_int_reserve = 0.0  # Sponsor equity does not accrue bank loan interest
 
-# 5. Shortfall Determination (Day-1 Equity Injection required)
+# 5. Shortfall Determination
 gap_proceeds = max(0.0, normal_const_loan - actual_const_loan)
 dscr_shortfall_reserve = gap_proceeds
 
-# 6. Total Project Basis & Refinance Outlays
+# 6. Total Project Basis & Required Cash to Close
 default_buydown_cost = loan_total * (buydown_pts / 100.0) if apply_buydown else 0
 total_const = total_hard_cost + default_gcond + default_gc_fee + default_premium
 total_project_costs_ex_interest = total_land_default + total_const + total_soft_default + const_closing_fee
-total_project_basis = total_project_costs_ex_interest + default_carry_int + refi_closing_fee + default_buydown_cost
+
+# Explicitly isolate Day-1 Capitalized Construction Costs
+total_construction_basis = total_project_costs_ex_interest + default_carry_int
+total_project_basis = total_construction_basis + refi_closing_fee + default_buydown_cost
 
 # Seed Capital (Total construction cash requirement minus proceeds provided by construction lender)
-seed_capital = (total_project_costs_ex_interest + default_carry_int) - actual_const_loan
+seed_capital = total_construction_basis - actual_const_loan
 
 # --- REFINANCE & OPERATING UNDERWRITING ---
 monthly_interest_rate = net_refi_rate / 12.0
@@ -571,9 +574,9 @@ with tab_main:
             "5. Target Construction DSCR Constraint",
             "6. Maximum Allowed Annual Debt Service",
             "7. Maximum DSCR-Supported Loan Proceeds",
-            "8. Standard Baseline Const. Loan (LTC Request)",
+            "8. Total Capitalized Construction Basis",
             "9. Final Capped Construction Loan Proceeds",
-            "10. Capital Gap (Requires Day-1 Sponsor Equity)"
+            "10. Total Day-1 Seed Capital (Required Equity)"
         ],
         "Value": [
             f"${const_bank_rent * units * 12:,.0f} / yr",
@@ -583,17 +586,17 @@ with tab_main:
             f"{const_bank_dscr:.2f}x",
             f"${cb_max_annual_ds:,.0f} / yr",
             f"${max_const_loan_dscr:,.0f} (@ {const_bank_qual_rate*100:.2f}%)",
-            f"${normal_const_loan:,.0f} (@ {const_ltv*100:.1f}% Target)",
+            f"${total_construction_basis:,.0f}",
             f"${actual_const_loan:,.0f}",
-            f"${gap_proceeds:,.0f}"
+            f"${seed_capital:,.0f}"
         ]
     }
     st.dataframe(pd.DataFrame(stress_test_data), hide_index=True, use_container_width=True)
 
-    if dscr_shortfall_reserve > 0:
+    if gap_proceeds > 0:
         st.error(f"**Shortfall Detected:** The bank has capped your loan **${gap_proceeds:,.0f}** below your baseline LTC request due to qualifying DSCR constraints. You must bring a total of **${seed_capital:,.0f}** in Day-1 Seed Capital to close the construction loan.")
     else:
-        st.success("**Loan Unconstrained:** Your DSCR-supported loan limit is higher than your requested LTC baseline. No additional shortfall equity is required.")
+        st.success(f"**Loan Unconstrained:** Your DSCR-supported loan limit is higher than your requested LTC baseline. Total Day-1 Seed Capital required is **${seed_capital:,.0f}**.")
     st.divider()
 
     # --- LEDGER & CAP STACK ---
@@ -819,14 +822,15 @@ with tab_main:
         pdf.cell(90, 7, f"${const_bank_rent:,.0f}/mo | {const_bank_dscr:.2f}x DSCR", 0, 1, 'R')
         pdf.cell(100, 7, "Bank OpEx & Vacancy Deductions:", 0, 0)
         pdf.cell(90, 7, f"{const_bank_opex_pct*100:.1f}% OpEx | {const_bank_vac_pct*100:.1f}% Vac", 0, 1, 'R')
-        pdf.cell(100, 7, "Standard Const. Loan Baseline (LTC):", 0, 0)
-        pdf.cell(90, 7, f"${normal_const_loan:,.0f}", 0, 1, 'R')
+        
+        pdf.cell(100, 7, "Total Capitalized Construction Basis:", 0, 0)
+        pdf.cell(90, 7, f"${total_construction_basis:,.0f}", 0, 1, 'R')
         
         pdf.set_font("Arial", 'B', 10)
         pdf.cell(100, 7, "Bank DSCR Capped Proceeds:", 0, 0)
         pdf.cell(90, 7, f"${actual_const_loan:,.0f}", 0, 1, 'R')
-        pdf.cell(100, 7, "Capital Shortfall (Day-1 Equity Required):", 0, 0)
-        pdf.cell(90, 7, f"${gap_proceeds:,.0f}", 0, 1, 'R')
+        pdf.cell(100, 7, "Total Day-1 Equity (Seed Capital):", 0, 0)
+        pdf.cell(90, 7, f"${seed_capital:,.0f}", 0, 1, 'R')
         pdf.ln(5)
 
         pdf.set_font("Arial", 'B', 12)
