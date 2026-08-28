@@ -40,8 +40,10 @@ HARDCODED_DRIVERS = {
     "avg_draw_pct": 50.0,
     "const_closing_fee": 6000,
     
-    # Construction Lender DSCR Stress Constraints
+    # Construction Lender Stress Constraints
     "const_bank_rent": 1500,
+    "const_bank_val_mode": "DSCR Stress Test",
+    "const_bank_grm": 8.0,
     "const_bank_opex_pct": 30.0,
     "const_bank_vac_pct": 5.0,
     "const_bank_dscr": 1.20,
@@ -226,13 +228,19 @@ with st.sidebar.container():
         st.markdown(f"📉 **Buydown Net Rate:** `{net_rate*100:.3f}%`")
 
 with st.sidebar.container():
-    st.subheader("8. Const. Lender DSCR Limits")
+    st.subheader("8. Const. Lender Limits")
     st.number_input("Bank Underwriting Rent ($)", step=50, format="%d", key="const_bank_rent")
-    st.slider("Bank Underwriting OpEx (%)", min_value=15.0, max_value=50.0, step=1.0, key="const_bank_opex_pct")
-    st.slider("Bank Underwriting Vacancy (%)", min_value=0.0, max_value=15.0, step=1.0, key="const_bank_vac_pct")
-    st.number_input("Bank Target DSCR", min_value=1.0, max_value=1.5, step=0.05, key="const_bank_dscr")
-    st.slider("Bank Qualifying Rate (%)", min_value=4.0, max_value=14.0, step=0.25, key="const_bank_qual_rate_pct")
-    st.selectbox("Bank Amortization (Years)", [15, 20, 25, 30], key="const_bank_amort_yrs")
+    
+    st.radio("Bank Valuation Method", ["DSCR Stress Test", "Gross Rent Multiplier (GRM)"], key="const_bank_val_mode")
+    
+    if st.session_state.const_bank_val_mode == "DSCR Stress Test":
+        st.slider("Bank Underwriting OpEx (%)", min_value=15.0, max_value=50.0, step=1.0, key="const_bank_opex_pct")
+        st.slider("Bank Underwriting Vacancy (%)", min_value=0.0, max_value=15.0, step=1.0, key="const_bank_vac_pct")
+        st.number_input("Bank Target DSCR", min_value=1.0, max_value=1.5, step=0.05, key="const_bank_dscr")
+        st.slider("Bank Qualifying Rate (%)", min_value=4.0, max_value=14.0, step=0.25, key="const_bank_qual_rate_pct")
+        st.selectbox("Bank Amortization (Years)", [15, 20, 25, 30], key="const_bank_amort_yrs")
+    else:
+        st.number_input("Bank Underwriting GRM", min_value=4.0, max_value=25.0, step=0.1, key="const_bank_grm")
 
 with st.sidebar.container():
     st.subheader("PDF Export Options")
@@ -265,6 +273,8 @@ avg_draw_pct = st.session_state.avg_draw_pct / 100.0
 const_closing_fee = st.session_state.const_closing_fee
 
 const_bank_rent = st.session_state.const_bank_rent
+const_bank_val_mode = st.session_state.const_bank_val_mode
+const_bank_grm = st.session_state.const_bank_grm
 const_bank_opex_pct = st.session_state.const_bank_opex_pct / 100.0
 const_bank_vac_pct = st.session_state.const_bank_vac_pct / 100.0
 const_bank_dscr = st.session_state.const_bank_dscr
@@ -362,15 +372,21 @@ total_const_default = fee_basis + default_gc_fee + default_premium
 total_project_costs_ex_interest_default = total_land_default + total_const_default + total_soft_default + const_closing_fee
 
 # 1. Determine Bank's Implied Asset Value (DSCR Constraint / Stress Test)
-cb_noi = (const_bank_rent * units * 12.0) * (1.0 - const_bank_vac_pct) * (1.0 - const_bank_opex_pct)
-cb_max_annual_ds = cb_noi / const_bank_dscr
-cb_monthly_rate = const_bank_qual_rate / 12.0
-cb_term_months = const_bank_amort_yrs * 12
+cb_gross_annual_rent = const_bank_rent * units * 12.0
 
-if cb_monthly_rate > 0:
-    bank_stressed_value = (cb_max_annual_ds / 12.0) * ((1.0 - (1.0 + cb_monthly_rate)**-cb_term_months) / cb_monthly_rate)
+if const_bank_val_mode == "DSCR Stress Test":
+    cb_noi = cb_gross_annual_rent * (1.0 - const_bank_vac_pct) * (1.0 - const_bank_opex_pct)
+    cb_max_annual_ds = cb_noi / const_bank_dscr
+    cb_monthly_rate = const_bank_qual_rate / 12.0
+    cb_term_months = const_bank_amort_yrs * 12
+
+    if cb_monthly_rate > 0:
+        bank_stressed_value = (cb_max_annual_ds / 12.0) * ((1.0 - (1.0 + cb_monthly_rate)**-cb_term_months) / cb_monthly_rate)
+    else:
+        bank_stressed_value = (cb_max_annual_ds / 12.0) * cb_term_months
 else:
-    bank_stressed_value = (cb_max_annual_ds / 12.0) * cb_term_months
+    # GRM Approach
+    bank_stressed_value = cb_gross_annual_rent * const_bank_grm
 
 # 2. Bank applies LTV to this stressed "Refi" value to determine maximum allowable loan
 max_bank_loan_dscr_ltv = bank_stressed_value * const_ltv
@@ -559,42 +575,44 @@ with tab_main:
     st.dataframe(pd.DataFrame(p_data), hide_index=True, use_container_width=True)
     st.divider()
     
-    # --- BANK DSCR STRESS TEST BREAKDOWN ---
-    st.markdown("### 🏦 Construction Lender Stress-Test & DSCR Limit")
-    st.caption("The bank determines an implied asset value based on their DSCR test, then applies their LTV constraint. Your required Seed Capital is simply the remaining Total Construction Basis minus this capped loan amount.")
+    # --- BANK STRESS TEST BREAKDOWN ---
+    st.markdown("### 🏦 Construction Lender Loan Cap")
     
-    stress_test_data = {
-        "Bank Underwriting Step": [
-            "1. Gross Potential Rent (Bank Model)",
-            "2. Less: Bank Vacancy Rate",
-            "3. Less: Bank Operating Expenses (OpEx)",
-            "4. Bank Qualified Net Operating Income (NOI)",
-            "5. Target Construction DSCR Constraint",
-            "6. Maximum Allowed Annual Debt Service",
-            "7. Bank Implied Asset Value (Refi Stress Test)",
-            f"8. Max Capped Loan Proceeds ({const_ltv*100:.1f}% LTV)",
-            "9. Total Capitalized Construction Basis (LTC)",
-            "10. Total Required Reserve (Seed Capital)"
-        ],
-        "Value": [
-            f"${const_bank_rent * units * 12:,.0f} / yr",
-            f"{const_bank_vac_pct*100:.1f}%",
-            f"{const_bank_opex_pct*100:.1f}% of EGI",
-            f"${cb_noi:,.0f} / yr",
-            f"{const_bank_dscr:.2f}x",
-            f"${cb_max_annual_ds:,.0f} / yr",
-            f"${bank_stressed_value:,.0f} (@ {const_bank_qual_rate*100:.2f}%)",
-            f"${max_bank_loan_dscr_ltv:,.0f}",
-            f"${total_construction_basis:,.0f}",
-            f"${seed_capital:,.0f}"
-        ]
-    }
+    if const_bank_val_mode == "DSCR Stress Test":
+        st.caption("The bank determines an implied asset value based on their DSCR test, then applies their LTV constraint.")
+        stress_test_data = {
+            "Bank Underwriting Step": [
+                "1. Gross Potential Rent (Bank Model)", "2. Less: Bank Vacancy Rate", "3. Less: Bank Operating Expenses (OpEx)",
+                "4. Bank Qualified Net Operating Income (NOI)", "5. Target Construction DSCR Constraint", "6. Maximum Allowed Annual Debt Service",
+                "7. Bank Implied Asset Value (Refi Stress Test)", f"8. Max Capped Loan Proceeds ({const_ltv*100:.1f}% LTV)",
+                "9. Total Capitalized Construction Basis (LTC)", "10. Total Required Reserve (Seed Capital)"
+            ],
+            "Value": [
+                f"${cb_gross_annual_rent:,.0f} / yr", f"{const_bank_vac_pct*100:.1f}%", f"{const_bank_opex_pct*100:.1f}% of EGI",
+                f"${cb_noi:,.0f} / yr", f"{const_bank_dscr:.2f}x", f"${cb_max_annual_ds:,.0f} / yr",
+                f"${bank_stressed_value:,.0f} (@ {const_bank_qual_rate*100:.2f}%)", f"${max_bank_loan_dscr_ltv:,.0f}",
+                f"${total_construction_basis:,.0f}", f"${seed_capital:,.0f}"
+            ]
+        }
+    else:
+        st.caption("The bank determines an implied asset value based on a Gross Rent Multiplier (GRM), then applies their LTV constraint.")
+        stress_test_data = {
+            "Bank Underwriting Step": [
+                "1. Gross Potential Rent (Bank Model)", "2. Bank Underwriting GRM", "3. Bank Implied Asset Value",
+                f"4. Max Capped Loan Proceeds ({const_ltv*100:.1f}% LTV)", "5. Total Capitalized Construction Basis (LTC)",
+                "6. Total Required Reserve (Seed Capital)"
+            ],
+            "Value": [
+                f"${cb_gross_annual_rent:,.0f} / yr", f"{const_bank_grm:.1f}x", f"${bank_stressed_value:,.0f}",
+                f"${max_bank_loan_dscr_ltv:,.0f}", f"${total_construction_basis:,.0f}", f"${seed_capital:,.0f}"
+            ]
+        }
     st.dataframe(pd.DataFrame(stress_test_data), hide_index=True, use_container_width=True)
 
     if actual_const_loan < normal_const_loan:
-        st.error(f"**DSCR Constraint Active:** The bank's stress test limits the loan to **${actual_const_loan:,.0f}**. Compared to your Total Construction Basis of **${total_construction_basis:,.0f}**, you must bring **${seed_capital:,.0f}** in Day-1 Seed Capital (Reserves).")
+        st.error(f"**Constraint Active:** The bank's limits cap the loan to **${actual_const_loan:,.0f}**. Compared to your Total Construction Basis of **${total_construction_basis:,.0f}**, you must bring **${seed_capital:,.0f}** in Day-1 Seed Capital (Reserves).")
     else:
-        st.success(f"**Loan Unconstrained by DSCR:** Your qualifying DSCR limit is higher than your requested LTC. The bank will fund **${actual_const_loan:,.0f}**. You must fund the remaining balance of the Total Cost Basis, requiring **${seed_capital:,.0f}** in Day-1 Seed Capital.")
+        st.success(f"**Loan Unconstrained:** Your qualifying limit is higher than your requested LTC. The bank will fund **${actual_const_loan:,.0f}**. You must fund the remaining balance of the Total Cost Basis, requiring **${seed_capital:,.0f}** in Day-1 Seed Capital.")
     st.divider()
 
     # --- LEDGER & CAP STACK ---
@@ -812,15 +830,21 @@ with tab_main:
         pdf.ln(5)
 
         pdf.set_font("Arial", 'B', 12)
-        pdf.cell(0, 8, " 2. Const. Bank DSCR Limits & Loan Cap", ln=1, fill=True)
+        pdf.cell(0, 8, " 2. Const. Bank Limits & Loan Cap", ln=1, fill=True)
         pdf.set_font("Arial", '', 10)
-        pdf.cell(100, 7, "Bank Assumed Rent & Target DSCR:", 0, 0)
-        pdf.cell(90, 7, f"${const_bank_rent:,.0f}/mo | {const_bank_dscr:.2f}x DSCR", 0, 1, 'R')
-        pdf.cell(100, 7, "Bank OpEx & Vacancy Deductions:", 0, 0)
-        pdf.cell(90, 7, f"{const_bank_opex_pct*100:.1f}% OpEx | {const_bank_vac_pct*100:.1f}% Vac", 0, 1, 'R')
         
-        pdf.cell(100, 7, "Bank Implied Asset Value (Refi Stress Test):", 0, 0)
-        pdf.cell(90, 7, f"${bank_stressed_value:,.0f}", 0, 1, 'R')
+        if const_bank_val_mode == "DSCR Stress Test":
+            pdf.cell(100, 7, "Bank Assumed Rent & Target DSCR:", 0, 0)
+            pdf.cell(90, 7, f"${const_bank_rent:,.0f}/mo | {const_bank_dscr:.2f}x DSCR", 0, 1, 'R')
+            pdf.cell(100, 7, "Bank OpEx & Vacancy Deductions:", 0, 0)
+            pdf.cell(90, 7, f"{const_bank_opex_pct*100:.1f}% OpEx | {const_bank_vac_pct*100:.1f}% Vac", 0, 1, 'R')
+            pdf.cell(100, 7, "Bank Implied Asset Value (Refi Stress Test):", 0, 0)
+            pdf.cell(90, 7, f"${bank_stressed_value:,.0f}", 0, 1, 'R')
+        else:
+            pdf.cell(100, 7, "Bank Assumed Rent & Target GRM:", 0, 0)
+            pdf.cell(90, 7, f"${const_bank_rent:,.0f}/mo | {const_bank_grm:.1f}x GRM", 0, 1, 'R')
+            pdf.cell(100, 7, "Bank Implied Asset Value (GRM Stress Test):", 0, 0)
+            pdf.cell(90, 7, f"${bank_stressed_value:,.0f}", 0, 1, 'R')
         
         pdf.set_font("Arial", 'B', 10)
         pdf.cell(100, 7, f"Max Capped Loan Proceeds ({const_ltv*100:.1f}% LTV):", 0, 0)
