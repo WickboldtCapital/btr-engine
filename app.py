@@ -11,10 +11,8 @@ from datetime import datetime
 st.set_page_config(page_title="Wickboldt Capital | BTR Pro Forma Engine", layout="wide")
 
 # ==========================================
-# --- SMART DEFAULTS SYSTEM ---
+# --- MASTER DEFAULTS DICTIONARY ---
 # ==========================================
-DEFAULT_FILE = "global_defaults.json"
-
 HARDCODED_DRIVERS = {
     "units": 1,
     "sqft": 1173,
@@ -83,18 +81,7 @@ HARDCODED_DRIVERS = {
     "comp_storage_sf": 0
 }
 
-def load_defaults():
-    drivers = HARDCODED_DRIVERS.copy()
-    if os.path.exists(DEFAULT_FILE):
-        try:
-            with open(DEFAULT_FILE, "r") as f:
-                saved = json.load(f)
-                drivers.update(saved)
-        except Exception:
-            pass
-    return drivers
-
-GLOBAL_DRIVERS = load_defaults()
+GLOBAL_DRIVERS = HARDCODED_DRIVERS.copy()
 for key, value in GLOBAL_DRIVERS.items():
     if key not in st.session_state:
         st.session_state[key] = value
@@ -233,16 +220,17 @@ with st.sidebar.container():
     st.subheader("8. Const. Lender Limits")
     st.number_input("Bank Underwriting Rent ($)", min_value=0, step=50, format="%d", key="const_bank_rent")
     st.slider("Bank Underwriting LTV (%)", min_value=50.0, max_value=100.0, step=5.0, key="const_bank_ltv_pct")
+    
     st.radio("Bank Valuation Method", ["Gross Rent Multiplier (GRM)", "DSCR Stress Test"], key="const_bank_val_mode")
     
-    if st.session_state.const_bank_val_mode == "DSCR Stress Test":
+    if st.session_state.const_bank_val_mode == "Gross Rent Multiplier (GRM)":
+        st.number_input("Bank Underwriting GRM", min_value=4.0, max_value=25.0, value=float(GLOBAL_DRIVERS.get("const_bank_grm", 10.0)), step=0.1, key="const_bank_grm")
+    else:
         st.slider("Bank Underwriting Vacancy (%)", min_value=0.0, max_value=15.0, step=1.0, key="const_bank_vac_pct")
         st.slider("Bank Underwriting OpEx (%)", min_value=15.0, max_value=50.0, step=1.0, key="const_bank_opex_pct")
         st.number_input("Bank Target DSCR", min_value=1.0, max_value=1.5, value=float(GLOBAL_DRIVERS.get("const_bank_dscr", 1.20)), step=0.05, key="const_bank_dscr")
         st.slider("Bank Qualifying Rate (%)", min_value=4.0, max_value=14.0, step=0.25, key="const_bank_qual_rate_pct")
         st.selectbox("Bank Amortization (Years)", [15, 20, 25, 30], key="const_bank_amort_yrs")
-    else:
-        st.number_input("Bank Underwriting GRM", min_value=4.0, max_value=25.0, value=float(GLOBAL_DRIVERS.get("const_bank_grm", 10.0)), step=0.1, key="const_bank_grm")
 
 with st.sidebar.container():
     st.subheader("PDF Export Options")
@@ -495,526 +483,502 @@ st.title("🏗️ BTR Pro Forma Engine")
 st.markdown("### Wickboldt Capital — *Today's Foundation. Tomorrow's Legacy.*")
 st.divider()
 
-tab_main, tab_admin = st.tabs(["📊 Main Underwriting Dashboard", "⚙️ Admin Access"])
+# --- PROJECT INFO ---
+st.markdown("### 📋 Project Information")
+top_col1, top_col2 = st.columns([2, 2])
+project_name = top_col1.text_input("Project Title", placeholder="e.g. Phase 1 - 24-Lot Build-to-Rent")
+project_address = top_col2.text_input("Project Address", placeholder="e.g. Rogers Moore Parkway, Hammond, LA")
+report_date = datetime.now().strftime("%B %d, %Y")
 
-# ==========================================
-# --- ADMIN TAB (Save Defaults) ---
-# ==========================================
-with tab_admin:
-    st.markdown("### 🔒 Master Underwriting Settings")
-    st.info("The left sidebar controls your live deal parameters. If you have customized the sidebar and want those settings to automatically load as the new baseline every time you open this app, enter your PIN and save them below.")
+sub_col1, sub_col2, sub_col3 = st.columns([1, 1, 2])
+project_beds = sub_col1.number_input("Beds per Unit", min_value=1, value=3, step=1)
+project_baths = sub_col2.number_input("Baths per Unit", min_value=1.0, value=2.0, step=0.5)
+download_placeholder = sub_col3.empty()
+st.divider()
+
+ui_top_metrics = st.container()
+ui_op_metrics = st.container()
+ui_decision_dashboard = st.container()
+st.divider()
+
+# --- COMP AUDIT DASHBOARD ---
+st.markdown("### 🔍 Market Comp Valuation Audit")
+
+if st.session_state.comp_address:
+    st.caption(f"📍 **Active Comp:** {st.session_state.comp_address} | Isolated Heated Shell Rate: **${isolated_heated_rate:.2f} / SF** | Implied Aux Rate: **${comp_aux_rate_sf:.2f} / SF**")
+else:
+    st.caption(f"📊 Isolated Heated Shell Rate: **${isolated_heated_rate:.2f} / SF** | Implied Aux Rate: **${comp_aux_rate_sf:.2f} / SF**")
+
+with st.expander("🧮 View Comp Math Audit & Raw API Data", expanded=False):
+    st.markdown("**1. Raw Retail Heated Rate (Unadjusted)**")
+    st.code(f"${comp_price:,.0f} ÷ {comp_heated_sf:,.0f} SF = ${raw_comp_price_sf:.2f} / SF")
     
-    admin_pwd = st.text_input("Enter Admin PIN", type="password")
-    
-    if admin_pwd == "admin":
-        st.success("Access Granted.")
-        if st.button("💾 Save Current Sidebar Settings as Global Defaults", type="primary"):
-            new_defaults = {k: st.session_state[k] for k in HARDCODED_DRIVERS.keys() if k in st.session_state}
-            with open(DEFAULT_FILE, "w") as f:
-                json.dump(new_defaults, f)
-            st.success("Success! Your current sidebar settings have been saved. They will now load automatically as defaults.")
-
-
-# ==========================================
-# --- MAIN TAB ---
-# ==========================================
-with tab_main:
-    # --- PROJECT INFO ---
-    st.markdown("### 📋 Project Information")
-    top_col1, top_col2 = st.columns([2, 2])
-    project_name = top_col1.text_input("Project Title", placeholder="e.g. Phase 1 - 24-Lot Build-to-Rent")
-    project_address = top_col2.text_input("Project Address", placeholder="e.g. Rogers Moore Parkway, Hammond, LA")
-    report_date = datetime.now().strftime("%B %d, %Y")
-
-    sub_col1, sub_col2, sub_col3 = st.columns([1, 1, 2])
-    project_beds = sub_col1.number_input("Beds per Unit", min_value=1, value=3, step=1)
-    project_baths = sub_col2.number_input("Baths per Unit", min_value=1.0, value=2.0, step=0.5)
-    download_placeholder = sub_col3.empty()
-    st.divider()
-
-    ui_top_metrics = st.container()
-    ui_op_metrics = st.container()
-    ui_decision_dashboard = st.container()
-    st.divider()
-
-    # --- COMP AUDIT DASHBOARD ---
-    st.markdown("### 🔍 Market Comp Valuation Audit")
-    
-    if st.session_state.comp_address:
-        st.caption(f"📍 **Active Comp:** {st.session_state.comp_address} | Isolated Heated Shell Rate: **${isolated_heated_rate:.2f} / SF** | Implied Aux Rate: **${comp_aux_rate_sf:.2f} / SF**")
+    if aux_cost_mode == "Percentage of Heated Rate (%)":
+        st.markdown(f"**2. True Isolated Heated Shell Rate (Aux valued at {aux_ratio*100:.0f}% of Heated Shell)**")
+        st.code(f"Effective Heated SF: {comp_heated_sf:,.0f} + ({comp_aux_sqft:,.0f} Aux SF × {aux_ratio:.2f}) = {effective_comp_heated_sf:,.1f} SF\n${comp_price:,.0f} ÷ {effective_comp_heated_sf:,.1f} SF = ${isolated_heated_rate:.2f} / SF (Aux Rate: ${comp_aux_rate_sf:.2f} / SF)")
     else:
-        st.caption(f"📊 Isolated Heated Shell Rate: **${isolated_heated_rate:.2f} / SF** | Implied Aux Rate: **${comp_aux_rate_sf:.2f} / SF**")
-
-    with st.expander("🧮 View Comp Math Audit & Raw API Data", expanded=False):
-        st.markdown("**1. Raw Retail Heated Rate (Unadjusted)**")
-        st.code(f"${comp_price:,.0f} ÷ {comp_heated_sf:,.0f} SF = ${raw_comp_price_sf:.2f} / SF")
+        st.markdown(f"**2. True Isolated Heated Shell Rate (Fixed Aux Value: ${aux_fixed_cost_sf:.2f} / SF)**")
+        st.code(f"(${comp_price:,.0f} - ${comp_aux_value:,.0f} Aux) ÷ {comp_heated_sf:,.0f} SF = ${isolated_heated_rate:.2f} / SF")
         
-        if aux_cost_mode == "Percentage of Heated Rate (%)":
-            st.markdown(f"**2. True Isolated Heated Shell Rate (Aux valued at {aux_ratio*100:.0f}% of Heated Shell)**")
-            st.code(f"Effective Heated SF: {comp_heated_sf:,.0f} + ({comp_aux_sqft:,.0f} Aux SF × {aux_ratio:.2f}) = {effective_comp_heated_sf:,.1f} SF\n${comp_price:,.0f} ÷ {effective_comp_heated_sf:,.1f} SF = ${isolated_heated_rate:.2f} / SF (Aux Rate: ${comp_aux_rate_sf:.2f} / SF)")
-        else:
-            st.markdown(f"**2. True Isolated Heated Shell Rate (Fixed Aux Value: ${aux_fixed_cost_sf:.2f} / SF)**")
-            st.code(f"(${comp_price:,.0f} - ${comp_aux_value:,.0f} Aux) ÷ {comp_heated_sf:,.0f} SF = ${isolated_heated_rate:.2f} / SF")
-            
-        if st.session_state.raw_api_data and st.session_state.get("comp_entry_mode") == "RentCast Live API Fetch":
-            st.json(st.session_state.raw_api_data)
-    st.divider()
+    if st.session_state.raw_api_data and st.session_state.get("comp_entry_mode") == "RentCast Live API Fetch":
+        st.json(st.session_state.raw_api_data)
+st.divider()
 
-    # --- GRANULAR BUILDER ---
-    st.markdown("### 🧱 Granular Direct Hard Cost Buildup")
-    granular_mode = st.radio("Buildup Entry Mode", ["Auto-Proportional (Linked to Master Model)", "Manual Custom Entry (Bottom-Up)"], horizontal=True)
+# --- GRANULAR BUILDER ---
+st.markdown("### 🧱 Granular Direct Hard Cost Buildup")
+granular_mode = st.radio("Buildup Entry Mode", ["Auto-Proportional (Linked to Master Model)", "Manual Custom Entry (Bottom-Up)"], horizontal=True)
 
-    raw_heated_divs = [
-        ("DIVISION 1: FOUNDATION & CONCRETE", 9.50, True, ""),
-        ("DIVISION 2: FRAMING & STRUCTURAL SHELL", 18.50, True, ""),
-        ("DIVISION 3: EXTERIOR ENVELOPE & ROOFING", 10.00, True, ""),
-        ("DIVISION 4: MECHANICAL, ELECTRICAL, PLUMBING", 15.50, True, ""),
-        ("DIVISION 5: INSULATION & DRYWALL", 6.50, True, ""),
-        ("DIVISION 6: INTERIOR FINISHES & CABINETS", 10.50, True, ""),
-        ("DIVISION 7: APPLIANCES & SPECIALTIES", 1.50, True, ""),
-        ("DIVISION 8: EXTERIOR FLATWORK & SITE", 2.00, True, "")
-    ]
-    raw_struct_divs = [("AUXILIARY: CARPORT / GARAGE", 35.00, True)]
-    pdf_granular_data = []
+raw_heated_divs = [
+    ("DIVISION 1: FOUNDATION & CONCRETE", 9.50, True, ""),
+    ("DIVISION 2: FRAMING & STRUCTURAL SHELL", 18.50, True, ""),
+    ("DIVISION 3: EXTERIOR ENVELOPE & ROOFING", 10.00, True, ""),
+    ("DIVISION 4: MECHANICAL, ELECTRICAL, PLUMBING", 15.50, True, ""),
+    ("DIVISION 5: INSULATION & DRYWALL", 6.50, True, ""),
+    ("DIVISION 6: INTERIOR FINISHES & CABINETS", 10.50, True, ""),
+    ("DIVISION 7: APPLIANCES & SPECIALTIES", 1.50, True, ""),
+    ("DIVISION 8: EXTERIOR FLATWORK & SITE", 2.00, True, "")
+]
+raw_struct_divs = [("AUXILIARY: CARPORT / GARAGE", 35.00, True)]
+pdf_granular_data = []
 
-    if granular_mode == "Auto-Proportional (Linked to Master Model)":
-        st.markdown(f"#### 1. Heated Living Area ({sqft} SF @ ${direct_cost_sf:.2f} / SF)")
-        h_data = {"Division / Trade Level": [], "Live Cost / SF": [], "Per Unit Cost": []}
-        for name, base_val, is_header, scope in raw_heated_divs:
-            live_sf = direct_cost_sf * (base_val / 74.0)
-            h_data["Division / Trade Level"].append(name)
-            h_data["Live Cost / SF"].append(f"${live_sf:.2f}")
-            h_data["Per Unit Cost"].append(f"${live_sf * sqft:,.0f}")
-            pdf_granular_data.append((name, live_sf, live_sf * sqft, live_sf * sqft * units, True))
-        st.dataframe(pd.DataFrame(h_data), hide_index=True, use_container_width=True)
-        
-        st.markdown(f"#### 2. {st.session_state.structure_type} Auxiliary ({struct_sqft} SF @ ${struct_cost_sf:.2f} / SF)")
-        s_data = {"Component Level": [], "Live Cost / SF": [], "Per Unit Cost": []}
-        for name, base_val, is_header in raw_struct_divs:
-            live_sf = struct_cost_sf * (base_val / 35.0)
-            s_data["Component Level"].append(name)
-            s_data["Live Cost / SF"].append(f"${live_sf:.2f}")
-            s_data["Per Unit Cost"].append(f"${live_sf * struct_sqft:,.0f}")
-        st.dataframe(pd.DataFrame(s_data), hide_index=True, use_container_width=True)
-    else:
-        st.markdown(f"#### 1. Heated Living Area ({sqft} SF)")
-        hl_heated = [{"Division / Trade Level": name, "Cost / SF": direct_cost_sf * (base/74.0)} for name, base, is_h, scope in raw_heated_divs]
-        edited_h = st.data_editor(pd.DataFrame(hl_heated), column_config={"Division / Trade Level": st.column_config.TextColumn(disabled=True), "Cost / SF": st.column_config.NumberColumn(format="$%.2f", min_value=0.0, step=0.5)}, hide_index=True, use_container_width=True)
-        direct_cost_sf = edited_h["Cost / SF"].sum()
-        for index, row in edited_h.iterrows():
-            live_sf = row["Cost / SF"]
-            pdf_granular_data.append((row["Division / Trade Level"], live_sf, live_sf * sqft, live_sf * sqft * units, True))
-        
-        st.markdown(f"#### 2. {st.session_state.structure_type} Auxiliary ({struct_sqft} SF)")
-        hl_struct = [{"Component Level": name, "Cost / SF": struct_cost_sf * (base/35.0)} for name, base, is_h in raw_struct_divs]
-        edited_s = st.data_editor(pd.DataFrame(hl_struct), column_config={"Component Level": st.column_config.TextColumn(disabled=True), "Cost / SF": st.column_config.NumberColumn(format="$%.2f", min_value=0.0, step=0.5)}, hide_index=True, use_container_width=True)
-        struct_cost_sf = edited_s["Cost / SF"].sum()
+if granular_mode == "Auto-Proportional (Linked to Master Model)":
+    st.markdown(f"#### 1. Heated Living Area ({sqft} SF @ ${direct_cost_sf:.2f} / SF)")
+    h_data = {"Division / Trade Level": [], "Live Cost / SF": [], "Per Unit Cost": []}
+    for name, base_val, is_header, scope in raw_heated_divs:
+        live_sf = direct_cost_sf * (base_val / 74.0)
+        h_data["Division / Trade Level"].append(name)
+        h_data["Live Cost / SF"].append(f"${live_sf:.2f}")
+        h_data["Per Unit Cost"].append(f"${live_sf * sqft:,.0f}")
+        pdf_granular_data.append((name, live_sf, live_sf * sqft, live_sf * sqft * units, True))
+    st.dataframe(pd.DataFrame(h_data), hide_index=True, use_container_width=True)
+    
+    st.markdown(f"#### 2. {st.session_state.structure_type} Auxiliary ({struct_sqft} SF @ ${struct_cost_sf:.2f} / SF)")
+    s_data = {"Component Level": [], "Live Cost / SF": [], "Per Unit Cost": []}
+    for name, base_val, is_header in raw_struct_divs:
+        live_sf = struct_cost_sf * (base_val / 35.0)
+        s_data["Component Level"].append(name)
+        s_data["Live Cost / SF"].append(f"${live_sf:.2f}")
+        s_data["Per Unit Cost"].append(f"${live_sf * struct_sqft:,.0f}")
+    st.dataframe(pd.DataFrame(s_data), hide_index=True, use_container_width=True)
+else:
+    st.markdown(f"#### 1. Heated Living Area ({sqft} SF)")
+    hl_heated = [{"Division / Trade Level": name, "Cost / SF": direct_cost_sf * (base/74.0)} for name, base, is_h, scope in raw_heated_divs]
+    edited_h = st.data_editor(pd.DataFrame(hl_heated), column_config={"Division / Trade Level": st.column_config.TextColumn(disabled=True), "Cost / SF": st.column_config.NumberColumn(format="$%.2f", min_value=0.0, step=0.5)}, hide_index=True, use_container_width=True)
+    direct_cost_sf = edited_h["Cost / SF"].sum()
+    for index, row in edited_h.iterrows():
+        live_sf = row["Cost / SF"]
+        pdf_granular_data.append((row["Division / Trade Level"], live_sf, live_sf * sqft, live_sf * sqft * units, True))
+    
+    st.markdown(f"#### 2. {st.session_state.structure_type} Auxiliary ({struct_sqft} SF)")
+    hl_struct = [{"Component Level": name, "Cost / SF": struct_cost_sf * (base/35.0)} for name, base, is_h in raw_struct_divs]
+    edited_s = st.data_editor(pd.DataFrame(hl_struct), column_config={"Component Level": st.column_config.TextColumn(disabled=True), "Cost / SF": st.column_config.NumberColumn(format="$%.2f", min_value=0.0, step=0.5)}, hide_index=True, use_container_width=True)
+    struct_cost_sf = edited_s["Cost / SF"].sum()
 
-    st.markdown(f"#### 3. Auxiliary, Foundation & Outdoor Living")
-    p_data = {
-        "Component": ["Front Porch", "Back Porch", "Storage Room", "Addit. Foundation / Elevation", "TOTAL AUX/OUTDOOR"],
-        "Area (SF)": [f"{front_porch_sqft} SF", f"{back_porch_sqft} SF", f"{storage_sqft} SF", "Site Specific", "Total"],
-        "Cost / SF": [f"${front_porch_cost_sf:.2f}", f"${back_porch_cost_sf:.2f}", f"${storage_cost_sf:.2f}", "-", "-"],
-        "Total Amount": [f"${front_porch_cost:,.0f}", f"${back_porch_cost:,.0f}", f"${storage_cost:,.0f}", f"${additional_foundation_cost:,.0f}", f"${our_aux_cost_total:,.0f}"]
+st.markdown(f"#### 3. Auxiliary, Foundation & Outdoor Living")
+p_data = {
+    "Component": ["Front Porch", "Back Porch", "Storage Room", "Addit. Foundation / Elevation", "TOTAL AUX/OUTDOOR"],
+    "Area (SF)": [f"{front_porch_sqft} SF", f"{back_porch_sqft} SF", f"{storage_sqft} SF", "Site Specific", "Total"],
+    "Cost / SF": [f"${front_porch_cost_sf:.2f}", f"${back_porch_cost_sf:.2f}", f"${storage_cost_sf:.2f}", "-", "-"],
+    "Total Amount": [f"${front_porch_cost:,.0f}", f"${back_porch_cost:,.0f}", f"${storage_cost:,.0f}", f"${additional_foundation_cost:,.0f}", f"${our_aux_cost_total:,.0f}"]
+}
+st.dataframe(pd.DataFrame(p_data), hide_index=True, use_container_width=True)
+st.divider()
+
+# --- BANK STRESS TEST BREAKDOWN ---
+st.markdown("### 🏦 Construction Lender Loan Cap")
+
+if const_bank_val_mode == "DSCR Stress Test":
+    st.caption("The bank determines the implied asset value based on their DSCR test, applies their LTV to get the Loan Value, and subtracts that from the Total Basis to find your required Seed Capital.")
+    stress_test_data = {
+        "Bank Underwriting Step": [
+            "1. Gross Potential Rent (Bank Model)",
+            "2. Less: Bank Vacancy & OpEx Deductions",
+            "3. Bank Qualified Net Operating Income (NOI)",
+            "4. Target Construction DSCR Constraint",
+            "5. Bank Implied Asset Value (Value of the House)",
+            f"6. Const. Lender Loan Value ({const_bank_ltv*100:.1f}% Bank LTV)",
+            "7. Total Capitalized Construction Basis",
+            "8. Required Seed Capital Reserve (Basis - Loan Value)"
+        ],
+        "Value": [
+            f"${cb_gross_annual_rent:,.0f} / yr",
+            f"-${cb_gross_annual_rent - cb_noi:,.0f} / yr",
+            f"${cb_noi:,.0f} / yr",
+            f"{const_bank_dscr:.2f}x",
+            f"${bank_stressed_value:,.0f}",
+            f"${actual_const_loan:,.0f}",
+            f"${total_construction_basis:,.0f}",
+            f"${seed_capital:,.0f}"
+        ]
     }
-    st.dataframe(pd.DataFrame(p_data), hide_index=True, use_container_width=True)
-    st.divider()
+else:
+    st.caption("The bank determines the implied asset value based on a Gross Rent Multiplier (GRM), applies their LTV to get the Loan Value, and subtracts that from the Total Basis to find your required Seed Capital.")
+    stress_test_data = {
+        "Bank Underwriting Step": [
+            "1. Gross Potential Rent (Bank Model)",
+            "2. Bank Underwriting GRM",
+            "3. Bank Implied Asset Value (Value of the House)",
+            f"4. Const. Lender Loan Value ({const_bank_ltv*100:.1f}% Bank LTV)",
+            "5. Total Capitalized Construction Basis",
+            "6. Required Seed Capital Reserve (Basis - Loan Value)"
+        ],
+        "Value": [
+            f"${cb_gross_annual_rent:,.0f} / yr",
+            f"{const_bank_grm:.1f}x",
+            f"${bank_stressed_value:,.0f}",
+            f"${actual_const_loan:,.0f}",
+            f"${total_construction_basis:,.0f}",
+            f"${seed_capital:,.0f}"
+        ]
+    }
+st.dataframe(pd.DataFrame(stress_test_data), hide_index=True, use_container_width=True)
+
+if seed_capital > 0:
+    st.warning(f"**Seed Capital Required:** The bank will fund **${actual_const_loan:,.0f}** based on the appraised value. Your Total Construction Basis is **${total_construction_basis:,.0f}**. You must bring **${seed_capital:,.0f}** in Day-1 Seed Capital (Reserves).")
+else:
+    st.success(f"**Fully Funded:** The bank's loan value of **${actual_const_loan:,.0f}** covers your entire construction basis. No Day-1 Seed Capital is required.")
+st.divider()
+
+# --- LEDGER & CAP STACK ---
+st.markdown("### 📊 Detailed Construction Cost & Capital Ledger")
+ledger_mode = st.radio("Ledger Input Mode", ["Sync with Global Parameters", "Manual Ledger Override"], horizontal=True)
+
+st.markdown("#### 1. Direct Hard Costs (Driven by Granular Builder)")
+direct_data = {
+    "Cost Category": ["Heated Living Area", f"{st.session_state.structure_type} Auxiliary", "Front Porch", "Back Porch", "Storage Room", "Addit. Foundation / Elevation", "TOTAL DIRECT HARD COSTS"],
+    "Area / Metric": [f"{sqft:,.0f} SF", f"{struct_sqft:,.0f} SF", f"{front_porch_sqft:,.0f} SF", f"{back_porch_sqft:,.0f} SF", f"{storage_sqft:,.0f} SF", "Site Specific", f"{total_under_roof_sqft:,.0f} SF Under Roof"],
+    "Cost / SF": [f"${direct_cost_sf:.2f}", f"${struct_cost_sf:.2f}", f"${front_porch_cost_sf:.2f}", f"${back_porch_cost_sf:.2f}", f"${storage_cost_sf:.2f}", "-", f"${blended_cost_per_sf:.2f} (Blended)"],
+    "Total Amount ($)": [heated_hard_cost * units, struct_total_cost * units, front_porch_cost * units, back_porch_cost * units, storage_cost * units, additional_foundation_cost * units, total_hard_cost]
+}
+st.dataframe(pd.DataFrame(direct_data).style.format({"Total Amount ($)": "${:,.0f}"}), hide_index=True, use_container_width=True)
+
+st.markdown("#### 2. Indirect, Land & Capital Costs")
+indirects_data = [
+    {"Cost Category": "General Conditions", "Metric / Basis": "5.0% of Direct", "Amount ($)": default_gcond},
+    {"Cost Category": "GC Management Fee", "Metric / Basis": "Flat Fee" if gc_fee_mode == "Consolidated Flat Fee ($ Total)" else f"{gc_fee_pct*100:.1f}% Basis", "Amount ($)": default_gc_fee},
+    {"Cost Category": "BTR Buying Power Premium", "Metric / Basis": "5.0% of Direct", "Amount ($)": default_premium},
+    {"Cost Category": "Land Acquisition Basis", "Metric / Basis": f"${land_basis:,.0f} / Lot", "Amount ($)": total_land_default},
+    {"Cost Category": "Soft Costs & Permitting", "Metric / Basis": f"${default_soft_cost_per_unit:,.0f} / Unit", "Amount ($)": total_soft_default},
+    {"Cost Category": "Construction Loan Closing Fee", "Metric / Basis": "Flat Fee", "Amount ($)": const_closing_fee},
+    {"Cost Category": f"Const. Loan Interest ({build_months} Mos)", "Metric / Basis": f"{avg_draw_pct*100:.0f}% Avg Draw", "Amount ($)": carry_int_base},
+    {"Cost Category": "Takeout Refinance Closing Fee", "Metric / Basis": "Flat Fee", "Amount ($)": refi_closing_fee},
+    {"Cost Category": "Rate Buydown Points Cost", "Metric / Basis": f"{buydown_pts} Points", "Amount ($)": default_buydown_cost}
+]
+
+if ledger_mode == "Manual Ledger Override":
+    st.caption("✏️ **Manual Mode Active:** Edit the amounts in the table below.")
+    edited_df = st.data_editor(pd.DataFrame(indirects_data), column_config={"Amount ($)": st.column_config.NumberColumn(format="$%.2f", min_value=0.0)}, disabled=["Cost Category", "Metric / Basis"], hide_index=True, use_container_width=True)
+else:
+    st.dataframe(pd.DataFrame(indirects_data).style.format({"Amount ($)": "${:,.0f}"}), hide_index=True, use_container_width=True)
+
+st.markdown(f"### 🎯 TOTAL PROJECT BASIS: **${total_project_basis:,.0f}** *(${total_project_basis/units:,.0f} / Door)*")
+st.divider()
+
+# ==========================================
+# --- POPULATE INVISIBLE DASHBOARDS ---
+# ==========================================
+with ui_top_metrics:
+    st.markdown("### 🏗️ Project Capital & Valuation Metrics")
+    col1, col2, col3, col4 = st.columns(4)
     
-    # --- BANK STRESS TEST BREAKDOWN ---
-    st.markdown("### 🏦 Construction Lender Loan Cap")
+    # Metric 1: Takeout Loan vs Total Project Basis
+    refi_vs_basis = loan_total - total_project_basis
+    col1.metric("Takeout Loan Proceeds", f"${loan_total:,.0f}", f"{refi_vs_basis:+,.0f} vs Project Basis", delta_color="normal")
+    
+    # Metric 2: Day-1 Seed Capital Status
+    if seed_capital > 0:
+        col2.metric("Day-1 Seed Capital", f"${seed_capital:,.0f}", "-Requires Cash Reserves", delta_color="normal")
+    else:
+        col2.metric("Day-1 Seed Capital", "$0", "Fully Funded", delta_color="normal")
+        
+    # Metric 3 & 4
+    if cash_surplus >= 0:
+        deal_health_color = "normal" 
+        surplus_title = "Tax-Free Cash Surplus"
+        surplus_delta = "Capital Recovered"
+    else:
+        deal_health_color = "inverse" 
+        surplus_title = "Trapped Seed Capital"
+        surplus_delta = "Loss at Closing"
+        
+    col3.metric("Under-Roof Blended Cost", f"${blended_cost_per_sf:.2f} / SF", f"{total_under_roof_sqft:,} Total SF Under Roof")
+    col4.metric(surplus_title, f"${cash_surplus:,.0f}", surplus_delta, delta_color=deal_health_color)
+
+with ui_op_metrics:
+    st.markdown("### 🏢 Operating & DSCR Metrics")
+    op1, op2, op3, op4 = st.columns(4)
+    arv_label = "Derived Unit ARV (Price/SF)" if appraisal_mode == "Sales Comp (Price/SF)" else "Derived Unit ARV (GRM)"
+    op1.metric(arv_label, f"${arv_per_unit:,.0f}", f"${total_arv:,.0f} Total ARV")
+    op2.metric("Actual DSCR Rate", f"{actual_dscr:.2f}x", f"Target: {target_dscr_rate:.2f}x", delta_color="normal" if actual_dscr >= target_dscr_rate else "inverse")
+    op3.metric("Monthly Cash Flow", f"${monthly_cash_flow:,.0f} /mo", f"${monthly_cash_flow*12:,.0f} Annual", delta_color="normal" if monthly_cash_flow >= 0 else "inverse")
+    op4.metric("Monthly P&I Payment", f"${total_monthly_pi:,.0f} /mo", f"{refi_term_years}Yr @ {net_refi_rate*100:.3f}%")
+
+with ui_decision_dashboard:
+    st.markdown("### 🚦 Go/No-Go Investment Decision Dashboard")
+    dscr_pass = actual_dscr >= target_dscr_rate
+    cash_pass = cash_surplus >= 0
+    dscr_light = "🟢 GREEN LIGHT" if dscr_pass else "🔴 RED LIGHT"
+    cash_light = "🟢 GREEN LIGHT" if cash_pass else "🔴 RED LIGHT"
+
+    dash_col1, dash_col2, dash_col3 = st.columns(3)
+    dash_col1.metric("DSCR Underwriting Status", dscr_light, f"Actual: {actual_dscr:.2f}x (Target: {target_dscr_rate:.2f}x)", delta_color="normal" if dscr_pass else "inverse")
+    dash_col2.metric("Capital Recovery Status", cash_light, f"${cash_surplus:,.0f} at Refi Close", delta_color="normal" if cash_pass else "inverse")
+    dash_col3.metric("Day-1 Wealth Creation", f"${day1_wealth:,.0f}", f"${day1_wealth/units:,.0f} per door", delta_color="normal")
+
+
+# --- BOTTOM PERFORMANCE SECTIONS ---
+st.markdown("### 💸 Refinance Cash Waterfall & Day-1 Wealth")
+st.caption("This explicit Cash-Out Waterfall shows exactly how the Permanent Loan pays off the Construction phase at the title company, isolating your true Cash Surplus.")
+
+waterfall_data = {
+    "Refinance Closing Line Item": [
+        "(+) Permanent Takeout Loan Proceeds",
+        "(-) Construction Loan Payoff (Prin. & Int.)",
+        "(-) Refinance Closing Fees",
+        "(-) Rate Buydown Points Cost",
+        "= Net Cash Distributed to Sponsor at Closing",
+        "(-) Initial Sponsor Seed Capital Invested",
+        "= Final Tax-Free Cash Surplus / (Trapped Capital)"
+    ],
+    "Amount ($)": [
+        f"${loan_total:,.0f}",
+        f"-${actual_const_loan:,.0f}",
+        f"-${refi_closing_fee:,.0f}",
+        f"-${default_buydown_cost:,.0f}",
+        f"${net_cash_at_closing:,.0f}",
+        f"-${seed_capital:,.0f}",
+        f"${cash_surplus:,.0f}"
+    ]
+}
+st.dataframe(pd.DataFrame(waterfall_data), hide_index=True, use_container_width=True)
+
+wealth_data = {
+    "Pocket Component": ["Pocket 1: Active GC Fee Revenue", "Pocket 2: Tax-Free Cash Surplus at Close", "Pocket 3: Retained Asset Equity", "TOTAL DAY-1 CREATED VALUE"],
+    "Value ($)": [f"${default_gc_fee:,.0f}", f"${cash_surplus:,.0f}", f"${retained_equity:,.0f}", f"${day1_wealth:,.0f}"]
+}
+st.dataframe(pd.DataFrame(wealth_data), hide_index=True, use_container_width=True)
+st.divider()
+
+if cost_calc_mode in ["Reverse-Engineer from Appraisal", "Reverse-Engineer from Primary Comp"]:
+    st.markdown("### 🔄 Retail Comp & Appraisal Reverse-Engineering Breakdown")
+    
+    reference_price = arv_per_unit if cost_calc_mode == 'Reverse-Engineer from Appraisal' else comp_equivalent_arv
+    breakdown_data = {
+        "Cost Category": [
+            f"Baseline Reference Price (Comp / ARV)", "(-) Finished Lot Cost", "(-) Gross Margin (O&P)", 
+            "(-) Sales & Marketing", "(-) Soft Costs & Finance", "= Total Hard Cost Budget", 
+            "(-) Fixed Auxiliary & Elevation Costs", "= Available Budget for Heated Shell"
+        ],
+        "Value ($)": [
+            f"${reference_price:,.0f}", 
+            f"-${reference_price * lot_cost_pct:,.0f}", 
+            f"-${reference_price * margin_pct:,.0f}", 
+            f"-${reference_price * sales_pct:,.0f}", 
+            f"-${reference_price * finance_pct:,.0f}", 
+            f"${target_total_hard_cost:,.0f}", 
+            f"-${our_aux_cost_total:,.0f}", 
+            f"${target_heated_hard_cost:,.0f}"
+        ],
+        "Description": [
+            "Derived directly from Primary Comp Sale Price or Takeout Appraisal.",
+            "Raw land, engineering, road paving, wet/dry utility infrastructure.",
+            "Builder gross overhead and corporate net margin.",
+            "Realtor commissions, internal sales reps, buyer closing concessions.",
+            "Impact fees, plan design, municipal permits, and loan interest carry.",
+            "Total budget available for all physical construction.",
+            "Locked budget required for specific outdoor/auxiliary footprint and foundation elevation.",
+            f"Yields exactly ${direct_cost_sf:.2f} / SF across {sqft} Heated SF."
+        ]
+    }
+    st.dataframe(pd.DataFrame(breakdown_data), hide_index=True, use_container_width=True)
+    st.divider()
+
+st.markdown("### 🏢 Operating Performance Summary")
+dscr_summary_data = {
+    "Pro Forma Line Item": [
+        "Gross Potential Rent (GPR)", f"(-) Vacancy Loss @ {vacancy_rate*100:.1f}%", "= Effective Gross Income (EGI)", 
+        f"(-) Operating Expenses (OpEx) @ {opex_rate*100:.1f}%", "= Net Operating Income (NOI)", "(-) Total Debt Service (P&I)", "= Net Cash Flow",
+        "---", "Actual DSCR Rate", "Target Lender DSCR", "DSCR Variance"
+    ],
+    "Monthly": [
+        f"${total_gross_monthly_income:,.2f}", f"-${monthly_vacancy_loss:,.2f}", f"${annual_egi / 12:,.2f}", 
+        f"-${annual_opex / 12:,.2f}", f"${monthly_noi:,.2f}", f"-${total_monthly_pi:,.2f}", f"${monthly_cash_flow:,.2f}",
+        "---", f"{actual_dscr:.2f}x", f"{target_dscr_rate:.2f}x", f"{dscr_variance:+.2f}x"
+    ],
+    "Annual": [
+        f"${total_gross_monthly_income * 12:,.2f}", f"-${annual_vacancy_loss:,.2f}", f"${annual_egi:,.2f}", 
+        f"-${annual_opex / 12:,.2f}", f"${annual_noi:,.2f}", f"${annual_debt_service:,.2f}", f"${monthly_cash_flow * 12:,.2f}",
+        "---", f"{actual_dscr:.2f}x", f"{target_dscr_rate:.2f}x", f"{dscr_variance:+.2f}x"
+    ]
+}
+st.dataframe(pd.DataFrame(dscr_summary_data), hide_index=True, use_container_width=True)
+
+# --- PDF GENERATION ENGINE ---
+class EnterpriseReport(FPDF):
+    def header(self):
+        self.set_font('Arial', 'B', 16)
+        self.cell(0, 8, 'Wickboldt Capital | BTR Pro Forma Report', border=0, ln=1, align='C')
+        self.set_font('Arial', 'I', 10)
+        self.cell(0, 6, "Today's Foundation. Tomorrow's Legacy.", border=0, ln=1, align='C')
+        self.line(10, 25, 200, 25)
+        self.ln(10)
+
+    def footer(self):
+        self.set_y(-15)
+        self.set_font('Arial', 'I', 8)
+        self.cell(0, 10, f'Page {self.page_no()} | Prepared by: Stephen Wickboldt Jr. - Wickboldt Capital', 0, 0, 'C')
+
+def create_pdf(include_sublevels):
+    pdf = EnterpriseReport()
+    pdf.add_page()
+    
+    pdf.set_font("Arial", 'B', 12)
+    p_name = project_name if project_name else "Untitled Development"
+    p_address = project_address if project_address else "TBD"
+    pdf.cell(0, 6, f"Project: {p_name}", ln=1)
+    pdf.set_font("Arial", '', 10)
+    pdf.cell(0, 6, f"Address: {p_address}", ln=1)
+    pdf.cell(0, 6, f"Scale: {units} Unit(s) | {project_beds} Beds / {project_baths} Baths | Under-Roof: {total_under_roof_sqft:,} SF/Unit", ln=1)
+    pdf.cell(0, 6, f"Date: {report_date}", ln=1)
+    pdf.ln(5)
+
+    pdf.set_font("Arial", 'B', 12)
+    pdf.set_fill_color(220, 220, 220)
+    pdf.cell(0, 8, " 1. Executive Summary & Wealth Creation", ln=1, fill=True)
+    pdf.set_font("Arial", '', 10)
+    
+    pdf.cell(100, 7, "Total Project Basis:", 0, 0)
+    pdf.cell(90, 7, f"${total_project_basis:,.0f}", 0, 1, 'R')
+    pdf.cell(100, 7, "Total Appraised Value (ARV):", 0, 0)
+    pdf.cell(90, 7, f"${total_arv:,.0f}", 0, 1, 'R')
+    pdf.cell(100, 7, "Const. Loan Proceeds (Payoff):", 0, 0)
+    pdf.cell(90, 7, f"${actual_const_loan:,.0f}", 0, 1, 'R')
+    pdf.cell(100, 7, f"Takeout Loan Proceeds ({refi_ltv*100:.0f}% LTV):", 0, 0)
+    pdf.cell(90, 7, f"${loan_total:,.0f}", 0, 1, 'R')
+    
+    surplus_label = "Tax-Free Cash Surplus (At Closing):" if cash_surplus >= 0 else "Trapped Seed Capital (At Closing):"
+    pdf.set_font("Arial", 'B', 10)
+    pdf.cell(100, 7, surplus_label, 0, 0)
+    pdf.cell(90, 7, f"${cash_surplus:,.0f}", 0, 1, 'R')
+    pdf.cell(100, 7, "Total Day-1 Wealth Created:", 0, 0)
+    pdf.cell(90, 7, f"${day1_wealth:,.0f}", 0, 1, 'R')
+    pdf.ln(5)
+
+    pdf.set_font("Arial", 'B', 12)
+    pdf.cell(0, 8, " 2. Const. Bank Limits & Loan Cap", ln=1, fill=True)
+    pdf.set_font("Arial", '', 10)
     
     if const_bank_val_mode == "DSCR Stress Test":
-        st.caption("The bank determines the implied asset value based on their DSCR test, applies their LTV to get the Loan Value, and subtracts that from the Total Basis to find your required Seed Capital.")
-        stress_test_data = {
-            "Bank Underwriting Step": [
-                "1. Gross Potential Rent (Bank Model)",
-                "2. Less: Bank Vacancy & OpEx Deductions",
-                "3. Bank Qualified Net Operating Income (NOI)",
-                "4. Target Construction DSCR Constraint",
-                "5. Bank Implied Asset Value (Value of the House)",
-                f"6. Const. Lender Loan Value ({const_bank_ltv*100:.1f}% Bank LTV)",
-                "7. Total Capitalized Construction Basis",
-                "8. Required Seed Capital Reserve (Basis - Loan Value)"
-            ],
-            "Value": [
-                f"${cb_gross_annual_rent:,.0f} / yr",
-                f"-${cb_gross_annual_rent - cb_noi:,.0f} / yr",
-                f"${cb_noi:,.0f} / yr",
-                f"{const_bank_dscr:.2f}x",
-                f"${bank_stressed_value:,.0f}",
-                f"${actual_const_loan:,.0f}",
-                f"${total_construction_basis:,.0f}",
-                f"${seed_capital:,.0f}"
-            ]
-        }
+        pdf.cell(100, 7, "Bank Assumed Rent & Target DSCR:", 0, 0)
+        pdf.cell(90, 7, f"${const_bank_rent:,.0f}/mo | {const_bank_dscr:.2f}x DSCR", 0, 1, 'R')
+        pdf.cell(100, 7, "Bank Vacancy & OpEx Deductions:", 0, 0)
+        pdf.cell(90, 7, f"{const_bank_vac_pct*100:.1f}% Vac | {const_bank_opex_pct*100:.1f}% OpEx", 0, 1, 'R')
+        pdf.cell(100, 7, "Bank Implied Asset Value (Refi Stress Test):", 0, 0)
+        pdf.cell(90, 7, f"${bank_stressed_value:,.0f}", 0, 1, 'R')
     else:
-        st.caption("The bank determines the implied asset value based on a Gross Rent Multiplier (GRM), applies their LTV to get the Loan Value, and subtracts that from the Total Basis to find your required Seed Capital.")
-        stress_test_data = {
-            "Bank Underwriting Step": [
-                "1. Gross Potential Rent (Bank Model)",
-                "2. Bank Underwriting GRM",
-                "3. Bank Implied Asset Value (Value of the House)",
-                f"4. Const. Lender Loan Value ({const_bank_ltv*100:.1f}% Bank LTV)",
-                "5. Total Capitalized Construction Basis",
-                "6. Required Seed Capital Reserve (Basis - Loan Value)"
-            ],
-            "Value": [
-                f"${cb_gross_annual_rent:,.0f} / yr",
-                f"{const_bank_grm:.1f}x",
-                f"${bank_stressed_value:,.0f}",
-                f"${actual_const_loan:,.0f}",
-                f"${total_construction_basis:,.0f}",
-                f"${seed_capital:,.0f}"
-            ]
-        }
-    st.dataframe(pd.DataFrame(stress_test_data), hide_index=True, use_container_width=True)
-
-    if seed_capital > 0:
-        st.warning(f"**Seed Capital Required:** The bank will fund **${actual_const_loan:,.0f}** based on the appraised value. Your Total Construction Basis is **${total_construction_basis:,.0f}**. You must bring **${seed_capital:,.0f}** in Day-1 Seed Capital (Reserves).")
-    else:
-        st.success(f"**Fully Funded:** The bank's loan value of **${actual_const_loan:,.0f}** covers your entire construction basis. No Day-1 Seed Capital is required.")
-    st.divider()
-
-    # --- LEDGER & CAP STACK ---
-    st.markdown("### 📊 Detailed Construction Cost & Capital Ledger")
-    ledger_mode = st.radio("Ledger Input Mode", ["Sync with Global Parameters", "Manual Ledger Override"], horizontal=True)
-
-    st.markdown("#### 1. Direct Hard Costs (Driven by Granular Builder)")
-    direct_data = {
-        "Cost Category": ["Heated Living Area", f"{st.session_state.structure_type} Auxiliary", "Front Porch", "Back Porch", "Storage Room", "Addit. Foundation / Elevation", "TOTAL DIRECT HARD COSTS"],
-        "Area / Metric": [f"{sqft:,.0f} SF", f"{struct_sqft:,.0f} SF", f"{front_porch_sqft:,.0f} SF", f"{back_porch_sqft:,.0f} SF", f"{storage_sqft:,.0f} SF", "Site Specific", f"{total_under_roof_sqft:,.0f} SF Under Roof"],
-        "Cost / SF": [f"${direct_cost_sf:.2f}", f"${struct_cost_sf:.2f}", f"${front_porch_cost_sf:.2f}", f"${back_porch_cost_sf:.2f}", f"${storage_cost_sf:.2f}", "-", f"${blended_cost_per_sf:.2f} (Blended)"],
-        "Total Amount ($)": [heated_hard_cost * units, struct_total_cost * units, front_porch_cost * units, back_porch_cost * units, storage_cost * units, additional_foundation_cost * units, total_hard_cost]
-    }
-    st.dataframe(pd.DataFrame(direct_data).style.format({"Total Amount ($)": "${:,.0f}"}), hide_index=True, use_container_width=True)
-
-    st.markdown("#### 2. Indirect, Land & Capital Costs")
-    indirects_data = [
-        {"Cost Category": "General Conditions", "Metric / Basis": "5.0% of Direct", "Amount ($)": default_gcond},
-        {"Cost Category": "GC Management Fee", "Metric / Basis": "Flat Fee" if gc_fee_mode == "Consolidated Flat Fee ($ Total)" else f"{gc_fee_pct*100:.1f}% Basis", "Amount ($)": default_gc_fee},
-        {"Cost Category": "BTR Buying Power Premium", "Metric / Basis": "5.0% of Direct", "Amount ($)": default_premium},
-        {"Cost Category": "Land Acquisition Basis", "Metric / Basis": f"${land_basis:,.0f} / Lot", "Amount ($)": total_land_default},
-        {"Cost Category": "Soft Costs & Permitting", "Metric / Basis": f"${default_soft_cost_per_unit:,.0f} / Unit", "Amount ($)": total_soft_default},
-        {"Cost Category": "Construction Loan Closing Fee", "Metric / Basis": "Flat Fee", "Amount ($)": const_closing_fee},
-        {"Cost Category": f"Const. Loan Interest ({build_months} Mos)", "Metric / Basis": f"{avg_draw_pct*100:.0f}% Avg Draw", "Amount ($)": carry_int_base},
-        {"Cost Category": "Takeout Refinance Closing Fee", "Metric / Basis": "Flat Fee", "Amount ($)": refi_closing_fee},
-        {"Cost Category": "Rate Buydown Points Cost", "Metric / Basis": f"{buydown_pts} Points", "Amount ($)": default_buydown_cost}
-    ]
+        pdf.cell(100, 7, "Bank Assumed Rent & Target GRM:", 0, 0)
+        pdf.cell(90, 7, f"${const_bank_rent:,.0f}/mo | {const_bank_grm:.1f}x GRM", 0, 1, 'R')
+        pdf.cell(100, 7, "Bank Implied Asset Value (GRM Stress Test):", 0, 0)
+        pdf.cell(90, 7, f"${bank_stressed_value:,.0f}", 0, 1, 'R')
     
-    if ledger_mode == "Manual Ledger Override":
-        st.caption("✏️ **Manual Mode Active:** Edit the amounts in the table below.")
-        edited_df = st.data_editor(pd.DataFrame(indirects_data), column_config={"Amount ($)": st.column_config.NumberColumn(format="$%.2f", min_value=0.0)}, disabled=["Cost Category", "Metric / Basis"], hide_index=True, use_container_width=True)
-    else:
-        st.dataframe(pd.DataFrame(indirects_data).style.format({"Amount ($)": "${:,.0f}"}), hide_index=True, use_container_width=True)
-
-    st.markdown(f"### 🎯 TOTAL PROJECT BASIS: **${total_project_basis:,.0f}** *(${total_project_basis/units:,.0f} / Door)*")
-    st.divider()
-
-    # ==========================================
-    # --- POPULATE INVISIBLE DASHBOARDS ---
-    # ==========================================
-    with ui_top_metrics:
-        st.markdown("### 🏗️ Project Capital & Valuation Metrics")
-        col1, col2, col3, col4 = st.columns(4)
-        
-        # Metric 1: Takeout Loan vs Total Project Basis
-        refi_vs_basis = loan_total - total_project_basis
-        col1.metric("Takeout Loan Proceeds", f"${loan_total:,.0f}", f"{refi_vs_basis:+,.0f} vs Project Basis", delta_color="normal")
-        
-        # Metric 2: Day-1 Seed Capital Status
-        if seed_capital > 0:
-            col2.metric("Day-1 Seed Capital", f"${seed_capital:,.0f}", "-Requires Cash Reserves", delta_color="normal")
-        else:
-            col2.metric("Day-1 Seed Capital", "$0", "Fully Funded", delta_color="normal")
-            
-        # Metric 3 & 4
-        if cash_surplus >= 0:
-            deal_health_color = "normal" 
-            surplus_title = "Tax-Free Cash Surplus"
-            surplus_delta = "Capital Recovered"
-        else:
-            deal_health_color = "inverse" 
-            surplus_title = "Trapped Seed Capital"
-            surplus_delta = "Loss at Closing"
-            
-        col3.metric("Under-Roof Blended Cost", f"${blended_cost_per_sf:.2f} / SF", f"{total_under_roof_sqft:,} Total SF Under Roof")
-        col4.metric(surplus_title, f"${cash_surplus:,.0f}", surplus_delta, delta_color=deal_health_color)
-
-    with ui_op_metrics:
-        st.markdown("### 🏢 Operating & DSCR Metrics")
-        op1, op2, op3, op4 = st.columns(4)
-        arv_label = "Derived Unit ARV (Price/SF)" if appraisal_mode == "Sales Comp (Price/SF)" else "Derived Unit ARV (GRM)"
-        op1.metric(arv_label, f"${arv_per_unit:,.0f}", f"${total_arv:,.0f} Total ARV")
-        op2.metric("Actual DSCR Rate", f"{actual_dscr:.2f}x", f"Target: {target_dscr_rate:.2f}x", delta_color="normal" if actual_dscr >= target_dscr_rate else "inverse")
-        op3.metric("Monthly Cash Flow", f"${monthly_cash_flow:,.0f} /mo", f"${monthly_cash_flow*12:,.0f} Annual", delta_color="normal" if monthly_cash_flow >= 0 else "inverse")
-        op4.metric("Monthly P&I Payment", f"${total_monthly_pi:,.0f} /mo", f"{refi_term_years}Yr @ {net_refi_rate*100:.3f}%")
-
-    with ui_decision_dashboard:
-        st.markdown("### 🚦 Go/No-Go Investment Decision Dashboard")
-        dscr_pass = actual_dscr >= target_dscr_rate
-        cash_pass = cash_surplus >= 0
-        dscr_light = "🟢 GREEN LIGHT" if dscr_pass else "🔴 RED LIGHT"
-        cash_light = "🟢 GREEN LIGHT" if cash_pass else "🔴 RED LIGHT"
-
-        dash_col1, dash_col2, dash_col3 = st.columns(3)
-        dash_col1.metric("DSCR Underwriting Status", dscr_light, f"Actual: {actual_dscr:.2f}x (Target: {target_dscr_rate:.2f}x)", delta_color="normal" if dscr_pass else "inverse")
-        dash_col2.metric("Capital Recovery Status", cash_light, f"${cash_surplus:,.0f} at Refi Close", delta_color="normal" if cash_pass else "inverse")
-        dash_col3.metric("Day-1 Wealth Creation", f"${day1_wealth:,.0f}", f"${day1_wealth/units:,.0f} per door", delta_color="normal")
-
-
-    # --- BOTTOM PERFORMANCE SECTIONS ---
-    st.markdown("### 💸 Refinance Cash Waterfall & Day-1 Wealth")
-    st.caption("This explicit Cash-Out Waterfall shows exactly how the Permanent Loan pays off the Construction phase at the title company, isolating your true Cash Surplus.")
+    pdf.set_font("Arial", 'B', 10)
+    pdf.cell(130, 7, f"Const. Lender Loan Value ({const_bank_ltv*100:.1f}% Bank LTV):", 0, 0)
+    pdf.cell(60, 7, f"${actual_const_loan:,.0f}", 0, 1, 'R')
     
-    waterfall_data = {
-        "Refinance Closing Line Item": [
-            "(+) Permanent Takeout Loan Proceeds",
-            "(-) Construction Loan Payoff (Prin. & Int.)",
-            "(-) Refinance Closing Fees",
-            "(-) Rate Buydown Points Cost",
-            "= Net Cash Distributed to Sponsor at Closing",
-            "(-) Initial Sponsor Seed Capital Invested",
-            "= Final Tax-Free Cash Surplus / (Trapped Capital)"
-        ],
-        "Amount ($)": [
-            f"${loan_total:,.0f}",
-            f"-${actual_const_loan:,.0f}",
-            f"-${refi_closing_fee:,.0f}",
-            f"-${default_buydown_cost:,.0f}",
-            f"${net_cash_at_closing:,.0f}",
-            f"-${seed_capital:,.0f}",
-            f"${cash_surplus:,.0f}"
-        ]
-    }
-    st.dataframe(pd.DataFrame(waterfall_data), hide_index=True, use_container_width=True)
+    pdf.cell(130, 7, "Total Capitalized Construction Basis:", 0, 0)
+    pdf.cell(60, 7, f"${total_construction_basis:,.0f}", 0, 1, 'R')
     
-    wealth_data = {
-        "Pocket Component": ["Pocket 1: Active GC Fee Revenue", "Pocket 2: Tax-Free Cash Surplus at Close", "Pocket 3: Retained Asset Equity", "TOTAL DAY-1 CREATED VALUE"],
-        "Value ($)": [f"${default_gc_fee:,.0f}", f"${cash_surplus:,.0f}", f"${retained_equity:,.0f}", f"${day1_wealth:,.0f}"]
-    }
-    st.dataframe(pd.DataFrame(wealth_data), hide_index=True, use_container_width=True)
-    st.divider()
+    pdf.cell(130, 7, "Required Seed Capital Reserve (Basis - Loan Value):", 0, 0)
+    pdf.cell(60, 7, f"${seed_capital:,.0f}", 0, 1, 'R')
+    pdf.ln(5)
 
-    if cost_calc_mode in ["Reverse-Engineer from Appraisal", "Reverse-Engineer from Primary Comp"]:
-        st.markdown("### 🔄 Retail Comp & Appraisal Reverse-Engineering Breakdown")
+    pdf.set_font("Arial", 'B', 12)
+    pdf.cell(0, 8, " 3. Detailed Construction Cost Breakdown", fill=True, ln=1)
+    pdf.set_font("Arial", '', 10)
+    
+    pdf.cell(100, 7, "Total Direct Hard Costs:", 0, 0)
+    pdf.cell(90, 7, f"${total_hard_cost:,.0f}", 0, 1, 'R')
+    pdf.cell(100, 7, "Indirect General Conditions & Premiums:", 0, 0)
+    pdf.cell(90, 7, f"${default_gcond + default_premium:,.0f}", 0, 1, 'R')
+    
+    gc_label = "Consolidated GC Flat Fee:" if gc_fee_mode == "Consolidated Flat Fee ($ Total)" else "GC Management Fee:"
+    pdf.cell(100, 7, gc_label, 0, 0)
+    pdf.cell(90, 7, f"${default_gc_fee:,.0f}", 0, 1, 'R')
+    
+    pdf.cell(100, 7, "Land Acquisition Basis:", 0, 0)
+    pdf.cell(90, 7, f"${total_land_default:,.0f}", 0, 1, 'R')
+    
+    pdf.cell(100, 7, "Const. Loan Capitalized Interest:", 0, 0)
+    pdf.cell(90, 7, f"${carry_int_base:,.0f}", 0, 1, 'R')
         
-        reference_price = arv_per_unit if cost_calc_mode == 'Reverse-Engineer from Appraisal' else comp_equivalent_arv
-        breakdown_data = {
-            "Cost Category": [
-                f"Baseline Reference Price (Comp / ARV)", "(-) Finished Lot Cost", "(-) Gross Margin (O&P)", 
-                "(-) Sales & Marketing", "(-) Soft Costs & Finance", "= Total Hard Cost Budget", 
-                "(-) Fixed Auxiliary & Elevation Costs", "= Available Budget for Heated Shell"
-            ],
-            "Value ($)": [
-                f"${reference_price:,.0f}", 
-                f"-${reference_price * lot_cost_pct:,.0f}", 
-                f"-${reference_price * margin_pct:,.0f}", 
-                f"-${reference_price * sales_pct:,.0f}", 
-                f"-${reference_price * finance_pct:,.0f}", 
-                f"${target_total_hard_cost:,.0f}", 
-                f"-${our_aux_cost_total:,.0f}", 
-                f"${target_heated_hard_cost:,.0f}"
-            ],
-            "Description": [
-                "Derived directly from Primary Comp Sale Price or Takeout Appraisal.",
-                "Raw land, engineering, road paving, wet/dry utility infrastructure.",
-                "Builder gross overhead and corporate net margin.",
-                "Realtor commissions, internal sales reps, buyer closing concessions.",
-                "Impact fees, plan design, municipal permits, and loan interest carry.",
-                "Total budget available for all physical construction.",
-                "Locked budget required for specific outdoor/auxiliary footprint and foundation elevation.",
-                f"Yields exactly ${direct_cost_sf:.2f} / SF across {sqft} Heated SF."
-            ]
-        }
-        st.dataframe(pd.DataFrame(breakdown_data), hide_index=True, use_container_width=True)
-        st.divider()
-
-    st.markdown("### 🏢 Operating Performance Summary")
-    dscr_summary_data = {
-        "Pro Forma Line Item": [
-            "Gross Potential Rent (GPR)", f"(-) Vacancy Loss @ {vacancy_rate*100:.1f}%", "= Effective Gross Income (EGI)", 
-            f"(-) Operating Expenses (OpEx) @ {opex_rate*100:.1f}%", "= Net Operating Income (NOI)", "(-) Total Debt Service (P&I)", "= Net Cash Flow",
-            "---", "Actual DSCR Rate", "Target Lender DSCR", "DSCR Variance"
-        ],
-        "Monthly": [
-            f"${total_gross_monthly_income:,.2f}", f"-${monthly_vacancy_loss:,.2f}", f"${annual_egi / 12:,.2f}", 
-            f"-${annual_opex / 12:,.2f}", f"${monthly_noi:,.2f}", f"-${total_monthly_pi:,.2f}", f"${monthly_cash_flow:,.2f}",
-            "---", f"{actual_dscr:.2f}x", f"{target_dscr_rate:.2f}x", f"{dscr_variance:+.2f}x"
-        ],
-        "Annual": [
-            f"${total_gross_monthly_income * 12:,.2f}", f"-${annual_vacancy_loss:,.2f}", f"${annual_egi:,.2f}", 
-            f"-${annual_opex / 12:,.2f}", f"${annual_noi:,.2f}", f"${annual_debt_service:,.2f}", f"${monthly_cash_flow * 12:,.2f}",
-            "---", f"{actual_dscr:.2f}x", f"{target_dscr_rate:.2f}x", f"{dscr_variance:+.2f}x"
-        ]
-    }
-    st.dataframe(pd.DataFrame(dscr_summary_data), hide_index=True, use_container_width=True)
-
-    # --- PDF GENERATION ENGINE ---
-    class EnterpriseReport(FPDF):
-        def header(self):
-            self.set_font('Arial', 'B', 16)
-            self.cell(0, 8, 'Wickboldt Capital | BTR Pro Forma Report', border=0, ln=1, align='C')
-            self.set_font('Arial', 'I', 10)
-            self.cell(0, 6, "Today's Foundation. Tomorrow's Legacy.", border=0, ln=1, align='C')
-            self.line(10, 25, 200, 25)
-            self.ln(10)
-
-        def footer(self):
-            self.set_y(-15)
-            self.set_font('Arial', 'I', 8)
-            self.cell(0, 10, f'Page {self.page_no()} | Prepared by: Stephen Wickboldt Jr. - Wickboldt Capital', 0, 0, 'C')
-
-    def create_pdf(include_sublevels):
-        pdf = EnterpriseReport()
-        pdf.add_page()
-        
-        pdf.set_font("Arial", 'B', 12)
-        p_name = project_name if project_name else "Untitled Development"
-        p_address = project_address if project_address else "TBD"
-        pdf.cell(0, 6, f"Project: {p_name}", ln=1)
-        pdf.set_font("Arial", '', 10)
-        pdf.cell(0, 6, f"Address: {p_address}", ln=1)
-        pdf.cell(0, 6, f"Scale: {units} Unit(s) | {project_beds} Beds / {project_baths} Baths | Under-Roof: {total_under_roof_sqft:,} SF/Unit", ln=1)
-        pdf.cell(0, 6, f"Date: {report_date}", ln=1)
-        pdf.ln(5)
-
-        pdf.set_font("Arial", 'B', 12)
-        pdf.set_fill_color(220, 220, 220)
-        pdf.cell(0, 8, " 1. Executive Summary & Wealth Creation", ln=1, fill=True)
-        pdf.set_font("Arial", '', 10)
-        
-        pdf.cell(100, 7, "Total Project Basis:", 0, 0)
-        pdf.cell(90, 7, f"${total_project_basis:,.0f}", 0, 1, 'R')
-        pdf.cell(100, 7, "Total Appraised Value (ARV):", 0, 0)
-        pdf.cell(90, 7, f"${total_arv:,.0f}", 0, 1, 'R')
-        pdf.cell(100, 7, "Const. Loan Proceeds (Payoff):", 0, 0)
-        pdf.cell(90, 7, f"${actual_const_loan:,.0f}", 0, 1, 'R')
-        pdf.cell(100, 7, f"Takeout Loan Proceeds ({refi_ltv*100:.0f}% LTV):", 0, 0)
-        pdf.cell(90, 7, f"${loan_total:,.0f}", 0, 1, 'R')
-        
-        surplus_label = "Tax-Free Cash Surplus (At Closing):" if cash_surplus >= 0 else "Trapped Seed Capital (At Closing):"
-        pdf.set_font("Arial", 'B', 10)
-        pdf.cell(100, 7, surplus_label, 0, 0)
-        pdf.cell(90, 7, f"${cash_surplus:,.0f}", 0, 1, 'R')
-        pdf.cell(100, 7, "Total Day-1 Wealth Created:", 0, 0)
-        pdf.cell(90, 7, f"${day1_wealth:,.0f}", 0, 1, 'R')
-        pdf.ln(5)
-
-        pdf.set_font("Arial", 'B', 12)
-        pdf.cell(0, 8, " 2. Const. Bank Limits & Loan Cap", ln=1, fill=True)
-        pdf.set_font("Arial", '', 10)
-        
-        if const_bank_val_mode == "DSCR Stress Test":
-            pdf.cell(100, 7, "Bank Assumed Rent & Target DSCR:", 0, 0)
-            pdf.cell(90, 7, f"${const_bank_rent:,.0f}/mo | {const_bank_dscr:.2f}x DSCR", 0, 1, 'R')
-            pdf.cell(100, 7, "Bank Vacancy & OpEx Deductions:", 0, 0)
-            pdf.cell(90, 7, f"{const_bank_vac_pct*100:.1f}% Vac | {const_bank_opex_pct*100:.1f}% OpEx", 0, 1, 'R')
-            pdf.cell(100, 7, "Bank Implied Asset Value (Refi Stress Test):", 0, 0)
-            pdf.cell(90, 7, f"${bank_stressed_value:,.0f}", 0, 1, 'R')
+    pdf.cell(100, 7, "Total Soft Costs & Closing Fees:", 0, 0)
+    pdf.cell(90, 7, f"${total_soft_default + const_closing_fee + refi_closing_fee + default_buydown_cost:,.0f}", 0, 1, 'R')
+    
+    pdf.ln(5)
+    pdf.set_font("Arial", 'B', 12)
+    pdf.set_fill_color(220, 220, 220)
+    pdf.cell(0, 8, " 4. Granular Direct Hard Cost Buildup", ln=1, fill=True)
+    pdf.set_font("Arial", 'B', 9)
+    
+    pdf.cell(90, 6, "Division / Trade Level", 1, 0, 'C')
+    pdf.cell(30, 6, "Live Cost / SF", 1, 0, 'C')
+    pdf.cell(35, 6, f"Per Unit ({sqft} SF)", 1, 0, 'C')
+    pdf.cell(35, 6, "Project Total", 1, 1, 'C')
+    
+    for name, live_sf, unit_cost, proj_cost, is_header in pdf_granular_data:
+        if granular_mode == "Auto-Proportional (Linked to Master Model)":
+            if not st.session_state.get("pdf_include_sublevels", True) and not is_header:
+                continue
+        if is_header:
+            pdf.set_font("Arial", 'B', 9)
+            pdf.set_fill_color(240, 240, 240)
+            pdf.cell(90, 6, name, 1, 0, 'L', fill=True)
+            pdf.cell(30, 6, f"${live_sf:.2f}", 1, 0, 'R', fill=True)
+            pdf.cell(35, 6, f"${unit_cost:,.0f}", 1, 0, 'R', fill=True)
+            pdf.cell(35, 6, f"${proj_cost:,.0f}", 1, 1, 'R', fill=True)
         else:
-            pdf.cell(100, 7, "Bank Assumed Rent & Target GRM:", 0, 0)
-            pdf.cell(90, 7, f"${const_bank_rent:,.0f}/mo | {const_bank_grm:.1f}x GRM", 0, 1, 'R')
-            pdf.cell(100, 7, "Bank Implied Asset Value (GRM Stress Test):", 0, 0)
-            pdf.cell(90, 7, f"${bank_stressed_value:,.0f}", 0, 1, 'R')
-        
-        pdf.set_font("Arial", 'B', 10)
-        pdf.cell(130, 7, f"Const. Lender Loan Value ({const_bank_ltv*100:.1f}% Bank LTV):", 0, 0)
-        pdf.cell(60, 7, f"${actual_const_loan:,.0f}", 0, 1, 'R')
-        
-        pdf.cell(130, 7, "Total Capitalized Construction Basis:", 0, 0)
-        pdf.cell(60, 7, f"${total_construction_basis:,.0f}", 0, 1, 'R')
-        
-        pdf.cell(130, 7, "Required Seed Capital Reserve (Basis - Loan Value):", 0, 0)
-        pdf.cell(60, 7, f"${seed_capital:,.0f}", 0, 1, 'R')
-        pdf.ln(5)
-
-        pdf.set_font("Arial", 'B', 12)
-        pdf.cell(0, 8, " 3. Detailed Construction Cost Breakdown", fill=True, ln=1)
-        pdf.set_font("Arial", '', 10)
-        
-        pdf.cell(100, 7, "Total Direct Hard Costs:", 0, 0)
-        pdf.cell(90, 7, f"${total_hard_cost:,.0f}", 0, 1, 'R')
-        pdf.cell(100, 7, "Indirect General Conditions & Premiums:", 0, 0)
-        pdf.cell(90, 7, f"${default_gcond + default_premium:,.0f}", 0, 1, 'R')
-        
-        gc_label = "Consolidated GC Flat Fee:" if gc_fee_mode == "Consolidated Flat Fee ($ Total)" else "GC Management Fee:"
-        pdf.cell(100, 7, gc_label, 0, 0)
-        pdf.cell(90, 7, f"${default_gc_fee:,.0f}", 0, 1, 'R')
-        
-        pdf.cell(100, 7, "Land Acquisition Basis:", 0, 0)
-        pdf.cell(90, 7, f"${total_land_default:,.0f}", 0, 1, 'R')
-        
-        pdf.cell(100, 7, "Const. Loan Capitalized Interest:", 0, 0)
-        pdf.cell(90, 7, f"${carry_int_base:,.0f}", 0, 1, 'R')
+            pdf.set_font("Arial", '', 9)
+            pdf.cell(90, 6, name, 1, 0, 'L')
+            pdf.cell(30, 6, f"${live_sf:.2f}", 1, 0, 'R')
+            pdf.cell(35, 6, f"${unit_cost:,.0f}", 1, 0, 'R')
+            pdf.cell(35, 6, f"${proj_cost:,.0f}", 1, 1, 'R')
             
-        pdf.cell(100, 7, "Total Soft Costs & Closing Fees:", 0, 0)
-        pdf.cell(90, 7, f"${total_soft_default + const_closing_fee + refi_closing_fee + default_buydown_cost:,.0f}", 0, 1, 'R')
-        
-        pdf.ln(5)
-        pdf.set_font("Arial", 'B', 12)
-        pdf.set_fill_color(220, 220, 220)
-        pdf.cell(0, 8, " 4. Granular Direct Hard Cost Buildup", ln=1, fill=True)
-        pdf.set_font("Arial", 'B', 9)
-        
-        pdf.cell(90, 6, "Division / Trade Level", 1, 0, 'C')
-        pdf.cell(30, 6, "Live Cost / SF", 1, 0, 'C')
-        pdf.cell(35, 6, f"Per Unit ({sqft} SF)", 1, 0, 'C')
-        pdf.cell(35, 6, "Project Total", 1, 1, 'C')
-        
-        for name, live_sf, unit_cost, proj_cost, is_header in pdf_granular_data:
-            if granular_mode == "Auto-Proportional (Linked to Master Model)":
-                if not st.session_state.get("pdf_include_sublevels", True) and not is_header:
-                    continue
-            if is_header:
-                pdf.set_font("Arial", 'B', 9)
-                pdf.set_fill_color(240, 240, 240)
-                pdf.cell(90, 6, name, 1, 0, 'L', fill=True)
-                pdf.cell(30, 6, f"${live_sf:.2f}", 1, 0, 'R', fill=True)
-                pdf.cell(35, 6, f"${unit_cost:,.0f}", 1, 0, 'R', fill=True)
-                pdf.cell(35, 6, f"${proj_cost:,.0f}", 1, 1, 'R', fill=True)
-            else:
-                pdf.set_font("Arial", '', 9)
-                pdf.cell(90, 6, name, 1, 0, 'L')
-                pdf.cell(30, 6, f"${live_sf:.2f}", 1, 0, 'R')
-                pdf.cell(35, 6, f"${unit_cost:,.0f}", 1, 0, 'R')
-                pdf.cell(35, 6, f"${proj_cost:,.0f}", 1, 1, 'R')
-                
-        pdf.ln(5)
-        pdf.set_font("Arial", 'B', 12)
-        pdf.set_fill_color(220, 220, 220)
-        pdf.cell(0, 8, " 5. Refinance Cash Waterfall (Payoff & Cash-Out)", ln=1, fill=True)
-        pdf.set_font("Arial", '', 10)
-        
-        pdf.cell(130, 7, "(+) Permanent Takeout Loan Proceeds:", 0, 0)
-        pdf.cell(60, 7, f"${loan_total:,.0f}", 0, 1, 'R')
-        pdf.cell(130, 7, "(-) Construction Loan Payoff (Prin. & Int.):", 0, 0)
-        pdf.cell(60, 7, f"-${actual_const_loan:,.0f}", 0, 1, 'R')
-        pdf.cell(130, 7, "(-) Refinance Closing Fees & Buydown Points:", 0, 0)
-        pdf.cell(60, 7, f"-${refi_closing_fee + default_buydown_cost:,.0f}", 0, 1, 'R')
-        
-        pdf.set_font("Arial", 'B', 10)
-        pdf.cell(130, 7, "= Net Cash Distributed to Sponsor at Closing:", 0, 0)
-        pdf.cell(60, 7, f"${net_cash_at_closing:,.0f}", 0, 1, 'R')
-        pdf.set_font("Arial", '', 10)
-        pdf.cell(130, 7, "(-) Initial Sponsor Seed Capital Invested:", 0, 0)
-        pdf.cell(60, 7, f"-${seed_capital:,.0f}", 0, 1, 'R')
-        
-        pdf.set_font("Arial", 'B', 10)
-        pdf.cell(130, 7, "= Final Tax-Free Cash Surplus / (Trapped Capital):", 0, 0)
-        pdf.cell(60, 7, f"${cash_surplus:,.0f}", 0, 1, 'R')
-        
-        with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as tmp:
-            pdf.output(tmp.name)
-            with open(tmp.name, "rb") as f:
-                return f.read()
+    pdf.ln(5)
+    pdf.set_font("Arial", 'B', 12)
+    pdf.set_fill_color(220, 220, 220)
+    pdf.cell(0, 8, " 5. Refinance Cash Waterfall (Payoff & Cash-Out)", ln=1, fill=True)
+    pdf.set_font("Arial", '', 10)
+    
+    pdf.cell(130, 7, "(+) Permanent Takeout Loan Proceeds:", 0, 0)
+    pdf.cell(60, 7, f"${loan_total:,.0f}", 0, 1, 'R')
+    pdf.cell(130, 7, "(-) Construction Loan Payoff (Prin. & Int.):", 0, 0)
+    pdf.cell(60, 7, f"-${actual_const_loan:,.0f}", 0, 1, 'R')
+    pdf.cell(130, 7, "(-) Refinance Closing Fees & Buydown Points:", 0, 0)
+    pdf.cell(60, 7, f"-${refi_closing_fee + default_buydown_cost:,.0f}", 0, 1, 'R')
+    
+    pdf.set_font("Arial", 'B', 10)
+    pdf.cell(130, 7, "= Net Cash Distributed to Sponsor at Closing:", 0, 0)
+    pdf.cell(60, 7, f"${net_cash_at_closing:,.0f}", 0, 1, 'R')
+    pdf.set_font("Arial", '', 10)
+    pdf.cell(130, 7, "(-) Initial Sponsor Seed Capital Invested:", 0, 0)
+    pdf.cell(60, 7, f"-${seed_capital:,.0f}", 0, 1, 'R')
+    
+    pdf.set_font("Arial", 'B', 10)
+    pdf.cell(130, 7, "= Final Tax-Free Cash Surplus / (Trapped Capital):", 0, 0)
+    pdf.cell(60, 7, f"${cash_surplus:,.0f}", 0, 1, 'R')
+    
+    with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as tmp:
+        pdf.output(tmp.name)
+        with open(tmp.name, "rb") as f:
+            return f.read()
 
-    with download_placeholder:
-        st.markdown("<br>", unsafe_allow_html=True)
-        st.download_button(
-            label="📄 Download Enterprise Report (PDF)",
-            data=create_pdf(st.session_state.get("pdf_include_sublevels", True)),
-            file_name=f"Wickboldt_Capital_ProForma_{report_date.replace(' ', '_').replace(',', '')}.pdf",
-            mime="application/pdf",
-            type="primary",
-            use_container_width=True
-        )
+with download_placeholder:
+    st.markdown("<br>", unsafe_allow_html=True)
+    st.download_button(
+        label="📄 Download Enterprise Report (PDF)",
+        data=create_pdf(st.session_state.get("pdf_include_sublevels", True)),
+        file_name=f"Wickboldt_Capital_ProForma_{report_date.replace(' ', '_').replace(',', '')}.pdf",
+        mime="application/pdf",
+        type="primary",
+        use_container_width=True
+    )
