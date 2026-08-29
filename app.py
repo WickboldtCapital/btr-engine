@@ -42,7 +42,7 @@ HARDCODED_DRIVERS = {
     # Construction Lender Stress Constraints
     "const_bank_rent": 1500,
     "const_bank_ltv_pct": 80.0,
-    "const_bank_val_mode": "DSCR Stress Test",
+    "const_bank_val_mode": "Gross Rent Multiplier (GRM)",
     "const_bank_grm": 10.0,
     "const_bank_opex_pct": 30.0,
     "const_bank_vac_pct": 5.0,
@@ -232,16 +232,17 @@ with st.sidebar.container():
     st.subheader("8. Const. Lender Limits")
     st.number_input("Bank Underwriting Rent ($)", step=50, format="%d", key="const_bank_rent")
     st.slider("Bank Underwriting LTV (%)", min_value=50.0, max_value=100.0, step=5.0, key="const_bank_ltv_pct")
-    st.radio("Bank Valuation Method", ["DSCR Stress Test", "Gross Rent Multiplier (GRM)"], key="const_bank_val_mode")
     
-    if st.session_state.const_bank_val_mode == "DSCR Stress Test":
+    st.radio("Bank Valuation Method", ["Gross Rent Multiplier (GRM)", "DSCR Stress Test"], key="const_bank_val_mode")
+    
+    if st.session_state.const_bank_val_mode == "Gross Rent Multiplier (GRM)":
+        st.number_input("Bank Underwriting GRM", min_value=4.0, max_value=25.0, value=float(GLOBAL_DRIVERS.get("const_bank_grm", 10.0)), step=0.1, key="const_bank_grm")
+    else:
         st.slider("Bank Underwriting Vacancy (%)", min_value=0.0, max_value=15.0, step=1.0, key="const_bank_vac_pct")
         st.slider("Bank Underwriting OpEx (%)", min_value=15.0, max_value=50.0, step=1.0, key="const_bank_opex_pct")
         st.number_input("Bank Target DSCR", min_value=1.0, max_value=1.5, value=float(GLOBAL_DRIVERS.get("const_bank_dscr", 1.20)), step=0.05, key="const_bank_dscr")
         st.slider("Bank Qualifying Rate (%)", min_value=4.0, max_value=14.0, step=0.25, key="const_bank_qual_rate_pct")
         st.selectbox("Bank Amortization (Years)", [15, 20, 25, 30], key="const_bank_amort_yrs")
-    else:
-        st.number_input("Bank Underwriting GRM", min_value=4.0, max_value=25.0, value=float(GLOBAL_DRIVERS.get("const_bank_grm", 10.0)), step=0.1, key="const_bank_grm")
 
 with st.sidebar.container():
     st.subheader("PDF Export Options")
@@ -277,7 +278,7 @@ const_closing_fee = st.session_state.get("const_closing_fee", 6000)
 
 const_bank_rent = st.session_state.get("const_bank_rent", 1500)
 const_bank_ltv = st.session_state.get("const_bank_ltv_pct", 80.0) / 100.0
-const_bank_val_mode = st.session_state.get("const_bank_val_mode", "DSCR Stress Test")
+const_bank_val_mode = st.session_state.get("const_bank_val_mode", "Gross Rent Multiplier (GRM)")
 const_bank_grm = st.session_state.get("const_bank_grm", 10.0)
 const_bank_opex_pct = st.session_state.get("const_bank_opex_pct", 30.0) / 100.0
 const_bank_vac_pct = st.session_state.get("const_bank_vac_pct", 5.0) / 100.0
