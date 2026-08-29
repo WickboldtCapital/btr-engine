@@ -23,10 +23,10 @@ HARDCODED_DRIVERS = {
     "aux_fixed_cost_sf": 35.0,
     "structure_type": "Carport", 
     "struct_sqft": 213,
-    "front_porch_sqft": 40,
-    "back_porch_sqft": 58,
-    "storage_sqft": 0,
-    "additional_foundation_cost": 0,
+    "front_porch_sqft": 49,
+    "back_porch_sqft": 0,
+    "storage_sqft": 49,
+    "additional_foundation_cost": 3000,
     
     "gross_monthly_rent": 1600,
     "target_dscr_rate": 1.20,
@@ -43,7 +43,7 @@ HARDCODED_DRIVERS = {
     "const_bank_rent": 1500,
     "const_bank_ltv_pct": 80.0,
     "const_bank_val_mode": "DSCR Stress Test",
-    "const_bank_grm": 8.0,
+    "const_bank_grm": 10.0,
     "const_bank_opex_pct": 30.0,
     "const_bank_vac_pct": 5.0,
     "const_bank_dscr": 1.20,
@@ -54,12 +54,12 @@ HARDCODED_DRIVERS = {
     "refi_ltv_pct": 80.0,
     "refi_term_years": 30,
     "base_refi_rate_pct": 7.00,
-    "refi_closing_fee": 3650,
+    "refi_closing_fee": 5000,
     "apply_buydown": True,
     "buydown_pts": 3.0,
     
     "gc_fee_mode": "Percentage of Hard Costs (%)",
-    "gc_fee_pct": 10.0,
+    "gc_fee_pct": 7.0,
     "custom_gc_fee": 20000,
     "land_basis": 15000,
     
@@ -67,17 +67,20 @@ HARDCODED_DRIVERS = {
     "target_grm": 10.0,
     
     "cost_calc_mode": "Reverse-Engineer from Primary Comp",
-    "base_direct_cost_sf": 66.58,
+    "base_direct_cost_sf": 75.0, # Placeholder strictly required for Manual Mode slider
     "lot_cost_pct": 18.0,
     "margin_pct": 20.0,
     "sales_pct": 8.0,
     "finance_pct": 4.0,
     "pdf_include_sublevels": True,
     
-    "comp_struct_sf": 200,
-    "comp_front_sf": 60,
-    "comp_back_sf": 120,
-    "comp_storage_sf": 40
+    "comp_address": "",
+    "comp_price": 182600,
+    "comp_heated_sf": 1150,
+    "comp_struct_sf": 213,
+    "comp_front_sf": 49,
+    "comp_back_sf": 49,
+    "comp_storage_sf": 0
 }
 
 def load_defaults():
@@ -94,9 +97,6 @@ for key, value in GLOBAL_DRIVERS.items():
     if key not in st.session_state:
         st.session_state[key] = value
 
-if "comp_address" not in st.session_state: st.session_state.comp_address = ""
-if "comp_price" not in st.session_state: st.session_state.comp_price = 182600
-if "comp_heated_sf" not in st.session_state: st.session_state.comp_heated_sf = 1150
 if "raw_api_data" not in st.session_state: st.session_state.raw_api_data = None
 
 
@@ -259,10 +259,10 @@ aux_ratio = st.session_state.get("aux_rate_pct", 50.0) / 100.0
 aux_fixed_cost_sf = st.session_state.get("aux_fixed_cost_sf", 35.0)
 
 struct_sqft = st.session_state.get("struct_sqft", 213)
-front_porch_sqft = st.session_state.get("front_porch_sqft", 40)
-back_porch_sqft = st.session_state.get("back_porch_sqft", 58)
-storage_sqft = st.session_state.get("storage_sqft", 0)
-additional_foundation_cost = st.session_state.get("additional_foundation_cost", 0)
+front_porch_sqft = st.session_state.get("front_porch_sqft", 49)
+back_porch_sqft = st.session_state.get("back_porch_sqft", 0)
+storage_sqft = st.session_state.get("storage_sqft", 49)
+additional_foundation_cost = st.session_state.get("additional_foundation_cost", 3000)
 
 gross_monthly_rent = st.session_state.get("gross_monthly_rent", 1600)
 target_dscr_rate = st.session_state.get("target_dscr_rate", 1.20)
@@ -277,7 +277,7 @@ const_closing_fee = st.session_state.get("const_closing_fee", 6000)
 const_bank_rent = st.session_state.get("const_bank_rent", 1500)
 const_bank_ltv = st.session_state.get("const_bank_ltv_pct", 80.0) / 100.0
 const_bank_val_mode = st.session_state.get("const_bank_val_mode", "DSCR Stress Test")
-const_bank_grm = st.session_state.get("const_bank_grm", 8.0)
+const_bank_grm = st.session_state.get("const_bank_grm", 10.0)
 const_bank_opex_pct = st.session_state.get("const_bank_opex_pct", 30.0) / 100.0
 const_bank_vac_pct = st.session_state.get("const_bank_vac_pct", 5.0) / 100.0
 const_bank_dscr = st.session_state.get("const_bank_dscr", 1.20)
@@ -287,20 +287,20 @@ const_bank_amort_yrs = st.session_state.get("const_bank_amort_yrs", 30)
 refi_ltv = st.session_state.get("refi_ltv_pct", 80.0) / 100.0
 refi_term_years = st.session_state.get("refi_term_years", 30)
 base_refi_rate = st.session_state.get("base_refi_rate_pct", 7.00) / 100.0
-refi_closing_fee = st.session_state.get("refi_closing_fee", 3650)
+refi_closing_fee = st.session_state.get("refi_closing_fee", 5000)
 apply_buydown = st.session_state.get("apply_buydown", True)
 buydown_pts = st.session_state.get("buydown_pts", 3.0)
 net_refi_rate = max(0.01, base_refi_rate - (buydown_pts * 0.0025)) if apply_buydown else base_refi_rate
 
 gc_fee_mode = st.session_state.get("gc_fee_mode", "Percentage of Hard Costs (%)")
-gc_fee_pct = st.session_state.get("gc_fee_pct", 10.0) / 100.0
+gc_fee_pct = st.session_state.get("gc_fee_pct", 7.0) / 100.0
 custom_gc_fee = st.session_state.get("custom_gc_fee", 20000)
 land_basis = st.session_state.get("land_basis", 15000)
 appraisal_mode = st.session_state.get("appraisal_mode", "Income Approach (GRM)")
 target_grm = st.session_state.get("target_grm", 10.0)
 
 cost_calc_mode = st.session_state.get("cost_calc_mode", "Reverse-Engineer from Primary Comp")
-base_direct_cost_sf_input = st.session_state.get("base_direct_cost_sf", 66.58)
+base_direct_cost_sf_input = st.session_state.get("base_direct_cost_sf", 75.0)
 lot_cost_pct = st.session_state.get("lot_cost_pct", 18.0) / 100.0
 margin_pct = st.session_state.get("margin_pct", 20.0) / 100.0
 sales_pct = st.session_state.get("sales_pct", 8.0) / 100.0
@@ -308,10 +308,10 @@ finance_pct = st.session_state.get("finance_pct", 4.0) / 100.0
 
 comp_price = st.session_state.get("comp_price", 182600)
 comp_heated_sf = st.session_state.get("comp_heated_sf", 1150)
-comp_struct_sf = st.session_state.get("comp_struct_sf", 200)
-comp_front_sf = st.session_state.get("comp_front_sf", 60)
-comp_back_sf = st.session_state.get("comp_back_sf", 120)
-comp_storage_sf = st.session_state.get("comp_storage_sf", 40)
+comp_struct_sf = st.session_state.get("comp_struct_sf", 213)
+comp_front_sf = st.session_state.get("comp_front_sf", 49)
+comp_back_sf = st.session_state.get("comp_back_sf", 49)
+comp_storage_sf = st.session_state.get("comp_storage_sf", 0)
 
 
 # ==========================================
