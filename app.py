@@ -715,7 +715,18 @@ with tab_main:
     with ui_top_metrics:
         st.markdown("### 🏗️ Project Capital & Valuation Metrics")
         col1, col2, col3, col4 = st.columns(4)
-        col1.metric("Takeout Loan Proceeds", f"${loan_total:,.0f}", f"Const. Loan: ${actual_const_loan:,.0f}", delta_color="off")
+        
+        # Metric 1: Takeout Loan vs Total Project Basis
+        refi_vs_basis = loan_total - total_project_basis
+        col1.metric("Takeout Loan Proceeds", f"${loan_total:,.0f}", f"{refi_vs_basis:+,.0f} vs Project Basis", delta_color="normal")
+        
+        # Metric 2: Day-1 Seed Capital Status
+        if seed_capital > 0:
+            col2.metric("Day-1 Seed Capital", f"${seed_capital:,.0f}", "-Requires Cash Reserves", delta_color="normal")
+        else:
+            col2.metric("Day-1 Seed Capital", "$0", "Fully Funded", delta_color="normal")
+            
+        # Metric 3 & 4
         if cash_surplus >= 0:
             deal_health_color = "normal" 
             surplus_title = "Tax-Free Cash Surplus"
@@ -724,7 +735,7 @@ with tab_main:
             deal_health_color = "inverse" 
             surplus_title = "Trapped Seed Capital"
             surplus_delta = "Loss at Closing"
-        col2.metric("Total Project Basis", f"${total_project_basis:,.0f}", f"${total_project_basis/units:,.0f} per door", delta_color=deal_health_color)
+            
         col3.metric("Under-Roof Blended Cost", f"${blended_cost_per_sf:.2f} / SF", f"{total_under_roof_sqft:,} Total SF Under Roof")
         col4.metric(surplus_title, f"${cash_surplus:,.0f}", surplus_delta, delta_color=deal_health_color)
 
