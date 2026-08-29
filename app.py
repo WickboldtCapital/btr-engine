@@ -75,8 +75,8 @@ HARDCODED_DRIVERS = {
     "pdf_include_sublevels": True,
     
     "comp_address": "",
-    "comp_price": 182600,
-    "comp_heated_sf": 1150,
+    "comp_price": 195000,
+    "comp_heated_sf": 1275,
     "comp_struct_sf": 213,
     "comp_front_sf": 49,
     "comp_back_sf": 49,
@@ -177,6 +177,7 @@ with st.sidebar.container():
     st.number_input("Front Porch SqFt", step=10, format="%d", key="front_porch_sqft")
     st.number_input("Back Porch SqFt", step=10, format="%d", key="back_porch_sqft")
     st.number_input("Storage Room SqFt", step=5, format="%d", key="storage_sqft")
+        
     st.number_input("Additional Foundation / Elevation Cost ($)", step=500, format="%d", key="additional_foundation_cost")
 
 with st.sidebar.container():
@@ -308,8 +309,8 @@ margin_pct = st.session_state.get("margin_pct", 20.0) / 100.0
 sales_pct = st.session_state.get("sales_pct", 8.0) / 100.0
 finance_pct = st.session_state.get("finance_pct", 4.0) / 100.0
 
-comp_price = st.session_state.get("comp_price", 182600)
-comp_heated_sf = st.session_state.get("comp_heated_sf", 1150)
+comp_price = st.session_state.get("comp_price", 195000)
+comp_heated_sf = st.session_state.get("comp_heated_sf", 1275)
 comp_struct_sf = st.session_state.get("comp_struct_sf", 213)
 comp_front_sf = st.session_state.get("comp_front_sf", 49)
 comp_back_sf = st.session_state.get("comp_back_sf", 49)
