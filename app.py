@@ -75,7 +75,7 @@ HARDCODED_DRIVERS = {
     "pdf_include_sublevels": True,
     
     "comp_address": "",
-    "comp_price": 182600,
+    "comp_price": 199900,
     "comp_heated_sf": 1150,
     "comp_struct_sf": 213,
     "comp_front_sf": 49,
