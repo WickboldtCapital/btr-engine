@@ -74,9 +74,9 @@ HARDCODED_DRIVERS = {
     "finance_pct": 4.0,
     "pdf_include_sublevels": True,
     
-    "comp_address": "435 Pine St, Independence, LA 70443",
-    "comp_price": 195000,
-    "comp_heated_sf": 1275,
+    "comp_address": "",
+    "comp_price": 182600,
+    "comp_heated_sf": 1150,
     "comp_struct_sf": 213,
     "comp_front_sf": 49,
     "comp_back_sf": 49,
@@ -84,13 +84,15 @@ HARDCODED_DRIVERS = {
 }
 
 def load_defaults():
+    drivers = HARDCODED_DRIVERS.copy()
     if os.path.exists(DEFAULT_FILE):
         try:
             with open(DEFAULT_FILE, "r") as f:
-                return json.load(f)
+                saved = json.load(f)
+                drivers.update(saved)
         except Exception:
             pass
-    return HARDCODED_DRIVERS
+    return drivers
 
 GLOBAL_DRIVERS = load_defaults()
 for key, value in GLOBAL_DRIVERS.items():
@@ -234,8 +236,8 @@ with st.sidebar.container():
     st.radio("Bank Valuation Method", ["DSCR Stress Test", "Gross Rent Multiplier (GRM)"], key="const_bank_val_mode")
     
     if st.session_state.const_bank_val_mode == "DSCR Stress Test":
-        st.slider("Bank Underwriting OpEx (%)", min_value=15.0, max_value=50.0, step=1.0, key="const_bank_opex_pct")
         st.slider("Bank Underwriting Vacancy (%)", min_value=0.0, max_value=15.0, step=1.0, key="const_bank_vac_pct")
+        st.slider("Bank Underwriting OpEx (%)", min_value=15.0, max_value=50.0, step=1.0, key="const_bank_opex_pct")
         st.number_input("Bank Target DSCR", min_value=1.0, max_value=1.5, step=0.05, key="const_bank_dscr")
         st.slider("Bank Qualifying Rate (%)", min_value=4.0, max_value=14.0, step=0.25, key="const_bank_qual_rate_pct")
         st.selectbox("Bank Amortization (Years)", [15, 20, 25, 30], key="const_bank_amort_yrs")
