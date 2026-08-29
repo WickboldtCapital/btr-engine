@@ -74,9 +74,9 @@ HARDCODED_DRIVERS = {
     "finance_pct": 4.0,
     "pdf_include_sublevels": True,
     
-    "comp_address": "",
-    "comp_price": 199900,
-    "comp_heated_sf": 1150,
+    "comp_address": "435 Pine St, Independence, LA 70443",
+    "comp_price": 195000,
+    "comp_heated_sf": 1275,
     "comp_struct_sf": 213,
     "comp_front_sf": 49,
     "comp_back_sf": 49,
