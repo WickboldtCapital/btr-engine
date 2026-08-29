@@ -67,7 +67,7 @@ HARDCODED_DRIVERS = {
     "target_grm": 10.0,
     
     "cost_calc_mode": "Reverse-Engineer from Primary Comp",
-    "base_direct_cost_sf": 75.0, # Placeholder strictly required for Manual Mode slider
+    "base_direct_cost_sf": 75.0,
     "lot_cost_pct": 18.0,
     "margin_pct": 20.0,
     "sales_pct": 8.0,
@@ -177,14 +177,13 @@ with st.sidebar.container():
     st.number_input("Front Porch SqFt", step=10, format="%d", key="front_porch_sqft")
     st.number_input("Back Porch SqFt", step=10, format="%d", key="back_porch_sqft")
     st.number_input("Storage Room SqFt", step=5, format="%d", key="storage_sqft")
-        
     st.number_input("Additional Foundation / Elevation Cost ($)", step=500, format="%d", key="additional_foundation_cost")
 
 with st.sidebar.container():
     st.subheader("4. Takeout Appraisal Methodology")
     st.radio("Valuation Mode", ["Sales Comp (Price/SF)", "Income Approach (GRM)"], key="appraisal_mode")
     if st.session_state.appraisal_mode == "Income Approach (GRM)":
-        st.number_input("Gross Rent Multiplier (GRM)", min_value=4.0, max_value=25.0, step=0.1, key="target_grm")
+        st.number_input("Gross Rent Multiplier (GRM)", min_value=4.0, max_value=25.0, value=float(GLOBAL_DRIVERS.get("target_grm", 10.0)), step=0.1, key="target_grm")
 
 with st.sidebar.container():
     st.subheader("5. Cost Target Mode (Reverse Engineer)")
@@ -209,7 +208,7 @@ with st.sidebar.container():
 with st.sidebar.container():
     st.subheader("7. Financing & Operations")
     st.number_input("Gross Monthly Rental Income per Unit ($)", step=50, format="%d", key="gross_monthly_rent")
-    st.number_input("Target Lender DSCR Rate", min_value=1.0, max_value=1.5, step=0.05, key="target_dscr_rate")
+    st.number_input("Target Lender DSCR Rate", min_value=1.0, max_value=1.5, value=float(GLOBAL_DRIVERS.get("target_dscr_rate", 1.20)), step=0.05, key="target_dscr_rate")
     st.slider("Vacancy Rate (%)", min_value=0.0, max_value=15.0, step=1.0, key="vacancy_rate_pct")
     st.slider("Operating Expenses (OpEx) Rate of EGI (%)", min_value=15.0, max_value=50.0, step=1.0, key="opex_rate_pct")
     
@@ -225,7 +224,7 @@ with st.sidebar.container():
     st.number_input("Refinance Closing Fee ($ total)", step=250, format="%d", key="refi_closing_fee")
     st.checkbox("Apply Interest Rate Buydown Points?", key="apply_buydown")
     if st.session_state.apply_buydown:
-        st.number_input("Discount Points", min_value=0.0, max_value=5.0, step=0.5, key="buydown_pts")
+        st.number_input("Discount Points", min_value=0.0, max_value=5.0, value=float(GLOBAL_DRIVERS.get("buydown_pts", 3.0)), step=0.5, key="buydown_pts")
         net_rate = max(0.01, (st.session_state.base_refi_rate_pct / 100.0) - (st.session_state.buydown_pts * 0.0025))
         st.markdown(f"📉 **Buydown Net Rate:** `{net_rate*100:.3f}%`")
 
@@ -238,11 +237,11 @@ with st.sidebar.container():
     if st.session_state.const_bank_val_mode == "DSCR Stress Test":
         st.slider("Bank Underwriting Vacancy (%)", min_value=0.0, max_value=15.0, step=1.0, key="const_bank_vac_pct")
         st.slider("Bank Underwriting OpEx (%)", min_value=15.0, max_value=50.0, step=1.0, key="const_bank_opex_pct")
-        st.number_input("Bank Target DSCR", min_value=1.0, max_value=1.5, step=0.05, key="const_bank_dscr")
+        st.number_input("Bank Target DSCR", min_value=1.0, max_value=1.5, value=float(GLOBAL_DRIVERS.get("const_bank_dscr", 1.20)), step=0.05, key="const_bank_dscr")
         st.slider("Bank Qualifying Rate (%)", min_value=4.0, max_value=14.0, step=0.25, key="const_bank_qual_rate_pct")
         st.selectbox("Bank Amortization (Years)", [15, 20, 25, 30], key="const_bank_amort_yrs")
     else:
-        st.number_input("Bank Underwriting GRM", min_value=4.0, max_value=25.0, step=0.1, key="const_bank_grm")
+        st.number_input("Bank Underwriting GRM", min_value=4.0, max_value=25.0, value=float(GLOBAL_DRIVERS.get("const_bank_grm", 10.0)), step=0.1, key="const_bank_grm")
 
 with st.sidebar.container():
     st.subheader("PDF Export Options")
@@ -896,8 +895,8 @@ with tab_main:
         if const_bank_val_mode == "DSCR Stress Test":
             pdf.cell(100, 7, "Bank Assumed Rent & Target DSCR:", 0, 0)
             pdf.cell(90, 7, f"${const_bank_rent:,.0f}/mo | {const_bank_dscr:.2f}x DSCR", 0, 1, 'R')
-            pdf.cell(100, 7, "Bank OpEx & Vacancy Deductions:", 0, 0)
-            pdf.cell(90, 7, f"{const_bank_opex_pct*100:.1f}% OpEx | {const_bank_vac_pct*100:.1f}% Vac", 0, 1, 'R')
+            pdf.cell(100, 7, "Bank Vacancy & OpEx Deductions:", 0, 0)
+            pdf.cell(90, 7, f"{const_bank_vac_pct*100:.1f}% Vac | {const_bank_opex_pct*100:.1f}% OpEx", 0, 1, 'R')
             pdf.cell(100, 7, "Bank Implied Asset Value (Refi Stress Test):", 0, 0)
             pdf.cell(90, 7, f"${bank_stressed_value:,.0f}", 0, 1, 'R')
         else:
