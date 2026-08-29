@@ -150,20 +150,20 @@ with st.sidebar.container():
     st.markdown("##### 1. Primary Comp Metrics")
     is_rentcast = st.session_state.comp_entry_mode == "RentCast Live API Fetch"
     st.text_input("Comparable Property Address", key="comp_address", disabled=is_rentcast)
-    st.number_input("Comp Sale Price ($)", step=1000, key="comp_price", disabled=is_rentcast)
-    st.number_input("Comp Heated SF", step=50, key="comp_heated_sf", disabled=is_rentcast)
+    st.number_input("Comp Sale Price ($)", min_value=0, step=1000, key="comp_price", disabled=is_rentcast)
+    st.number_input("Comp Heated SF", min_value=0, step=50, key="comp_heated_sf", disabled=is_rentcast)
 
     st.markdown("##### 2. Comp Auxiliary Spaces")
     c_aux1, c_aux2 = st.columns(2)
-    c_aux1.number_input("Aux SF", step=25, format="%d", key="comp_struct_sf", help="Garage or Carport")
-    c_aux2.number_input("Front Porch SF", step=10, format="%d", key="comp_front_sf")
+    c_aux1.number_input("Aux SF", min_value=0, step=25, format="%d", key="comp_struct_sf", help="Garage or Carport")
+    c_aux2.number_input("Front Porch SF", min_value=0, step=10, format="%d", key="comp_front_sf")
     c_aux3, c_aux4 = st.columns(2)
-    c_aux3.number_input("Back Porch SF", step=10, format="%d", key="comp_back_sf")
-    c_aux4.number_input("Storage SF", step=5, format="%d", key="comp_storage_sf")
+    c_aux3.number_input("Back Porch SF", min_value=0, step=10, format="%d", key="comp_back_sf")
+    c_aux4.number_input("Storage SF", min_value=0, step=5, format="%d", key="comp_storage_sf")
 
 with st.sidebar.container():
     st.subheader("3. Physical Footprint & Aux Costs")
-    st.number_input("Heated SqFt per Unit", step=50, format="%d", key="sqft")
+    st.number_input("Heated SqFt per Unit", min_value=0, step=50, format="%d", key="sqft")
     
     st.radio("Auxiliary Rate Method", ["Percentage of Heated Rate (%)", "Fixed Cost ($ / SF)"], key="aux_cost_mode")
     
@@ -173,12 +173,12 @@ with st.sidebar.container():
         st.slider("Auxiliary Fixed Cost ($ / SF)", min_value=15.0, max_value=90.0, step=1.0, key="aux_fixed_cost_sf")
     
     st.selectbox("Aux Structure Type", ["Carport", "Garage"], key="structure_type")
-    st.number_input(f"{st.session_state.structure_type} SqFt per Unit", step=25, format="%d", key="struct_sqft")
-    st.number_input("Front Porch SqFt", step=10, format="%d", key="front_porch_sqft")
-    st.number_input("Back Porch SqFt", step=10, format="%d", key="back_porch_sqft")
-    st.number_input("Storage Room SqFt", step=5, format="%d", key="storage_sqft")
+    st.number_input(f"{st.session_state.structure_type} SqFt per Unit", min_value=0, step=25, format="%d", key="struct_sqft")
+    st.number_input("Front Porch SqFt", min_value=0, step=10, format="%d", key="front_porch_sqft")
+    st.number_input("Back Porch SqFt", min_value=0, step=10, format="%d", key="back_porch_sqft")
+    st.number_input("Storage Room SqFt", min_value=0, step=5, format="%d", key="storage_sqft")
         
-    st.number_input("Additional Foundation / Elevation Cost ($)", step=500, format="%d", key="additional_foundation_cost")
+    st.number_input("Additional Foundation / Elevation Cost ($)", min_value=0, step=500, format="%d", key="additional_foundation_cost")
 
 with st.sidebar.container():
     st.subheader("4. Takeout Appraisal Methodology")
@@ -203,12 +203,12 @@ with st.sidebar.container():
     if st.session_state.gc_fee_mode == "Percentage of Hard Costs (%)":
         st.number_input("GC Management Fee (%)", min_value=0.0, max_value=50.0, step=0.5, key="gc_fee_pct")
     else:
-        st.number_input("Total Consolidated GC Fee ($)", step=1000, format="%d", key="custom_gc_fee")
-    st.number_input("Land Basis per Lot ($)", step=1000, format="%d", key="land_basis")
+        st.number_input("Total Consolidated GC Fee ($)", min_value=0, step=1000, format="%d", key="custom_gc_fee")
+    st.number_input("Land Basis per Lot ($)", min_value=0, step=1000, format="%d", key="land_basis")
 
 with st.sidebar.container():
     st.subheader("7. Financing & Operations")
-    st.number_input("Gross Monthly Rental Income per Unit ($)", step=50, format="%d", key="gross_monthly_rent")
+    st.number_input("Gross Monthly Rental Income per Unit ($)", min_value=0, step=50, format="%d", key="gross_monthly_rent")
     st.number_input("Target Lender DSCR Rate", min_value=1.0, max_value=1.5, value=float(GLOBAL_DRIVERS.get("target_dscr_rate", 1.20)), step=0.05, key="target_dscr_rate")
     st.slider("Vacancy Rate (%)", min_value=0.0, max_value=15.0, step=1.0, key="vacancy_rate_pct")
     st.slider("Operating Expenses (OpEx) Rate of EGI (%)", min_value=15.0, max_value=50.0, step=1.0, key="opex_rate_pct")
@@ -217,12 +217,12 @@ with st.sidebar.container():
     st.slider("Construction Duration (Months)", min_value=3, max_value=18, step=1, key="build_months")
     st.slider("Construction Loan Rate (%)", min_value=4.0, max_value=14.0, step=0.5, key="const_rate_pct")
     st.slider("Avg Draw Utilization (%)", min_value=20.0, max_value=100.0, step=5.0, key="avg_draw_pct")
-    st.number_input("Const Loan Closing Fee ($ total)", step=500, format="%d", key="const_closing_fee")
+    st.number_input("Const Loan Closing Fee ($ total)", min_value=0, step=500, format="%d", key="const_closing_fee")
     
     st.slider("Refinance LTV (%)", min_value=60.0, max_value=85.0, step=5.0, key="refi_ltv_pct")
     st.selectbox("Amortization Term (Years)", [15, 20, 25, 30], key="refi_term_years")
     st.slider("Base Refi Interest Rate (%)", min_value=4.0, max_value=10.0, step=0.25, key="base_refi_rate_pct")
-    st.number_input("Refinance Closing Fee ($ total)", step=250, format="%d", key="refi_closing_fee")
+    st.number_input("Refinance Closing Fee ($ total)", min_value=0, step=250, format="%d", key="refi_closing_fee")
     st.checkbox("Apply Interest Rate Buydown Points?", key="apply_buydown")
     if st.session_state.apply_buydown:
         st.number_input("Discount Points", min_value=0.0, max_value=5.0, value=float(GLOBAL_DRIVERS.get("buydown_pts", 3.0)), step=0.5, key="buydown_pts")
@@ -231,19 +231,18 @@ with st.sidebar.container():
 
 with st.sidebar.container():
     st.subheader("8. Const. Lender Limits")
-    st.number_input("Bank Underwriting Rent ($)", step=50, format="%d", key="const_bank_rent")
+    st.number_input("Bank Underwriting Rent ($)", min_value=0, step=50, format="%d", key="const_bank_rent")
     st.slider("Bank Underwriting LTV (%)", min_value=50.0, max_value=100.0, step=5.0, key="const_bank_ltv_pct")
-    
     st.radio("Bank Valuation Method", ["Gross Rent Multiplier (GRM)", "DSCR Stress Test"], key="const_bank_val_mode")
     
-    if st.session_state.const_bank_val_mode == "Gross Rent Multiplier (GRM)":
-        st.number_input("Bank Underwriting GRM", min_value=4.0, max_value=25.0, value=float(GLOBAL_DRIVERS.get("const_bank_grm", 10.0)), step=0.1, key="const_bank_grm")
-    else:
+    if st.session_state.const_bank_val_mode == "DSCR Stress Test":
         st.slider("Bank Underwriting Vacancy (%)", min_value=0.0, max_value=15.0, step=1.0, key="const_bank_vac_pct")
         st.slider("Bank Underwriting OpEx (%)", min_value=15.0, max_value=50.0, step=1.0, key="const_bank_opex_pct")
         st.number_input("Bank Target DSCR", min_value=1.0, max_value=1.5, value=float(GLOBAL_DRIVERS.get("const_bank_dscr", 1.20)), step=0.05, key="const_bank_dscr")
         st.slider("Bank Qualifying Rate (%)", min_value=4.0, max_value=14.0, step=0.25, key="const_bank_qual_rate_pct")
         st.selectbox("Bank Amortization (Years)", [15, 20, 25, 30], key="const_bank_amort_yrs")
+    else:
+        st.number_input("Bank Underwriting GRM", min_value=4.0, max_value=25.0, value=float(GLOBAL_DRIVERS.get("const_bank_grm", 10.0)), step=0.1, key="const_bank_grm")
 
 with st.sidebar.container():
     st.subheader("PDF Export Options")
