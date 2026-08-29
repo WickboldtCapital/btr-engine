@@ -66,7 +66,7 @@ HARDCODED_DRIVERS = {
     "appraisal_mode": "Income Approach (GRM)",
     "target_grm": 10.0,
     
-    "cost_calc_mode": "Reverse-Engineer from Appraisal",
+    "cost_calc_mode": "Reverse-Engineer from Primary Comp",
     "base_direct_cost_sf": 66.58,
     "lot_cost_pct": 18.0,
     "margin_pct": 20.0,
@@ -146,14 +146,10 @@ with st.sidebar.container():
                         st.error(f"API Error: {e}")
 
     st.markdown("##### 1. Primary Comp Metrics")
-    if st.session_state.comp_entry_mode == "RentCast Live API Fetch":
-        st.text_input("Comparable Property Address", value=st.session_state.comp_address, disabled=True)
-        st.number_input("Comp Sale Price ($)", value=st.session_state.comp_price, disabled=True)
-        st.number_input("Comp Heated SF", value=st.session_state.comp_heated_sf, disabled=True)
-    else:
-        st.text_input("Comparable Property Address", key="comp_address")
-        st.number_input("Comp Sale Price ($)", step=1000, key="comp_price")
-        st.number_input("Comp Heated SF", step=50, key="comp_heated_sf")
+    is_rentcast = st.session_state.comp_entry_mode == "RentCast Live API Fetch"
+    st.text_input("Comparable Property Address", key="comp_address", disabled=is_rentcast)
+    st.number_input("Comp Sale Price ($)", step=1000, key="comp_price", disabled=is_rentcast)
+    st.number_input("Comp Heated SF", step=50, key="comp_heated_sf", disabled=is_rentcast)
 
     st.markdown("##### 2. Comp Auxiliary Spaces")
     c_aux1, c_aux2 = st.columns(2)
@@ -170,7 +166,7 @@ with st.sidebar.container():
     st.radio("Auxiliary Rate Method", ["Percentage of Heated Rate (%)", "Fixed Cost ($ / SF)"], key="aux_cost_mode")
     
     if st.session_state.aux_cost_mode == "Percentage of Heated Rate (%)":
-        st.slider("Auxiliary Rate (% of Heated Cost)", min_value=10.0, max_value=100.0, step=5.0, key="aux_rate_pct")
+        st.slider("Auxiliary Rate (% of Heated Cost)", min_value=10.0, max_value=100.0, step=5.0, key="aux_rate_pct", help="Values unheated carport/porch space as a direct percentage of the heated shell rate per square foot for both the Comp and Project.")
     else:
         st.slider("Auxiliary Fixed Cost ($ / SF)", min_value=15.0, max_value=90.0, step=1.0, key="aux_fixed_cost_sf")
     
@@ -179,6 +175,7 @@ with st.sidebar.container():
     st.number_input("Front Porch SqFt", step=10, format="%d", key="front_porch_sqft")
     st.number_input("Back Porch SqFt", step=10, format="%d", key="back_porch_sqft")
     st.number_input("Storage Room SqFt", step=5, format="%d", key="storage_sqft")
+        
     st.number_input("Additional Foundation / Elevation Cost ($)", step=500, format="%d", key="additional_foundation_cost")
 
 with st.sidebar.container():
@@ -214,7 +211,7 @@ with st.sidebar.container():
     st.slider("Vacancy Rate (%)", min_value=0.0, max_value=15.0, step=1.0, key="vacancy_rate_pct")
     st.slider("Operating Expenses (OpEx) Rate of EGI (%)", min_value=15.0, max_value=50.0, step=1.0, key="opex_rate_pct")
     
-    st.slider("Construction / Bank LTV (%)", min_value=60.0, max_value=100.0, step=5.0, key="const_ltv_pct")
+    st.slider("Construction / Bank LTC (%)", min_value=60.0, max_value=100.0, step=5.0, key="const_ltv_pct")
     st.slider("Construction Duration (Months)", min_value=3, max_value=18, step=1, key="build_months")
     st.slider("Construction Loan Rate (%)", min_value=4.0, max_value=14.0, step=0.5, key="const_rate_pct")
     st.slider("Avg Draw Utilization (%)", min_value=20.0, max_value=100.0, step=5.0, key="avg_draw_pct")
@@ -251,66 +248,70 @@ with st.sidebar.container():
 
 
 # ==========================================
-# --- ACTIVE VARIABLE EXTRACTION FOR MATH ---
+# --- SAFE VARIABLE EXTRACTION FOR MATH ---
 # ==========================================
-units = st.session_state.units
-sqft = st.session_state.sqft
-aux_cost_mode = st.session_state.aux_cost_mode
-aux_ratio = st.session_state.aux_rate_pct / 100.0
-aux_fixed_cost_sf = st.session_state.aux_fixed_cost_sf
+units = st.session_state.get("units", 1)
+sqft = st.session_state.get("sqft", 1173)
 
-struct_sqft = st.session_state.struct_sqft
-front_porch_sqft = st.session_state.front_porch_sqft
-back_porch_sqft = st.session_state.back_porch_sqft
-storage_sqft = st.session_state.storage_sqft
-additional_foundation_cost = st.session_state.additional_foundation_cost
+# Core Auxiliary logic 
+aux_cost_mode = st.session_state.get("aux_cost_mode", "Percentage of Heated Rate (%)")
+aux_ratio = st.session_state.get("aux_rate_pct", 50.0) / 100.0
+aux_fixed_cost_sf = st.session_state.get("aux_fixed_cost_sf", 35.0)
 
-gross_monthly_rent = st.session_state.gross_monthly_rent
-target_dscr_rate = st.session_state.target_dscr_rate
-vacancy_rate = st.session_state.vacancy_rate_pct / 100.0
-opex_rate = st.session_state.opex_rate_pct / 100.0
-const_ltv = st.session_state.const_ltv_pct / 100.0
-build_months = st.session_state.build_months
-const_rate = st.session_state.const_rate_pct / 100.0
-avg_draw_pct = st.session_state.avg_draw_pct / 100.0
-const_closing_fee = st.session_state.const_closing_fee
+struct_sqft = st.session_state.get("struct_sqft", 213)
+front_porch_sqft = st.session_state.get("front_porch_sqft", 40)
+back_porch_sqft = st.session_state.get("back_porch_sqft", 58)
+storage_sqft = st.session_state.get("storage_sqft", 0)
+additional_foundation_cost = st.session_state.get("additional_foundation_cost", 0)
 
-const_bank_rent = st.session_state.const_bank_rent
-const_bank_ltv = st.session_state.const_bank_ltv_pct / 100.0
-const_bank_val_mode = st.session_state.const_bank_val_mode
-const_bank_grm = st.session_state.const_bank_grm
-const_bank_opex_pct = st.session_state.const_bank_opex_pct / 100.0
-const_bank_vac_pct = st.session_state.const_bank_vac_pct / 100.0
-const_bank_dscr = st.session_state.const_bank_dscr
-const_bank_qual_rate = st.session_state.const_bank_qual_rate_pct / 100.0
-const_bank_amort_yrs = st.session_state.const_bank_amort_yrs
+gross_monthly_rent = st.session_state.get("gross_monthly_rent", 1600)
+target_dscr_rate = st.session_state.get("target_dscr_rate", 1.20)
+vacancy_rate = st.session_state.get("vacancy_rate_pct", 5.0) / 100.0
+opex_rate = st.session_state.get("opex_rate_pct", 25.0) / 100.0
+const_ltv = st.session_state.get("const_ltv_pct", 80.0) / 100.0
+build_months = st.session_state.get("build_months", 7)
+const_rate = st.session_state.get("const_rate_pct", 7.50) / 100.0
+avg_draw_pct = st.session_state.get("avg_draw_pct", 50.0) / 100.0
+const_closing_fee = st.session_state.get("const_closing_fee", 6000)
 
-refi_ltv = st.session_state.refi_ltv_pct / 100.0
-refi_term_years = st.session_state.refi_term_years
-base_refi_rate = st.session_state.base_refi_rate_pct / 100.0
-refi_closing_fee = st.session_state.refi_closing_fee
-apply_buydown = st.session_state.apply_buydown
-buydown_pts = st.session_state.buydown_pts
+const_bank_rent = st.session_state.get("const_bank_rent", 1500)
+const_bank_ltv = st.session_state.get("const_bank_ltv_pct", 80.0) / 100.0
+const_bank_val_mode = st.session_state.get("const_bank_val_mode", "DSCR Stress Test")
+const_bank_grm = st.session_state.get("const_bank_grm", 8.0)
+const_bank_opex_pct = st.session_state.get("const_bank_opex_pct", 30.0) / 100.0
+const_bank_vac_pct = st.session_state.get("const_bank_vac_pct", 5.0) / 100.0
+const_bank_dscr = st.session_state.get("const_bank_dscr", 1.20)
+const_bank_qual_rate = st.session_state.get("const_bank_qual_rate_pct", 7.25) / 100.0
+const_bank_amort_yrs = st.session_state.get("const_bank_amort_yrs", 30)
+
+refi_ltv = st.session_state.get("refi_ltv_pct", 80.0) / 100.0
+refi_term_years = st.session_state.get("refi_term_years", 30)
+base_refi_rate = st.session_state.get("base_refi_rate_pct", 7.00) / 100.0
+refi_closing_fee = st.session_state.get("refi_closing_fee", 3650)
+apply_buydown = st.session_state.get("apply_buydown", True)
+buydown_pts = st.session_state.get("buydown_pts", 3.0)
 net_refi_rate = max(0.01, base_refi_rate - (buydown_pts * 0.0025)) if apply_buydown else base_refi_rate
 
-gc_fee_mode = st.session_state.gc_fee_mode
-gc_fee_pct = st.session_state.gc_fee_pct / 100.0
-custom_gc_fee = st.session_state.custom_gc_fee
-land_basis = st.session_state.land_basis
-appraisal_mode = st.session_state.appraisal_mode
-target_grm = st.session_state.target_grm
-cost_calc_mode = st.session_state.cost_calc_mode
-lot_cost_pct = st.session_state.lot_cost_pct / 100.0
-margin_pct = st.session_state.margin_pct / 100.0
-sales_pct = st.session_state.sales_pct / 100.0
-finance_pct = st.session_state.finance_pct / 100.0
+gc_fee_mode = st.session_state.get("gc_fee_mode", "Percentage of Hard Costs (%)")
+gc_fee_pct = st.session_state.get("gc_fee_pct", 10.0) / 100.0
+custom_gc_fee = st.session_state.get("custom_gc_fee", 20000)
+land_basis = st.session_state.get("land_basis", 15000)
+appraisal_mode = st.session_state.get("appraisal_mode", "Income Approach (GRM)")
+target_grm = st.session_state.get("target_grm", 10.0)
 
-comp_price = st.session_state.comp_price
-comp_heated_sf = st.session_state.comp_heated_sf
-comp_struct_sf = st.session_state.comp_struct_sf
-comp_front_sf = st.session_state.comp_front_sf
-comp_back_sf = st.session_state.comp_back_sf
-comp_storage_sf = st.session_state.comp_storage_sf
+cost_calc_mode = st.session_state.get("cost_calc_mode", "Reverse-Engineer from Primary Comp")
+base_direct_cost_sf_input = st.session_state.get("base_direct_cost_sf", 66.58)
+lot_cost_pct = st.session_state.get("lot_cost_pct", 18.0) / 100.0
+margin_pct = st.session_state.get("margin_pct", 20.0) / 100.0
+sales_pct = st.session_state.get("sales_pct", 8.0) / 100.0
+finance_pct = st.session_state.get("finance_pct", 4.0) / 100.0
+
+comp_price = st.session_state.get("comp_price", 182600)
+comp_heated_sf = st.session_state.get("comp_heated_sf", 1150)
+comp_struct_sf = st.session_state.get("comp_struct_sf", 200)
+comp_front_sf = st.session_state.get("comp_front_sf", 60)
+comp_back_sf = st.session_state.get("comp_back_sf", 120)
+comp_storage_sf = st.session_state.get("comp_storage_sf", 40)
 
 
 # ==========================================
@@ -345,7 +346,7 @@ else:
 
 if aux_cost_mode == "Percentage of Heated Rate (%)":
     if cost_calc_mode == "Manual Set (Heated SF)":
-        direct_cost_sf = st.session_state.base_direct_cost_sf
+        direct_cost_sf = base_direct_cost_sf_input
         struct_cost_sf = direct_cost_sf * aux_ratio
         our_aux_cost_total = (aux_sqft_total * struct_cost_sf) + additional_foundation_cost
         target_heated_hard_cost = direct_cost_sf * sqft
@@ -382,7 +383,7 @@ else: # Fixed Aux Cost Mode
         arv_per_unit = (isolated_heated_rate * sqft) + our_aux_cost_total
 
     if cost_calc_mode == "Manual Set (Heated SF)":
-        direct_cost_sf = st.session_state.base_direct_cost_sf
+        direct_cost_sf = base_direct_cost_sf_input
         target_heated_hard_cost = direct_cost_sf * sqft
         target_total_hard_cost = target_heated_hard_cost + our_aux_cost_total
         comp_equivalent_arv = 0 
