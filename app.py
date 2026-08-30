@@ -987,11 +987,11 @@ if cost_calc_mode in ["Reverse-Engineer from Appraisal", "Reverse-Engineer from 
     reference_price = arv_per_unit if cost_calc_mode == 'Reverse-Engineer from Appraisal' else comp_equivalent_arv
     ref_price_sf = reference_price / sqft if sqft > 0 else 0
     
-    st.info(f"**Reverse-Engineering the \${ref_price_sf:,.0f}/SF Benchmark Price:**\n\nTo establish our baseline construction parameters, we reverse-engineer the benchmark target value of \${reference_price:,.0f} (approximately \${ref_price_sf:,.2f} per heated square foot) to isolate the pure direct hard costs from finished land, builder corporate margins, indirects, and soft costs. This process completely strips away typical retail markups, ensuring our physical construction budget perfectly aligns with proven local market economics.")
+    st.info(f"**Reverse-Engineering the Target Budget:**\n\nBased on the comp's isolated rates, your specific {sqft} SF project has an estimated ARV of **\${reference_price:,.0f}** (approximately \${ref_price_sf:,.2f} per heated square foot). We are reverse-engineering *this* value to isolate the pure direct hard costs from finished land, builder corporate margins, indirects, and soft costs. This ensures the physical build budget perfectly aligns with proven market economics.")
     
     breakdown_data = {
         "Cost Category": [
-            f"Baseline Reference Price (Comp / ARV)", 
+            f"Project Target ARV (Derived from Comp)", 
             "(-) Finished Lot Cost", 
             "(-) Builder Profit (Pre-tax)", 
             "(-) Overhead & General Expenses",
@@ -1017,7 +1017,7 @@ if cost_calc_mode in ["Reverse-Engineer from Appraisal", "Reverse-Engineer from 
             f"${target_heated_hard_cost:,.0f}"
         ],
         "Description": [
-            "Derived directly from Primary Comp Sale Price or Takeout Appraisal.",
+            "Projected value of your build using the Comp's isolated rates.",
             "Land acquisition, grading, and utility infrastructure.",
             "Net profit margin retained by the homebuilding company.",
             "Office staff, software, vehicles, insurance, and administrative tools.",
@@ -1117,11 +1117,11 @@ def create_pdf(detail_mode):
         pdf.set_font("Arial", '', 10)
         
         # Add dynamic narrative to PDF
-        rev_eng_summary = f"To establish our baseline construction parameters, we reverse-engineer the benchmark target value of ${reference_price:,.0f} (approximately ${ref_price_sf:,.2f} per heated square foot) to isolate the pure direct hard costs from finished land, builder corporate margins, indirects, and soft costs. This ensures the physical build budget perfectly aligns with proven market economics."
+        rev_eng_summary = f"Based on the comp's isolated rates, your specific {sqft} SF project has an estimated ARV of ${reference_price:,.0f}. We are reverse-engineering this value to isolate the pure direct hard costs from finished land, builder corporate margins, indirects, and soft costs. This ensures the physical build budget perfectly aligns with proven market economics."
         pdf.multi_cell(0, 6, rev_eng_summary.encode('latin-1', 'replace').decode('latin-1'))
         pdf.ln(3)
         
-        pdf.cell(130, 7, "Baseline Reference Price (Comp / ARV):", 0, 0)
+        pdf.cell(130, 7, "Project Target ARV (Derived from Comp):", 0, 0)
         pdf.cell(60, 7, f"${reference_price:,.0f}", 0, 1, 'R')
         pdf.cell(130, 7, "(-) Finished Lot Cost:", 0, 0)
         pdf.cell(60, 7, f"-${reference_price * lot_cost_pct:,.0f}", 0, 1, 'R')
