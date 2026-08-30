@@ -4,7 +4,6 @@ from fpdf import FPDF
 import tempfile
 import requests
 import os
-import json
 from datetime import datetime
 
 # Page Configuration
@@ -81,18 +80,7 @@ HARDCODED_DRIVERS = {
     "comp_storage_sf": 0
 }
 
-def load_defaults():
-    drivers = HARDCODED_DRIVERS.copy()
-    if os.path.exists(DEFAULT_FILE):
-        try:
-            with open(DEFAULT_FILE, "r") as f:
-                saved = json.load(f)
-                drivers.update(saved)
-        except Exception:
-            pass
-    return drivers
-
-GLOBAL_DRIVERS = load_defaults()
+GLOBAL_DRIVERS = HARDCODED_DRIVERS.copy()
 for key, value in GLOBAL_DRIVERS.items():
     if key not in st.session_state:
         st.session_state[key] = value
