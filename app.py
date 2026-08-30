@@ -28,6 +28,7 @@ HARDCODED_DRIVERS = {
     
     "gross_monthly_rent": 1600,
     "target_dscr_rate": 1.20,
+    "target_min_cashflow_per_door": 200.0,
     "vacancy_rate_pct": 5.0,
     "opex_rate_pct": 25.0,
     
@@ -200,19 +201,20 @@ with st.sidebar.container():
     st.number_input("Land Basis per Lot ($)", min_value=0, step=1000, format="%d", key="land_basis")
 
 with st.sidebar.container():
-    st.subheader("7. Construction Loan Terms")
+    st.subheader("7. Operating Pro Forma (DSCR)")
+    st.number_input("Gross Monthly Rental Income per Unit ($)", min_value=0, step=50, format="%d", key="gross_monthly_rent")
+    st.number_input("Target Lender DSCR Rate", min_value=1.0, max_value=1.5, value=float(GLOBAL_DRIVERS.get("target_dscr_rate", 1.20)), step=0.05, key="target_dscr_rate")
+    st.number_input("Min. Acceptable Cash Flow / Door ($)", min_value=0.0, max_value=1000.0, value=float(GLOBAL_DRIVERS.get("target_min_cashflow_per_door", 200.0)), step=25.0, key="target_min_cashflow_per_door")
+    st.slider("Vacancy Rate (%)", min_value=0.0, max_value=15.0, step=1.0, key="vacancy_rate_pct")
+    st.slider("Operating Expenses (OpEx) Rate of EGI (%)", min_value=15.0, max_value=50.0, step=1.0, key="opex_rate_pct")
+
+with st.sidebar.container():
+    st.subheader("8. Construction Loan Terms")
     st.slider("Construction / Bank LTC (%)", min_value=60.0, max_value=100.0, step=5.0, key="const_ltv_pct")
     st.slider("Construction Duration (Months)", min_value=3, max_value=18, step=1, key="build_months")
     st.slider("Construction Loan Rate (%)", min_value=4.0, max_value=14.0, step=0.5, key="const_rate_pct")
     st.slider("Avg Draw Utilization (%)", min_value=20.0, max_value=100.0, step=5.0, key="avg_draw_pct")
     st.number_input("Const Loan Closing Fee ($ total)", min_value=0, step=500, format="%d", key="const_closing_fee")
-
-with st.sidebar.container():
-    st.subheader("8. Operating Pro Forma (DSCR)")
-    st.number_input("Gross Monthly Rental Income per Unit ($)", min_value=0, step=50, format="%d", key="gross_monthly_rent")
-    st.number_input("Target Lender DSCR Rate", min_value=1.0, max_value=1.5, value=float(GLOBAL_DRIVERS.get("target_dscr_rate", 1.20)), step=0.05, key="target_dscr_rate")
-    st.slider("Vacancy Rate (%)", min_value=0.0, max_value=15.0, step=1.0, key="vacancy_rate_pct")
-    st.slider("Operating Expenses (OpEx) Rate of EGI (%)", min_value=15.0, max_value=50.0, step=1.0, key="opex_rate_pct")
 
 with st.sidebar.container():
     st.subheader("9. Takeout Refinance Terms")
@@ -228,7 +230,7 @@ with st.sidebar.container():
 
 with st.sidebar.container():
     st.subheader("10. Const. Lender Limits")
-    st.number_input("Bank Underwriting Rent ($)", min_value=0, step=50, format="%d", key="const_bank_rent")
+    st.number_input("Bank Under underwriting Rent ($)", min_value=0, step=50, format="%d", key="const_bank_rent")
     st.slider("Bank Underwriting LTV (%)", min_value=50.0, max_value=100.0, step=5.0, key="const_bank_ltv_pct")
     
     st.radio("Bank Valuation Method", ["Gross Rent Multiplier (GRM)", "DSCR Stress Test"], key="const_bank_val_mode")
@@ -262,6 +264,7 @@ additional_foundation_cost = st.session_state.get("additional_foundation_cost", 
 
 gross_monthly_rent = st.session_state.get("gross_monthly_rent", 1600)
 target_dscr_rate = st.session_state.get("target_dscr_rate", 1.20)
+target_min_cashflow_per_door = st.session_state.get("target_min_cashflow_per_door", 200.0)
 vacancy_rate = st.session_state.get("vacancy_rate_pct", 5.0) / 100.0
 opex_rate = st.session_state.get("opex_rate_pct", 25.0) / 100.0
 const_ltv = st.session_state.get("const_ltv_pct", 80.0) / 100.0
@@ -512,7 +515,7 @@ monthly_noi = annual_noi / 12.0
 annual_debt_service = total_monthly_pi * 12.0
 actual_dscr = annual_noi / annual_debt_service if annual_debt_service > 0 else 0
 monthly_cash_flow = monthly_noi - total_monthly_pi
-dscr_variance = actual_dscr - target_dscr_rate
+monthly_cash_flow_per_door = monthly_cash_flow / units if units > 0 else 0
 
 net_cash_at_closing = loan_total - actual_const_loan - refi_closing_fee - default_buydown_cost
 cash_surplus = net_cash_at_closing - seed_capital
@@ -577,23 +580,29 @@ with ui_top_metrics:
 with ui_op_metrics:
     st.markdown("### 🏢 Operating & DSCR Metrics")
     op1, op2, op3, op4 = st.columns(4)
+    
+    cf_pass = monthly_cash_flow_per_door >= target_min_cashflow_per_door
+    
     arv_label = "Derived Unit ARV (Price/SF)" if appraisal_mode == "Sales Comp (Price/SF)" else "Derived Unit ARV (GRM)"
     op1.metric(arv_label, f"${arv_per_unit:,.0f}", f"${total_arv:,.0f} Total ARV")
     op2.metric("Actual DSCR Rate", f"{actual_dscr:.2f}x", f"Target: {target_dscr_rate:.2f}x", delta_color="normal" if actual_dscr >= target_dscr_rate else "inverse")
-    op3.metric("Monthly Cash Flow", f"${monthly_cash_flow:,.0f} /mo", f"${monthly_cash_flow*12:,.0f} Annual", delta_color="normal" if monthly_cash_flow >= 0 else "inverse")
+    op3.metric("Monthly Cash Flow", f"${monthly_cash_flow:,.0f} /mo", f"${monthly_cash_flow*12:,.0f} Annual", delta_color="normal" if cf_pass else "inverse")
     op4.metric("Monthly P&I Payment", f"${total_monthly_pi:,.0f} /mo", f"{refi_term_years}Yr @ {net_refi_rate*100:.3f}%")
 
 with ui_decision_dashboard:
     st.markdown("### 🚦 Go/No-Go Investment Decision Dashboard")
     dscr_pass = actual_dscr >= target_dscr_rate
     cash_pass = cash_surplus >= 0
+    
     dscr_light = "🟢 GREEN LIGHT" if dscr_pass else "🔴 RED LIGHT"
+    cf_light = "🟢 GREEN LIGHT" if cf_pass else "🔴 RED LIGHT"
     cash_light = "🟢 GREEN LIGHT" if cash_pass else "🔴 RED LIGHT"
 
-    dash_col1, dash_col2, dash_col3 = st.columns(3)
+    dash_col1, dash_col2, dash_col3, dash_col4 = st.columns(4)
     dash_col1.metric("DSCR Underwriting Status", dscr_light, f"Actual: {actual_dscr:.2f}x (Target: {target_dscr_rate:.2f}x)", delta_color="normal" if dscr_pass else "inverse")
-    dash_col2.metric("Capital Recovery Status", cash_light, f"${cash_surplus:,.0f} at Refi Close", delta_color="normal" if cash_pass else "inverse")
-    dash_col3.metric("Day-1 Wealth Creation", f"${day1_wealth:,.0f}", f"${day1_wealth/units:,.0f} per door", delta_color="normal")
+    dash_col2.metric("Cash Flow Status", cf_light, f"Actual: ${monthly_cash_flow_per_door:,.0f}/door (Target: ${target_min_cashflow_per_door:,.0f})", delta_color="normal" if cf_pass else "inverse")
+    dash_col3.metric("Capital Recovery Status", cash_light, f"${cash_surplus:,.0f} at Refi Close", delta_color="normal" if cash_pass else "inverse")
+    dash_col4.metric("Day-1 Wealth Creation", f"${day1_wealth:,.0f}", f"${day1_wealth/units:,.0f} per door", delta_color="normal")
 
 
 # ==========================================
@@ -1063,6 +1072,10 @@ def create_pdf(detail_mode):
     pdf.set_font("Arial", 'B', 10)
     pdf.cell(100, 7, surplus_label, 0, 0)
     pdf.cell(90, 7, f"${cash_surplus:,.0f}", 0, 1, 'R')
+    
+    pdf.cell(100, 7, "Net Monthly Cash Flow per Door:", 0, 0)
+    pdf.cell(90, 7, f"${monthly_cash_flow_per_door:,.0f}", 0, 1, 'R')
+    
     pdf.cell(100, 7, "Total Day-1 Wealth Created:", 0, 0)
     pdf.cell(90, 7, f"${day1_wealth:,.0f}", 0, 1, 'R')
     pdf.ln(5)
