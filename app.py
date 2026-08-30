@@ -654,6 +654,9 @@ st.divider()
 # --- 3. GRANULAR DIRECT HARD COST BUILDUP & ROLL-UP ---
 # ==========================================
 st.markdown("### 3. Granular Direct Hard Cost Buildup & Roll-up")
+
+st.info(f"Below is the itemized cost buildup per trade division required to achieve the baseline **\${direct_cost_sf:.2f}/SF (\${heated_hard_cost:,.0f})** heated living area cost and the **\${struct_cost_sf:.2f}/SF (\${struct_total_cost:,.0f})** {st.session_state.structure_type.lower()} cost, yielding a blended direct hard cost of **\${blended_cost_per_sf:.2f}/SF (\${target_direct_hard_cost:,.0f})** under roof per unit.")
+
 granular_mode = st.radio("Buildup Entry Mode", ["Auto-Proportional (Linked to Master Model)", "Manual Custom Entry (Bottom-Up)"], horizontal=True)
 
 # Exact NAHB 8 Stages & 36 Components Mapping
@@ -1162,6 +1165,11 @@ def create_pdf(detail_mode):
         pdf.cell(0, 8, " 4. Direct Hard Cost Master Roll-up", ln=1, fill=True)
         pdf.set_font("Arial", 'B', 9)
         
+        pdf.set_font("Arial", '', 10)
+        granular_summary_pdf = f"Below is the itemized cost buildup per trade division required to achieve the baseline ${direct_cost_sf:.2f}/SF (${heated_hard_cost:,.0f}) heated living area cost and the ${struct_cost_sf:.2f}/SF (${struct_total_cost:,.0f}) {st.session_state.structure_type.lower()} cost, yielding a blended hard cost of ${blended_cost_per_sf:.2f}/SF (${target_direct_hard_cost:,.0f}) under roof per unit."
+        pdf.multi_cell(0, 6, granular_summary_pdf.encode('latin-1', 'replace').decode('latin-1'))
+        pdf.ln(3)
+        
         pdf.cell(85, 6, "Category / Major Sub-Assembly", 1, 0, 'C')
         pdf.cell(40, 6, "Effective Rate", 1, 0, 'C')
         pdf.cell(35, 6, "Per Unit Cost", 1, 0, 'C')
@@ -1186,6 +1194,11 @@ def create_pdf(detail_mode):
         pdf.set_fill_color(220, 220, 220)
         pdf.cell(0, 8, " 4. Granular Direct Hard Cost Buildup", ln=1, fill=True)
         pdf.set_font("Arial", 'B', 9)
+        
+        pdf.set_font("Arial", '', 10)
+        granular_summary_pdf = f"Below is the itemized cost buildup per trade division required to achieve the baseline ${direct_cost_sf:.2f}/SF (${heated_hard_cost:,.0f}) heated living area cost and the ${struct_cost_sf:.2f}/SF (${struct_total_cost:,.0f}) {st.session_state.structure_type.lower()} cost, yielding a blended hard cost of ${blended_cost_per_sf:.2f}/SF (${target_direct_hard_cost:,.0f}) under roof per unit."
+        pdf.multi_cell(0, 6, granular_summary_pdf.encode('latin-1', 'replace').decode('latin-1'))
+        pdf.ln(3)
         
         pdf.cell(90, 6, "Division / Trade Level", 1, 0, 'C')
         pdf.cell(30, 6, "Live Cost / SF", 1, 0, 'C')
