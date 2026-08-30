@@ -81,7 +81,18 @@ HARDCODED_DRIVERS = {
     "comp_storage_sf": 0
 }
 
-GLOBAL_DRIVERS = HARDCODED_DRIVERS.copy()
+def load_defaults():
+    drivers = HARDCODED_DRIVERS.copy()
+    if os.path.exists(DEFAULT_FILE):
+        try:
+            with open(DEFAULT_FILE, "r") as f:
+                saved = json.load(f)
+                drivers.update(saved)
+        except Exception:
+            pass
+    return drivers
+
+GLOBAL_DRIVERS = load_defaults()
 for key, value in GLOBAL_DRIVERS.items():
     if key not in st.session_state:
         st.session_state[key] = value
@@ -569,15 +580,19 @@ else:
     st.caption(f"📊 Isolated Heated Shell Rate: **${isolated_heated_rate:.2f} / SF** | Implied Aux Rate: **${comp_aux_rate_sf:.2f} / SF**")
 
 with st.expander("🧮 View Comp Math Audit & Raw API Data", expanded=False):
-    st.markdown("**2.1 Raw Retail Heated Rate (Unadjusted)**")
-    st.code(f"${comp_price:,.0f} ÷ {comp_heated_sf:,.0f} SF = ${raw_comp_price_sf:.2f} / SF")
+    comp_under_roof = comp_heated_sf + comp_aux_sqft
+    comp_blended_rate = comp_price / comp_under_roof if comp_under_roof > 0 else 0
+    
+    st.markdown("**1. Raw Blended Rate (Total Price ÷ Total Under-Roof SF)**")
+    st.code(f"${comp_price:,.0f} ÷ {comp_under_roof:,.0f} Total SF = ${comp_blended_rate:.2f} / SF (Blended)")
     
     if aux_cost_mode == "Percentage of Heated Rate (%)":
-        st.markdown(f"**2.2 True Isolated Heated Shell Rate (Aux valued at {aux_ratio*100:.0f}% of Heated Shell)**")
-        st.code(f"Effective Heated SF: {comp_heated_sf:,.0f} + ({comp_aux_sqft:,.0f} Aux SF × {aux_ratio:.2f}) = {effective_comp_heated_sf:,.1f} SF\n${comp_price:,.0f} ÷ {effective_comp_heated_sf:,.1f} SF = ${isolated_heated_rate:.2f} / SF (Aux Rate: ${comp_aux_rate_sf:.2f} / SF)")
+        st.markdown(f"**2. True Isolated Heated Shell Rate (Algebraic Extraction)**")
+        st.caption(f"If we simply halved the blended rate for the aux space, the total price would fall short. To perfectly distribute the ${comp_price:,.0f} across the spaces at a 100% / {aux_ratio*100:.0f}% ratio, we solve for the 'Effective Equivalent' square footage:")
+        st.code(f"Step 1: Find Equivalent SF\n{comp_heated_sf:,.0f} Heated SF + ({comp_aux_sqft:,.0f} Aux SF × {aux_ratio:.2f}) = {effective_comp_heated_sf:,.1f} Eq. SF\n\nStep 2: Solve for True Heated Rate\n${comp_price:,.0f} ÷ {effective_comp_heated_sf:,.1f} Eq. SF = ${isolated_heated_rate:.2f} / Heated SF\n\nStep 3: Solve for True Aux Rate\n${isolated_heated_rate:.2f} × {aux_ratio:.2f} = ${comp_aux_rate_sf:.2f} / Aux SF")
     else:
-        st.markdown(f"**2.2 True Isolated Heated Shell Rate (Fixed Aux Value: ${aux_fixed_cost_sf:.2f} / SF)**")
-        st.code(f"(${comp_price:,.0f} - ${comp_aux_value:,.0f} Aux) ÷ {comp_heated_sf:,.0f} SF = ${isolated_heated_rate:.2f} / SF")
+        st.markdown(f"**2. True Isolated Heated Shell Rate (Fixed Aux Value: ${aux_fixed_cost_sf:.2f} / SF)**")
+        st.code(f"(${comp_price:,.0f} - ${comp_aux_value:,.0f} Aux Value) ÷ {comp_heated_sf:,.0f} SF = ${isolated_heated_rate:.2f} / SF")
         
     if st.session_state.raw_api_data and st.session_state.get("comp_entry_mode") == "RentCast Live API Fetch":
         st.json(st.session_state.raw_api_data)
