@@ -4,6 +4,7 @@ from fpdf import FPDF
 import tempfile
 import requests
 import os
+import json
 from datetime import datetime
 
 # Page Configuration
@@ -63,12 +64,17 @@ HARDCODED_DRIVERS = {
     "appraisal_mode": "Income Approach (GRM)",
     "target_grm": 10.0,
     
+    # NAHB & Indirect Cost Breakdowns
     "cost_calc_mode": "Reverse-Engineer from Primary Comp",
     "base_direct_cost_sf": 75.0,
-    "lot_cost_pct": 18.0,
-    "margin_pct": 20.0,
-    "sales_pct": 8.0,
-    "finance_pct": 4.0,
+    "lot_cost_pct": 13.7,
+    "profit_margin_pct": 11.0,
+    "overhead_pct": 5.7,
+    "sales_pct": 3.6,
+    "finance_pct": 1.5,
+    "indirect_permits_pct": 4.5,
+    "indirect_temp_facilities_pct": 3.5,
+    
     "pdf_include_sublevels": True,
     
     "comp_address": "",
@@ -178,13 +184,16 @@ with st.sidebar.container():
     if st.session_state.cost_calc_mode == "Manual Set (Heated SF)":
         st.slider("Direct Build Cost / SF ($)", min_value=40.0, max_value=150.0, step=1.0, key="base_direct_cost_sf")
     else:
-        st.slider("Finished Lot Cost (%)", min_value=0.0, max_value=30.0, step=0.5, key="lot_cost_pct")
-        st.slider("Gross Margin (O&P) (%)", min_value=0.0, max_value=30.0, step=0.5, key="margin_pct")
-        st.slider("Sales & Marketing (%)", min_value=0.0, max_value=15.0, step=0.5, key="sales_pct")
-        st.slider("Soft Costs & Finance (%)", min_value=0.0, max_value=15.0, step=0.5, key="finance_pct")
+        st.slider("Finished Lot Cost (%)", min_value=0.0, max_value=30.0, step=0.1, key="lot_cost_pct")
+        st.slider("Builder Profit (Pre-tax) (%)", min_value=0.0, max_value=30.0, step=0.1, key="profit_margin_pct")
+        st.slider("Overhead & General Expenses (%)", min_value=0.0, max_value=15.0, step=0.1, key="overhead_pct")
+        st.slider("Sales & Marketing Commissions (%)", min_value=0.0, max_value=15.0, step=0.1, key="sales_pct")
+        st.slider("Financing Costs (%)", min_value=0.0, max_value=10.0, step=0.1, key="finance_pct")
 
 with st.sidebar.container():
-    st.subheader("6. GC Fee & Land Costs")
+    st.subheader("6. Indirect Costs, GC Fee & Land")
+    st.slider("Permits, Fees, & Insurance (% of Direct)", min_value=0.0, max_value=15.0, step=0.5, key="indirect_permits_pct")
+    st.slider("Temporary Site Facilities (% of Direct)", min_value=0.0, max_value=15.0, step=0.5, key="indirect_temp_facilities_pct")
     st.radio("GC Fee Structure", ["Percentage of Hard Costs (%)", "Consolidated Flat Fee ($ Total)"], key="gc_fee_mode")
     if st.session_state.gc_fee_mode == "Percentage of Hard Costs (%)":
         st.number_input("GC Management Fee (%)", min_value=0.0, max_value=50.0, step=0.5, key="gc_fee_pct")
@@ -292,12 +301,17 @@ land_basis = st.session_state.get("land_basis", 15000)
 appraisal_mode = st.session_state.get("appraisal_mode", "Income Approach (GRM)")
 target_grm = st.session_state.get("target_grm", 10.0)
 
+# NAHB & Indirect Cost Breakdowns
 cost_calc_mode = st.session_state.get("cost_calc_mode", "Reverse-Engineer from Primary Comp")
 base_direct_cost_sf_input = st.session_state.get("base_direct_cost_sf", 75.0)
-lot_cost_pct = st.session_state.get("lot_cost_pct", 18.0) / 100.0
-margin_pct = st.session_state.get("margin_pct", 20.0) / 100.0
-sales_pct = st.session_state.get("sales_pct", 8.0) / 100.0
-finance_pct = st.session_state.get("finance_pct", 4.0) / 100.0
+lot_cost_pct = st.session_state.get("lot_cost_pct", 13.7) / 100.0
+profit_margin_pct = st.session_state.get("profit_margin_pct", 11.0) / 100.0
+overhead_pct = st.session_state.get("overhead_pct", 5.7) / 100.0
+sales_pct = st.session_state.get("sales_pct", 3.6) / 100.0
+finance_pct = st.session_state.get("finance_pct", 1.5) / 100.0
+
+indirect_permits_pct = st.session_state.get("indirect_permits_pct", 4.5) / 100.0
+indirect_temp_facilities_pct = st.session_state.get("indirect_temp_facilities_pct", 3.5) / 100.0
 
 comp_price = st.session_state.get("comp_price", 195000)
 comp_heated_sf = st.session_state.get("comp_heated_sf", 1275)
@@ -317,7 +331,12 @@ comp_aux_sqft = comp_struct_sf + comp_front_sf + comp_back_sf + comp_storage_sf
 comp_total_sf = comp_heated_sf + comp_aux_sqft
 raw_comp_price_sf = comp_price / comp_heated_sf if comp_heated_sf > 0 else 0
 
-target_hard_cost_pct = 1.0 - (lot_cost_pct + margin_pct + sales_pct + finance_pct)
+# The combined deduction percentage used to extract the NAHB Construction Budget
+combined_deductions_pct = lot_cost_pct + profit_margin_pct + overhead_pct + sales_pct + finance_pct
+target_const_budget_pct = max(0, 1.0 - combined_deductions_pct)
+
+# Multiplier to extract Direct Hard Cost from Total Construction Budget
+indirect_multiplier = 1.0 + indirect_permits_pct + indirect_temp_facilities_pct
 
 # 1. Evaluate Primary Comp and Isolate Heated Shell Rate
 if aux_cost_mode == "Percentage of Heated Rate (%)":
@@ -338,20 +357,28 @@ else:
     arv_per_unit = 0 
 
 if aux_cost_mode == "Percentage of Heated Rate (%)":
+    effective_project_heated_sf = sqft + (aux_sqft_total * aux_ratio)
+    
     if cost_calc_mode == "Manual Set (Heated SF)":
         direct_cost_sf = base_direct_cost_sf_input
         struct_cost_sf = direct_cost_sf * aux_ratio
         our_aux_cost_total = (aux_sqft_total * struct_cost_sf) + additional_foundation_cost
         target_heated_hard_cost = direct_cost_sf * sqft
-        target_total_hard_cost = target_heated_hard_cost + our_aux_cost_total
+        target_direct_hard_cost = target_heated_hard_cost + our_aux_cost_total
         comp_equivalent_arv = (isolated_heated_rate * sqft) + (aux_sqft_total * (isolated_heated_rate * aux_ratio)) + additional_foundation_cost
         if appraisal_mode != "Income Approach (GRM)":
             arv_per_unit = comp_equivalent_arv
             
+        total_construction_budget = target_direct_hard_cost * indirect_multiplier * (1.0 + gc_fee_pct) if gc_fee_mode == "Percentage of Hard Costs (%)" else (target_direct_hard_cost * indirect_multiplier) + custom_gc_fee
+            
     elif cost_calc_mode == "Reverse-Engineer from Appraisal":
-        target_total_hard_cost = arv_per_unit * target_hard_cost_pct
-        effective_project_heated_sf = sqft + (aux_sqft_total * aux_ratio)
-        direct_cost_sf = max(0, (target_total_hard_cost - additional_foundation_cost) / effective_project_heated_sf) if effective_project_heated_sf > 0 else 0
+        total_construction_budget = arv_per_unit * target_const_budget_pct
+        if gc_fee_mode == "Percentage of Hard Costs (%)":
+            target_direct_hard_cost = total_construction_budget / (indirect_multiplier * (1.0 + gc_fee_pct))
+        else:
+            target_direct_hard_cost = (total_construction_budget - custom_gc_fee) / indirect_multiplier
+            
+        direct_cost_sf = max(0, (target_direct_hard_cost - additional_foundation_cost) / effective_project_heated_sf) if effective_project_heated_sf > 0 else 0
         struct_cost_sf = direct_cost_sf * aux_ratio
         our_aux_cost_total = (aux_sqft_total * struct_cost_sf) + additional_foundation_cost
         target_heated_hard_cost = direct_cost_sf * sqft
@@ -359,9 +386,13 @@ if aux_cost_mode == "Percentage of Heated Rate (%)":
         
     else: # Reverse-Engineer from Primary Comp
         comp_equivalent_arv = (isolated_heated_rate * sqft) + (aux_sqft_total * (isolated_heated_rate * aux_ratio)) + additional_foundation_cost
-        target_total_hard_cost = comp_equivalent_arv * target_hard_cost_pct
-        effective_project_heated_sf = sqft + (aux_sqft_total * aux_ratio)
-        direct_cost_sf = max(0, (target_total_hard_cost - additional_foundation_cost) / effective_project_heated_sf) if effective_project_heated_sf > 0 else 0
+        total_construction_budget = comp_equivalent_arv * target_const_budget_pct
+        if gc_fee_mode == "Percentage of Hard Costs (%)":
+            target_direct_hard_cost = total_construction_budget / (indirect_multiplier * (1.0 + gc_fee_pct))
+        else:
+            target_direct_hard_cost = (total_construction_budget - custom_gc_fee) / indirect_multiplier
+            
+        direct_cost_sf = max(0, (target_direct_hard_cost - additional_foundation_cost) / effective_project_heated_sf) if effective_project_heated_sf > 0 else 0
         struct_cost_sf = direct_cost_sf * aux_ratio
         our_aux_cost_total = (aux_sqft_total * struct_cost_sf) + additional_foundation_cost
         target_heated_hard_cost = direct_cost_sf * sqft
@@ -378,17 +409,28 @@ else: # Fixed Aux Cost Mode
     if cost_calc_mode == "Manual Set (Heated SF)":
         direct_cost_sf = base_direct_cost_sf_input
         target_heated_hard_cost = direct_cost_sf * sqft
-        target_total_hard_cost = target_heated_hard_cost + our_aux_cost_total
+        target_direct_hard_cost = target_heated_hard_cost + our_aux_cost_total
         comp_equivalent_arv = 0 
+        total_construction_budget = target_direct_hard_cost * indirect_multiplier * (1.0 + gc_fee_pct) if gc_fee_mode == "Percentage of Hard Costs (%)" else (target_direct_hard_cost * indirect_multiplier) + custom_gc_fee
+
     elif cost_calc_mode == "Reverse-Engineer from Appraisal":
-        target_total_hard_cost = arv_per_unit * target_hard_cost_pct
-        target_heated_hard_cost = max(0, target_total_hard_cost - our_aux_cost_total)
+        total_construction_budget = arv_per_unit * target_const_budget_pct
+        if gc_fee_mode == "Percentage of Hard Costs (%)":
+            target_direct_hard_cost = total_construction_budget / (indirect_multiplier * (1.0 + gc_fee_pct))
+        else:
+            target_direct_hard_cost = (total_construction_budget - custom_gc_fee) / indirect_multiplier
+        target_heated_hard_cost = max(0, target_direct_hard_cost - our_aux_cost_total)
         direct_cost_sf = target_heated_hard_cost / sqft if sqft > 0 else 0
         comp_equivalent_arv = arv_per_unit
+        
     else: # Reverse from Comp
         comp_equivalent_arv = (isolated_heated_rate * sqft) + our_aux_cost_total
-        target_total_hard_cost = comp_equivalent_arv * target_hard_cost_pct
-        target_heated_hard_cost = max(0, target_total_hard_cost - our_aux_cost_total)
+        total_construction_budget = comp_equivalent_arv * target_const_budget_pct
+        if gc_fee_mode == "Percentage of Hard Costs (%)":
+            target_direct_hard_cost = total_construction_budget / (indirect_multiplier * (1.0 + gc_fee_pct))
+        else:
+            target_direct_hard_cost = (total_construction_budget - custom_gc_fee) / indirect_multiplier
+        target_heated_hard_cost = max(0, target_direct_hard_cost - our_aux_cost_total)
         direct_cost_sf = target_heated_hard_cost / sqft if sqft > 0 else 0
 
 # Unified component rates across UI display
@@ -404,17 +446,20 @@ outdoor_aux_subtotal_unit = front_porch_cost + back_porch_cost + storage_cost
 
 heated_hard_cost = sqft * direct_cost_sf
 blended_cost_per_sf = (heated_hard_cost + our_aux_cost_total) / total_under_roof_sqft if total_under_roof_sqft > 0 else 0
-total_hard_cost = target_total_hard_cost * units if cost_calc_mode in ["Reverse-Engineer from Appraisal", "Reverse-Engineer from Primary Comp"] else (heated_hard_cost + our_aux_cost_total) * units
+
+# Base project hard costs
+total_hard_cost = target_direct_hard_cost * units
 total_arv = arv_per_unit * units
 loan_total = total_arv * refi_ltv
 
-default_gcond = total_hard_cost * 0.05
-fee_basis = total_hard_cost + default_gcond
+# 5.2 Indirects Build Up
+permits_insurance_cost = total_hard_cost * indirect_permits_pct
+temp_facilities_cost = total_hard_cost * indirect_temp_facilities_pct
+fee_basis = total_hard_cost + permits_insurance_cost + temp_facilities_cost
 default_gc_fee = custom_gc_fee if gc_fee_mode == "Consolidated Flat Fee ($ Total)" else fee_basis * gc_fee_pct
-default_premium = total_hard_cost * 0.05
+total_indirect_costs = permits_insurance_cost + temp_facilities_cost + default_gc_fee
+
 total_land_default = land_basis * units
-default_soft_cost_per_unit = 5500
-total_soft_default = default_soft_cost_per_unit * units
 
 
 # =========================================================================
@@ -442,8 +487,9 @@ time_years = build_months / 12.0
 carry_int_base = actual_const_loan * avg_draw_pct * const_rate * time_years
 
 default_buydown_cost = loan_total * (buydown_pts / 100.0) if apply_buydown else 0
-total_const = total_hard_cost + default_gcond + default_gc_fee + default_premium
-total_project_costs_ex_interest = total_land_default + total_const + total_soft_default + const_closing_fee
+
+total_const = total_hard_cost + total_indirect_costs
+total_project_costs_ex_interest = total_land_default + total_const + const_closing_fee
 
 total_construction_basis = total_project_costs_ex_interest + carry_int_base
 total_project_basis = total_construction_basis + refi_closing_fee + default_buydown_cost
@@ -575,7 +621,7 @@ with st.expander("🧮 View Comp Math Audit & Raw API Data", expanded=False):
     st.code(f"${comp_price:,.0f} ÷ {comp_under_roof:,.0f} Total SF = ${comp_blended_rate:.2f} / SF (Blended)")
     
     if aux_cost_mode == "Percentage of Heated Rate (%)":
-        st.markdown(f"**2. True Isolated Heated Shell Rate (Algebraic Extraction)**")
+        st.markdown(f"**2. True Isolated Heated Shell Rate (Aux valued at {aux_ratio*100:.0f}% of Heated Shell)**")
         st.caption(f"If we simply halved the blended rate for the aux space, the total price would fall short. To perfectly distribute the ${comp_price:,.0f} across the spaces at a 100% / {aux_ratio*100:.0f}% ratio, we solve for the 'Effective Equivalent' square footage:")
         st.code(f"Step 1: Find Equivalent SF\n{comp_heated_sf:,.0f} Heated SF + ({comp_aux_sqft:,.0f} Aux SF × {aux_ratio:.2f}) = {effective_comp_heated_sf:,.1f} Eq. SF\n\nStep 2: Solve for True Heated Rate\n${comp_price:,.0f} ÷ {effective_comp_heated_sf:,.1f} Eq. SF = ${isolated_heated_rate:.2f} / Heated SF\n\nStep 3: Solve for True Aux Rate\n${isolated_heated_rate:.2f} × {aux_ratio:.2f} = ${comp_aux_rate_sf:.2f} / Aux SF")
     else:
@@ -670,7 +716,7 @@ direct_rollup_df = pd.DataFrame({
         struct_total_cost,
         outdoor_aux_subtotal_unit,
         additional_foundation_cost,
-        target_total_hard_cost
+        target_direct_hard_cost
     ],
     "Project Total ($)": [
         heated_hard_cost * units,
@@ -767,11 +813,10 @@ st.dataframe(pd.DataFrame(direct_data).style.format({"Total Amount ($)": "${:,.0
 
 st.markdown("#### 5.2 Indirect, Land & Capital Costs")
 indirects_data = [
-    {"Cost Category": "General Conditions", "Metric / Basis": "5.0% of Direct", "Amount ($)": default_gcond},
-    {"Cost Category": "GC Management Fee", "Metric / Basis": "Flat Fee" if gc_fee_mode == "Consolidated Flat Fee ($ Total)" else f"{gc_fee_pct*100:.1f}% Basis", "Amount ($)": default_gc_fee},
-    {"Cost Category": "BTR Buying Power Premium", "Metric / Basis": "5.0% of Direct", "Amount ($)": default_premium},
+    {"Cost Category": "Permits, Fees, & Insurance", "Metric / Basis": f"{indirect_permits_pct*100:.1f}% of Direct", "Amount ($)": permits_insurance_cost},
+    {"Cost Category": "Temporary Site Facilities", "Metric / Basis": f"{indirect_temp_facilities_pct*100:.1f}% of Direct", "Amount ($)": temp_facilities_cost},
+    {"Cost Category": "Supervision & Management (GC Fee)", "Metric / Basis": "Flat Fee" if gc_fee_mode == "Consolidated Flat Fee ($ Total)" else f"{gc_fee_pct*100:.1f}% Basis", "Amount ($)": default_gc_fee},
     {"Cost Category": "Land Acquisition Basis", "Metric / Basis": f"${land_basis:,.0f} / Lot", "Amount ($)": total_land_default},
-    {"Cost Category": "Soft Costs & Permitting", "Metric / Basis": f"${default_soft_cost_per_unit:,.0f} / Unit", "Amount ($)": total_soft_default},
     {"Cost Category": "Construction Loan Closing Fee", "Metric / Basis": "Flat Fee", "Amount ($)": const_closing_fee},
     {"Cost Category": f"Const. Loan Interest ({build_months} Mos)", "Metric / Basis": f"{avg_draw_pct*100:.0f}% Avg Draw", "Amount ($)": carry_int_base},
     {"Cost Category": "Takeout Refinance Closing Fee", "Metric / Basis": "Flat Fee", "Amount ($)": refi_closing_fee},
@@ -858,28 +903,42 @@ if cost_calc_mode in ["Reverse-Engineer from Appraisal", "Reverse-Engineer from 
     reference_price = arv_per_unit if cost_calc_mode == 'Reverse-Engineer from Appraisal' else comp_equivalent_arv
     breakdown_data = {
         "Cost Category": [
-            f"Baseline Reference Price (Comp / ARV)", "(-) Finished Lot Cost", "(-) Gross Margin (O&P)", 
-            "(-) Sales & Marketing", "(-) Soft Costs & Finance", "= Total Hard Cost Budget", 
-            "(-) Fixed Auxiliary & Elevation Costs", "= Available Budget for Heated Shell"
+            f"Baseline Reference Price (Comp / ARV)", 
+            "(-) Finished Lot Cost", 
+            "(-) Builder Profit (Pre-tax)", 
+            "(-) Overhead & General Expenses",
+            "(-) Sales & Marketing", 
+            "(-) Financing Costs", 
+            "= Total Construction Budget (Direct + Indirect)", 
+            "(-) Indirects (Permits, Temp Site, GC Fee)",
+            "= Direct Hard Cost Budget",
+            "(-) Fixed Auxiliary & Elevation Costs", 
+            "= Available Budget for Heated Shell"
         ],
         "Value ($)": [
             f"${reference_price:,.0f}", 
             f"-${reference_price * lot_cost_pct:,.0f}", 
-            f"-${reference_price * margin_pct:,.0f}", 
+            f"-${reference_price * profit_margin_pct:,.0f}", 
+            f"-${reference_price * overhead_pct:,.0f}", 
             f"-${reference_price * sales_pct:,.0f}", 
             f"-${reference_price * finance_pct:,.0f}", 
-            f"${target_total_hard_cost:,.0f}", 
+            f"${total_construction_budget:,.0f}", 
+            f"-${total_indirect_costs:,.0f}",
+            f"${target_direct_hard_cost:,.0f}",
             f"-${our_aux_cost_total:,.0f}", 
             f"${target_heated_hard_cost:,.0f}"
         ],
         "Description": [
             "Derived directly from Primary Comp Sale Price or Takeout Appraisal.",
-            "Raw land, engineering, road paving, wet/dry utility infrastructure.",
-            "Builder gross overhead and corporate net margin.",
-            "Realtor commissions, internal sales reps, buyer closing concessions.",
-            "Impact fees, plan design, municipal permits, and loan interest carry.",
-            "Total budget available for all physical construction.",
-            "Locked budget required for specific outdoor/auxiliary footprint and foundation elevation.",
+            "Land acquisition, grading, and utility infrastructure.",
+            "Net profit margin retained by the homebuilding company.",
+            "Office staff, software, vehicles, insurance, and administrative tools.",
+            "Sales commissions and marketing costs to close the deal.",
+            "Short-term interest paid on the builder's construction loan.",
+            "Total budget available for all physical construction (Direct + Indirect).",
+            "Permits, site facilities, and GC management fees.",
+            "Total budget exclusively for physical structure and materials.",
+            "Locked budget required for outdoor footprint and foundation elevation.",
             f"Yields exactly ${direct_cost_sf:.2f} / SF across {sqft} Heated SF."
         ]
     }
@@ -974,8 +1033,11 @@ def create_pdf(include_sublevels):
     
     pdf.cell(100, 7, "Total Direct Hard Costs:", 0, 0)
     pdf.cell(90, 7, f"${total_hard_cost:,.0f}", 0, 1, 'R')
-    pdf.cell(100, 7, "Indirect General Conditions & Premiums:", 0, 0)
-    pdf.cell(90, 7, f"${default_gcond + default_premium:,.0f}", 0, 1, 'R')
+    pdf.cell(100, 7, "Indirects: Permits, Fees, & Insurance:", 0, 0)
+    pdf.cell(90, 7, f"${permits_insurance_cost:,.0f}", 0, 1, 'R')
+    
+    pdf.cell(100, 7, "Indirects: Temporary Site Facilities:", 0, 0)
+    pdf.cell(90, 7, f"${temp_facilities_cost:,.0f}", 0, 1, 'R')
     
     gc_label = "Consolidated GC Flat Fee:" if gc_fee_mode == "Consolidated Flat Fee ($ Total)" else "GC Management Fee:"
     pdf.cell(100, 7, gc_label, 0, 0)
@@ -1042,6 +1104,46 @@ def create_pdf(include_sublevels):
     pdf.set_font("Arial", 'B', 10)
     pdf.cell(130, 7, "= Final Tax-Free Cash Surplus / (Trapped Capital):", 0, 0)
     pdf.cell(60, 7, f"${cash_surplus:,.0f}", 0, 1, 'R')
+    
+    if cost_calc_mode in ["Reverse-Engineer from Appraisal", "Reverse-Engineer from Primary Comp"]:
+        pdf.ln(5)
+        pdf.set_font("Arial", 'B', 12)
+        pdf.set_fill_color(220, 220, 220)
+        pdf.cell(0, 8, " 8. Retail Comp & Appraisal Reverse-Engineering", ln=1, fill=True)
+        pdf.set_font("Arial", '', 10)
+        
+        pdf.cell(130, 7, "Baseline Reference Price (Comp / ARV):", 0, 0)
+        pdf.cell(60, 7, f"${reference_price:,.0f}", 0, 1, 'R')
+        pdf.cell(130, 7, "(-) Finished Lot Cost:", 0, 0)
+        pdf.cell(60, 7, f"-${reference_price * lot_cost_pct:,.0f}", 0, 1, 'R')
+        pdf.cell(130, 7, "(-) Builder Profit (Pre-tax):", 0, 0)
+        pdf.cell(60, 7, f"-${reference_price * profit_margin_pct:,.0f}", 0, 1, 'R')
+        pdf.cell(130, 7, "(-) Overhead & General Expenses:", 0, 0)
+        pdf.cell(60, 7, f"-${reference_price * overhead_pct:,.0f}", 0, 1, 'R')
+        pdf.cell(130, 7, "(-) Sales & Marketing:", 0, 0)
+        pdf.cell(60, 7, f"-${reference_price * sales_pct:,.0f}", 0, 1, 'R')
+        pdf.cell(130, 7, "(-) Financing Costs:", 0, 0)
+        pdf.cell(60, 7, f"-${reference_price * finance_pct:,.0f}", 0, 1, 'R')
+        
+        pdf.set_font("Arial", 'B', 10)
+        pdf.cell(130, 7, "= Total Construction Budget (Direct + Indirect):", 0, 0)
+        pdf.cell(60, 7, f"${total_construction_budget:,.0f}", 0, 1, 'R')
+        pdf.set_font("Arial", '', 10)
+        
+        pdf.cell(130, 7, "(-) Indirects (Permits, Temp Site, GC Fee):", 0, 0)
+        pdf.cell(60, 7, f"-${total_indirect_costs:,.0f}", 0, 1, 'R')
+        
+        pdf.set_font("Arial", 'B', 10)
+        pdf.cell(130, 7, "= Direct Hard Cost Budget:", 0, 0)
+        pdf.cell(60, 7, f"${target_direct_hard_cost:,.0f}", 0, 1, 'R')
+        pdf.set_font("Arial", '', 10)
+        
+        pdf.cell(130, 7, "(-) Fixed Auxiliary & Elevation Costs:", 0, 0)
+        pdf.cell(60, 7, f"-${our_aux_cost_total:,.0f}", 0, 1, 'R')
+        
+        pdf.set_font("Arial", 'B', 10)
+        pdf.cell(130, 7, "= Available Budget for Heated Shell:", 0, 0)
+        pdf.cell(60, 7, f"${target_heated_hard_cost:,.0f}", 0, 1, 'R')
     
     with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as tmp:
         pdf.output(tmp.name)
