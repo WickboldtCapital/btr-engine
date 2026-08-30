@@ -959,6 +959,18 @@ st.divider()
 # --- 6. OPERATING PERFORMANCE & DSCR ---
 # ==========================================
 st.markdown("### 6. Operating Performance Summary")
+
+operating_summary_text = (
+    f"**Stabilized Yield Analysis:**\n\n"
+    f"Upon stabilization, the {units}-unit portfolio is projected to generate **${total_gross_monthly_income:,.0f}** in gross monthly rent. "
+    f"After applying a **{vacancy_rate*100:.1f}%** vacancy allowance and a **{opex_rate*100:.1f}%** operating expense ratio, "
+    f"the property yields **${monthly_noi:,.0f}** in monthly Net Operating Income (NOI). "
+    f"Against a permanent debt service of **${total_monthly_pi:,.0f}** (modeled at **{net_refi_rate*100:.3f}%**), "
+    f"the asset operates at a **{actual_dscr:.2f}x DSCR**, producing **${monthly_cash_flow_per_door:,.0f}** "
+    f"in net passive cash flow per door every month."
+)
+st.info(operating_summary_text.replace("$", r"\$"))
+
 dscr_summary_data = {
     "Pro Forma Line Item": [
         "Gross Potential Rent (GPR)", f"(-) Vacancy Loss @ {vacancy_rate*100:.1f}%", "= Effective Gross Income (EGI)", 
@@ -1474,10 +1486,35 @@ def create_pdf(detail_mode):
     pdf.cell(60, 7, f"${seed_capital:,.0f}", 0, 1, 'R')
     pdf.ln(5)
 
-    # 7. REFINANCE CASH WATERFALL
+    # 7. OPERATING PERFORMANCE & DSCR
     pdf.set_font("Arial", 'B', 12)
     pdf.set_fill_color(220, 220, 220)
-    pdf.cell(0, 8, " 7. Refinance Cash Waterfall (Payoff & Cash-Out)", ln=1, fill=True)
+    pdf.cell(0, 8, " 7. Operating Performance Summary", ln=1, fill=True)
+    pdf.set_font("Arial", '', 10)
+    
+    clean_op_summary = operating_summary_text.replace("**", "").encode('latin-1', 'replace').decode('latin-1')
+    pdf.multi_cell(0, 6, clean_op_summary)
+    pdf.ln(3)
+
+    pdf.set_font("Arial", 'B', 9)
+    pdf.cell(80, 6, "Pro Forma Line Item", 1, 0, 'C')
+    pdf.cell(55, 6, "Monthly", 1, 0, 'C')
+    pdf.cell(55, 6, "Annual", 1, 1, 'C')
+    
+    pdf.set_font("Arial", '', 8)
+    for i in range(len(dscr_summary_data["Pro Forma Line Item"])):
+        item = str(dscr_summary_data["Pro Forma Line Item"][i])
+        mo = str(dscr_summary_data["Monthly"][i])
+        yr = str(dscr_summary_data["Annual"][i])
+        pdf.cell(80, 6, item, 1, 0, 'L')
+        pdf.cell(55, 6, mo, 1, 0, 'R')
+        pdf.cell(55, 6, yr, 1, 1, 'R')
+    pdf.ln(5)
+
+    # 8. REFINANCE CASH WATERFALL
+    pdf.set_font("Arial", 'B', 12)
+    pdf.set_fill_color(220, 220, 220)
+    pdf.cell(0, 8, " 8. Refinance Cash Waterfall (Payoff & Cash-Out)", ln=1, fill=True)
     pdf.set_font("Arial", '', 10)
     
     pdf.cell(130, 7, "(+) Permanent Takeout Loan Proceeds:", 0, 0)
@@ -1499,10 +1536,10 @@ def create_pdf(detail_mode):
     pdf.cell(60, 7, f"${cash_surplus:,.0f}", 0, 1, 'R')
     pdf.ln(5)
 
-    # 8. STRATEGY COMPARISON: RETAIL VS BTR
+    # 9. STRATEGY COMPARISON: RETAIL VS BTR
     pdf.set_font("Arial", 'B', 12)
     pdf.set_fill_color(220, 220, 220)
-    pdf.cell(0, 8, " 8. Strategy Comparison: Retail Sell vs. Build-to-Rent", ln=1, fill=True)
+    pdf.cell(0, 8, " 9. Strategy Comparison: Retail Sell vs. Build-to-Rent", ln=1, fill=True)
     pdf.set_font("Arial", '', 9)
     
     # Text summary for PDF
