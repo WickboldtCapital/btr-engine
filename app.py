@@ -635,15 +635,21 @@ with ui_decision_dashboard:
 # ==========================================
 st.markdown("### 2. Market Comp Valuation Audit")
 
-if st.session_state.comp_address:
-    st.caption(f"📍 **Active Comp:** {st.session_state.comp_address} | Isolated Heated Shell Rate: **${isolated_heated_rate:.2f} / SF** | Implied Aux Rate: **${comp_aux_rate_sf:.2f} / SF**".replace("$", r"\$"))
-else:
-    st.caption(f"📊 Isolated Heated Shell Rate: **${isolated_heated_rate:.2f} / SF** | Implied Aux Rate: **${comp_aux_rate_sf:.2f} / SF**".replace("$", r"\$"))
+comp_under_roof = comp_heated_sf + comp_aux_sqft
+comp_blended_rate = comp_price / comp_under_roof if comp_under_roof > 0 else 0
+comp_address_display = st.session_state.comp_address if st.session_state.comp_address else "Market Benchmark Comparable"
+
+comp_summary_text = (
+    f"**Comparable Valuation Analysis:**\n\n"
+    f"The primary comparable (**{comp_address_display}**) sold for **${comp_price:,.0f}**, spanning **{comp_heated_sf:,.0f} SF** heated living area "
+    f"and **{comp_aux_sqft:,.0f} SF** of auxiliary space (**{comp_under_roof:,.0f} SF** total under roof at **${comp_blended_rate:.2f}/SF** blended).\n\n"
+    f"To prevent non-living areas from inflating shell budgets, the engine algebraically isolates space types. "
+    f"This yields a true isolated heated shell rate of **${isolated_heated_rate:.2f}/SF** and an implied auxiliary rate of "
+    f"**${comp_aux_rate_sf:.2f}/SF** (discounted at **{aux_ratio*100:.0f}%** of the shell rate), establishing a pristine baseline for project ARV modeling."
+)
+st.info(comp_summary_text.replace("$", r"\$"))
 
 with st.expander("🧮 View Comp Math Audit & Raw API Data", expanded=False):
-    comp_under_roof = comp_heated_sf + comp_aux_sqft
-    comp_blended_rate = comp_price / comp_under_roof if comp_under_roof > 0 else 0
-    
     st.markdown("**2.1 Raw Blended Rate (Total Price ÷ Total Under-Roof SF)**")
     st.code(f"${comp_price:,.0f} ÷ {comp_under_roof:,.0f} Total SF = ${comp_blended_rate:.2f} / SF (Blended)")
     
@@ -1351,7 +1357,7 @@ def create_pdf(detail_mode):
         
         pdf.cell(90, 6, "Division / Trade Level", 1, 0, 'C')
         pdf.cell(30, 6, "Live Cost / SF", 1, 0, 'C')
-        pdf.cell(35, 6, f"Per Unit ({sqft} SF)", 1, 0, 'C')
+        pdf.cell(35, 6, "Per Unit ({sqft} SF)", 1, 0, 'C')
         pdf.cell(35, 6, "Project Total", 1, 1, 'C')
         
         for name, live_sf, unit_cost, proj_cost, is_header in pdf_granular_data:
