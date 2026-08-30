@@ -514,6 +514,7 @@ monthly_noi = annual_noi / 12.0
 
 annual_debt_service = total_monthly_pi * 12.0
 actual_dscr = annual_noi / annual_debt_service if annual_debt_service > 0 else 0
+dscr_variance = actual_dscr - target_dscr_rate
 monthly_cash_flow = monthly_noi - total_monthly_pi
 monthly_cash_flow_per_door = monthly_cash_flow / units if units > 0 else 0
 
