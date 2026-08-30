@@ -847,13 +847,13 @@ st.divider()
 st.markdown("### 4. Construction Lender Loan Cap & Stress Test")
 
 if const_bank_val_mode == "DSCR Stress Test":
-    dscr_info_text = (
+    pdf_dscr_info_text = (
         f"**Construction Loan Underwriting:** The bank determines the implied asset value based on a "
         f"**{const_bank_dscr:.2f}x DSCR stress test** (yielding **${bank_stressed_value:,.0f}**). "
         f"They apply their **{const_bank_ltv*100:.1f}% LTV** limit to offer a maximum loan of **${actual_const_loan:,.0f}**, "
         f"and subtract that from your Total Basis (**${total_construction_basis:,.0f}**) to determine your required Day-1 Seed Capital of **${seed_capital:,.0f}**."
     )
-    st.info(dscr_info_text.replace("$", r"\$"))
+    st.info(pdf_dscr_info_text.replace("$", r"\$"))
     
     stress_test_data = {
         "Bank Underwriting Step": [
@@ -878,13 +878,13 @@ if const_bank_val_mode == "DSCR Stress Test":
         ]
     }
 else:
-    grm_info_text = (
+    pdf_grm_info_text = (
         f"**Construction Loan Underwriting:** The bank determines the implied asset value based on a "
         f"**{const_bank_grm:.1f}x Gross Rent Multiplier** (yielding **${bank_stressed_value:,.0f}**). "
         f"They apply their **{const_bank_ltv*100:.1f}% LTV** limit to offer a maximum loan of **${actual_const_loan:,.0f}**, "
         f"and subtract that from your Total Basis (**${total_construction_basis:,.0f}**) to determine your required Day-1 Seed Capital of **${seed_capital:,.0f}**."
     )
-    st.info(grm_info_text.replace("$", r"\$"))
+    st.info(pdf_grm_info_text.replace("$", r"\$"))
     
     stress_test_data = {
         "Bank Underwriting Step": [
@@ -996,7 +996,19 @@ st.divider()
 # --- 7. REFINANCE WATERFALL & WEALTH ---
 # ==========================================
 st.markdown("### 7. Refinance Cash Waterfall & Day-1 Wealth")
-st.caption("This explicit Cash-Out Waterfall shows exactly how the Permanent Loan pays off the Construction phase at the title company, isolating your true Cash Surplus.")
+
+waterfall_summary_text = (
+    f"**Refinance Cash Waterfall:** This explicit Cash-Out Waterfall shows exactly how the "
+    f"**${loan_total:,.0f}** Permanent Loan pays off the **${actual_const_loan:,.0f}** Construction phase "
+    f"and **${refi_closing_fee + default_buydown_cost:,.0f}** in closing/buydown costs at the title company. "
+)
+
+if cash_surplus >= 0:
+    waterfall_summary_text += f"After recovering your initial **${seed_capital:,.0f}** seed capital, the transaction yields a true **${cash_surplus:,.0f}** tax-free cash surplus."
+else:
+    waterfall_summary_text += f"After applying the net proceeds against your initial **${seed_capital:,.0f}** seed capital, **${-cash_surplus:,.0f}** remains as long-term retained capital in the deal."
+
+st.info(waterfall_summary_text.replace("$", r"\$"))
 
 waterfall_data = {
     "Refinance Closing Line Item": [
@@ -1516,6 +1528,10 @@ def create_pdf(detail_mode):
     pdf.set_fill_color(220, 220, 220)
     pdf.cell(0, 8, " 8. Refinance Cash Waterfall (Payoff & Cash-Out)", ln=1, fill=True)
     pdf.set_font("Arial", '', 10)
+    
+    clean_waterfall_summary = waterfall_summary_text.replace("**", "").encode('latin-1', 'replace').decode('latin-1')
+    pdf.multi_cell(0, 6, clean_waterfall_summary)
+    pdf.ln(3)
     
     pdf.cell(130, 7, "(+) Permanent Takeout Loan Proceeds:", 0, 0)
     pdf.cell(60, 7, f"${loan_total:,.0f}", 0, 1, 'R')
