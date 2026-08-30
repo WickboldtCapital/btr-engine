@@ -548,19 +548,19 @@ project_baths = sub_col2.number_input("Baths per Unit", min_value=1.0, value=2.0
 
 # --- DYNAMIC EXECUTIVE SUMMARY ---
 address_display = project_address if project_address else "[Project Address]"
-capital_recovery_text = "nearly 100% capital recovery" if -5000 <= cash_surplus <= 5000 else (f"a complete capital recovery with a \${cash_surplus:,.0f} surplus" if cash_surplus > 5000 else f"a capital recovery requiring \${-cash_surplus:,.0f} in retained seed capital")
+capital_recovery_text = "nearly 100% capital recovery" if -5000 <= cash_surplus <= 5000 else (f"a complete capital recovery with a ${cash_surplus:,.0f} surplus" if cash_surplus > 5000 else f"a capital recovery requiring ${-cash_surplus:,.0f} in retained seed capital")
 
 executive_summary_text = (
     f"**Executive Summary:**\n"
     f"This technical brief outlines the pro forma and operational mechanics for a {units}-unit Build-to-Rent (BTR) "
     f"single-family residential project located at {address_display}. Utilizing a {sqft:,.0f} SF heated footprint "
     f"with a {struct_sqft:,.0f} SF integrated {st.session_state.structure_type.lower()}, the model reverse-engineers "
-    f"national production builder economics to establish a target appraisal value (ARV) of \${arv_per_unit:,.0f} per home. "
+    f"national production builder economics to establish a target appraisal value (ARV) of ${arv_per_unit:,.0f} per home. "
     f"By deploying Wickboldt Capital as the managing general contractor, the project successfully captures active "
     f"construction management revenue while executing a commercial takeout refinance.\n\n"
     f"With a {build_months}-month construction timeline factored into carrying costs, this structure achieves "
-    f"{capital_recovery_text}, a compliant {actual_dscr:.2f}x DSCR generating \${monthly_cash_flow_per_door:,.0f}/month "
-    f"in net passive cash flow per door, and scalable wealth creation totaling \${day1_wealth:,.0f} across the "
+    f"{capital_recovery_text}, a compliant {actual_dscr:.2f}x DSCR generating ${monthly_cash_flow_per_door:,.0f}/month "
+    f"in net passive cash flow per door, and scalable wealth creation totaling ${day1_wealth:,.0f} across the "
     f"{units}-unit build program."
 )
 
@@ -636,9 +636,9 @@ with ui_decision_dashboard:
 st.markdown("### 2. Market Comp Valuation Audit")
 
 if st.session_state.comp_address:
-    st.caption(f"📍 **Active Comp:** {st.session_state.comp_address} | Isolated Heated Shell Rate: **\${isolated_heated_rate:.2f} / SF** | Implied Aux Rate: **\${comp_aux_rate_sf:.2f} / SF**")
+    st.caption(f"📍 **Active Comp:** {st.session_state.comp_address} | Isolated Heated Shell Rate: **${isolated_heated_rate:.2f} / SF** | Implied Aux Rate: **${comp_aux_rate_sf:.2f} / SF**".replace("$", r"\$"))
 else:
-    st.caption(f"📊 Isolated Heated Shell Rate: **\${isolated_heated_rate:.2f} / SF** | Implied Aux Rate: **\${comp_aux_rate_sf:.2f} / SF**")
+    st.caption(f"📊 Isolated Heated Shell Rate: **${isolated_heated_rate:.2f} / SF** | Implied Aux Rate: **${comp_aux_rate_sf:.2f} / SF**".replace("$", r"\$"))
 
 with st.expander("🧮 View Comp Math Audit & Raw API Data", expanded=False):
     comp_under_roof = comp_heated_sf + comp_aux_sqft
@@ -649,10 +649,10 @@ with st.expander("🧮 View Comp Math Audit & Raw API Data", expanded=False):
     
     if aux_cost_mode == "Percentage of Heated Rate (%)":
         st.markdown(f"**2.2 True Isolated Heated Shell Rate (Algebraic Extraction)**")
-        st.caption(f"If we simply halved the blended rate for the aux space, the total price would fall short. To perfectly distribute the \${comp_price:,.0f} across the spaces at a 100% / {aux_ratio*100:.0f}% ratio, we solve for the 'Effective Equivalent' square footage:")
+        st.caption(f"If we simply halved the blended rate for the aux space, the total price would fall short. To perfectly distribute the ${comp_price:,.0f} across the spaces at a 100% / {aux_ratio*100:.0f}% ratio, we solve for the 'Effective Equivalent' square footage:".replace("$", r"\$"))
         st.code(f"Step 1: Find Equivalent SF\n{comp_heated_sf:,.0f} Heated SF + ({comp_aux_sqft:,.0f} Aux SF × {aux_ratio:.2f}) = {effective_comp_heated_sf:,.1f} Eq. SF\n\nStep 2: Solve for True Heated Rate\n${comp_price:,.0f} ÷ {effective_comp_heated_sf:,.1f} Eq. SF = ${isolated_heated_rate:.2f} / Heated SF\n\nStep 3: Solve for True Aux Rate\n${isolated_heated_rate:.2f} × {aux_ratio:.2f} = ${comp_aux_rate_sf:.2f} / Aux SF")
     else:
-        st.markdown(f"**2.2 True Isolated Heated Shell Rate (Fixed Aux Value: \${aux_fixed_cost_sf:.2f} / SF)**")
+        st.markdown(f"**2.2 True Isolated Heated Shell Rate (Fixed Aux Value: ${aux_fixed_cost_sf:.2f} / SF)**".replace("$", r"\$"))
         st.code(f"(${comp_price:,.0f} - ${comp_aux_value:,.0f} Aux Value) ÷ {comp_heated_sf:,.0f} SF = ${isolated_heated_rate:.2f} / SF")
         
     if st.session_state.raw_api_data and st.session_state.get("comp_entry_mode") == "RentCast Live API Fetch":
@@ -667,9 +667,9 @@ st.markdown("### 3. Granular Direct Hard Cost Buildup & Roll-up")
 
 granular_summary_text = (
     f"Below is the itemized cost buildup per trade division required to achieve the baseline "
-    f"**\${direct_cost_sf:.2f}/SF (\${heated_hard_cost:,.0f})** heated living area cost and the "
-    f"**\${struct_cost_sf:.2f}/SF (\${struct_total_cost:,.0f})** {st.session_state.structure_type.lower()} cost, "
-    f"yielding a blended direct hard cost of **\${blended_cost_per_sf:.2f}/SF (\${target_direct_hard_cost:,.0f})** under roof per unit."
+    f"**${direct_cost_sf:.2f}/SF (${heated_hard_cost:,.0f})** heated living area cost and the "
+    f"**${struct_cost_sf:.2f}/SF (${struct_total_cost:,.0f})** {st.session_state.structure_type.lower()} cost, "
+    f"yielding a blended direct hard cost of **${blended_cost_per_sf:.2f}/SF (${target_direct_hard_cost:,.0f})** under roof per unit."
 )
 st.info(granular_summary_text.replace("$", r"\$"))
 
@@ -734,7 +734,7 @@ raw_struct_divs = [("AUXILIARY: CARPORT / GARAGE", 35.00, True)]
 pdf_granular_data = []
 
 if granular_mode == "Auto-Proportional (Linked to Master Model)":
-    st.markdown(f"#### 3.1 Heated Living Area ({sqft} SF @ \${direct_cost_sf:.2f} / SF)")
+    st.markdown(f"#### 3.1 Heated Living Area ({sqft} SF @ ${direct_cost_sf:.2f} / SF)".replace("$", r"\$"))
     h_data = {"Division / Trade Level": [], "Live Cost / SF": [], "Per Unit Cost": []}
     for name, base_val, is_header in raw_heated_divs:
         live_sf = direct_cost_sf * (base_val / 100.0)
@@ -750,7 +750,7 @@ if granular_mode == "Auto-Proportional (Linked to Master Model)":
             pdf_granular_data.append((f"   {name}", live_sf, live_sf * sqft, live_sf * sqft * units, False))
     st.dataframe(pd.DataFrame(h_data), hide_index=True, use_container_width=True)
     
-    st.markdown(f"#### 3.2 {st.session_state.structure_type} Auxiliary ({struct_sqft} SF @ \${struct_cost_sf:.2f} / SF)")
+    st.markdown(f"#### 3.2 {st.session_state.structure_type} Auxiliary ({struct_sqft} SF @ ${struct_cost_sf:.2f} / SF)".replace("$", r"\$"))
     s_data = {"Component Level": [], "Live Cost / SF": [], "Per Unit Cost": []}
     for name, base_val, is_header in raw_struct_divs:
         live_sf = struct_cost_sf * (base_val / 35.0)
@@ -849,9 +849,9 @@ st.markdown("### 4. Construction Lender Loan Cap & Stress Test")
 if const_bank_val_mode == "DSCR Stress Test":
     dscr_info_text = (
         f"**Construction Loan Underwriting:** The bank determines the implied asset value based on a "
-        f"**{const_bank_dscr:.2f}x DSCR stress test** (yielding **\${bank_stressed_value:,.0f}**). "
-        f"They apply their **{const_bank_ltv*100:.1f}% LTV** limit to offer a maximum loan of **\${actual_const_loan:,.0f}**, "
-        f"and subtract that from your Total Basis (**\${total_construction_basis:,.0f}**) to determine your required Day-1 Seed Capital of **\${seed_capital:,.0f}**."
+        f"**{const_bank_dscr:.2f}x DSCR stress test** (yielding **${bank_stressed_value:,.0f}**). "
+        f"They apply their **{const_bank_ltv*100:.1f}% LTV** limit to offer a maximum loan of **${actual_const_loan:,.0f}**, "
+        f"and subtract that from your Total Basis (**${total_construction_basis:,.0f}**) to determine your required Day-1 Seed Capital of **${seed_capital:,.0f}**."
     )
     st.info(dscr_info_text.replace("$", r"\$"))
     
@@ -880,9 +880,9 @@ if const_bank_val_mode == "DSCR Stress Test":
 else:
     grm_info_text = (
         f"**Construction Loan Underwriting:** The bank determines the implied asset value based on a "
-        f"**{const_bank_grm:.1f}x Gross Rent Multiplier** (yielding **\${bank_stressed_value:,.0f}**). "
-        f"They apply their **{const_bank_ltv*100:.1f}% LTV** limit to offer a maximum loan of **\${actual_const_loan:,.0f}**, "
-        f"and subtract that from your Total Basis (**\${total_construction_basis:,.0f}**) to determine your required Day-1 Seed Capital of **\${seed_capital:,.0f}**."
+        f"**{const_bank_grm:.1f}x Gross Rent Multiplier** (yielding **${bank_stressed_value:,.0f}**). "
+        f"They apply their **{const_bank_ltv*100:.1f}% LTV** limit to offer a maximum loan of **${actual_const_loan:,.0f}**, "
+        f"and subtract that from your Total Basis (**${total_construction_basis:,.0f}**) to determine your required Day-1 Seed Capital of **${seed_capital:,.0f}**."
     )
     st.info(grm_info_text.replace("$", r"\$"))
     
@@ -907,10 +907,10 @@ else:
 st.dataframe(pd.DataFrame(stress_test_data), hide_index=True, use_container_width=True)
 
 if seed_capital > 0:
-    warning_text = f"**Seed Capital Required:** The bank will fund **\${actual_const_loan:,.0f}** based on the appraised value. Your Total Construction Basis is **\${total_construction_basis:,.0f}**. You must bring **\${seed_capital:,.0f}** in Day-1 Seed Capital (Reserves)."
+    warning_text = f"**Seed Capital Required:** The bank will fund **${actual_const_loan:,.0f}** based on the appraised value. Your Total Construction Basis is **${total_construction_basis:,.0f}**. You must bring **${seed_capital:,.0f}** in Day-1 Seed Capital (Reserves)."
     st.warning(warning_text.replace("$", r"\$"))
 else:
-    success_text = f"**Fully Funded:** The bank's loan value of **\${actual_const_loan:,.0f}** covers your entire construction basis. No Day-1 Seed Capital is required."
+    success_text = f"**Fully Funded:** The bank's loan value of **${actual_const_loan:,.0f}** covers your entire construction basis. No Day-1 Seed Capital is required."
     st.success(success_text.replace("$", r"\$"))
 st.divider()
 
@@ -922,8 +922,8 @@ st.markdown("### 5. Developer Capital & Construction Ledger")
 
 land_eq_text = (
     f"**Land Equity Capture:** The Pro Forma valuation benchmark values the lot at {lot_cost_pct*100:.1f}% "
-    f"(**\${lot_benchmark:,.0f}**), while the developer's actual out-of-pocket acquisition cost is "
-    f"**\${total_land_default:,.0f}**. This gap represents immediate land equity."
+    f"(**${lot_benchmark:,.0f}**), while the developer's actual out-of-pocket acquisition cost is "
+    f"**${total_land_default:,.0f}**. This gap represents immediate land equity."
 )
 st.info(land_eq_text.replace("$", r"\$"))
 
@@ -948,7 +948,7 @@ with col2:
 st.markdown("#### Capital Outlay & Transaction Scope")
 transaction_df = pd.DataFrame({
     "Phase / Project Cash Event": ["1. Seed Capital Outlay", "2. Total Construction Cost", "3. Soft Costs & Permitting", "4. Construction Financing Costs", "5. Permanent Refinance Takeout", "Total Project Capital Basis"],
-    "Transaction Scope": ["Out-of-pocket finished lot acquisition", "Baseline Hard Costs + Indirects + GC Fee", "Architecture, civil engineering, parish permits, builder's risk", f"Lender closing fees (\${const_closing_fee:,.0f}) & accrued interest (\${carry_int_base:,.0f})", f"Commercial fees (\${refi_closing_fee:,.0f}) + {buydown_pts} pt rate buydown (\${default_buydown_cost:,.0f})", "All-in total cost to build, finance, close, and stabilize"],
+    "Transaction Scope": ["Out-of-pocket finished lot acquisition", "Baseline Hard Costs + Indirects + GC Fee", "Architecture, civil engineering, parish permits, builder's risk", f"Lender closing fees (${const_closing_fee:,.0f}) & accrued interest (${carry_int_base:,.0f})", f"Commercial fees (${refi_closing_fee:,.0f}) + {buydown_pts} pt rate buydown (${default_buydown_cost:,.0f})", "All-in total cost to build, finance, close, and stabilize"],
     "Actual Capital Outlay": [f"-${total_land_default:,.0f}", f"-${total_const:,.0f}", f"-${total_soft_default:,.0f}", f"-${const_closing_fee + carry_int_base:,.0f}", f"-${refi_closing_fee + default_buydown_cost:,.0f}", f"-${total_project_basis:,.0f}"]
 })
 st.dataframe(transaction_df, hide_index=True, use_container_width=True)
@@ -1025,12 +1025,12 @@ retail_sales_costs = total_arv * 0.08
 retail_total_invested = total_land_default + total_const + total_soft_default + retail_sales_costs
 retail_net_cash = total_arv - retail_total_invested
 
-btr_cash_text = f"yielding **\${cash_surplus:,.0f}** tax-free" if cash_surplus >= 0 else f"leaving **\${-cash_surplus:,.0f}** as retained capital"
+btr_cash_text = f"yielding **${cash_surplus:,.0f}** tax-free" if cash_surplus >= 0 else f"leaving **${-cash_surplus:,.0f}** as retained capital"
 
 strategy_comparison_text = (
-    f"This comparison models the one-time taxable cash event of the National Builder model (yielding **\${retail_net_cash:,.0f}** in taxable cash) "
-    f"versus the wealth-creation mechanics of the Build-to-Rent model ({btr_cash_text}, while producing **\${monthly_cash_flow_per_door:,.0f}/mo** in net cash flow and capturing **\${retained_equity:,.0f}** in retained equity) "
-    f"on the exact same project ({units} units, {sqft:,.0f} SF heated with {struct_sqft:,.0f} SF {st.session_state.structure_type.lower()}, \${total_arv:,.0f} ARV)."
+    f"This comparison models the one-time taxable cash event of the National Builder model (yielding **${retail_net_cash:,.0f}** in taxable cash) "
+    f"versus the wealth-creation mechanics of the Build-to-Rent model ({btr_cash_text}, while producing **${monthly_cash_flow_per_door:,.0f}/mo** in net cash flow and capturing **${retained_equity:,.0f}** in retained equity) "
+    f"on the exact same project ({units} units, {sqft:,.0f} SF heated with {struct_sqft:,.0f} SF {st.session_state.structure_type.lower()}, ${total_arv:,.0f} ARV)."
 )
 st.info(strategy_comparison_text.replace("$", r"\$"))
 
@@ -1076,9 +1076,9 @@ strategy_data = {
 st.dataframe(pd.DataFrame(strategy_data), hide_index=True, use_container_width=True)
 
 strategy_footnote_text = (
-    f"***Note:** The BTR model captures \${default_gc_fee:,.0f} in GC Fees during the build. "
+    f"***Note:** The BTR model captures ${default_gc_fee:,.0f} in GC Fees during the build. "
     f"The {build_months}-month construction timeline incurs carrying costs such that the takeout distribution "
-    f"yields a net cash event of \${cash_surplus:,.0f} at closing. Total Day-1 Created Value equals \${day1_wealth:,.0f}.*"
+    f"yields a net cash event of ${cash_surplus:,.0f} at closing. Total Day-1 Created Value equals ${day1_wealth:,.0f}.*"
 )
 st.caption(strategy_footnote_text.replace("$", r"\$"))
 st.divider()
@@ -1095,8 +1095,8 @@ if cost_calc_mode in ["Reverse-Engineer from Appraisal", "Reverse-Engineer from 
     
     rev_eng_summary = (
         f"**Reverse-Engineering the Target Budget:**\n\nBased on the comp's isolated rates, your specific "
-        f"{sqft} SF project has an estimated ARV of **\${reference_price:,.0f}** (approximately "
-        f"\${ref_price_sf:,.2f} per heated square foot). We are reverse-engineering *this* value to isolate "
+        f"{sqft} SF project has an estimated ARV of **${reference_price:,.0f}** (approximately "
+        f"${ref_price_sf:,.2f} per heated square foot). We are reverse-engineering *this* value to isolate "
         f"the pure direct hard costs from finished land, builder corporate margins, indirects, and soft costs. "
         f"This ensures the physical build budget perfectly aligns with proven market economics."
     )
@@ -1191,7 +1191,7 @@ def create_pdf(detail_mode):
     pdf.cell(0, 8, " 1. Executive Narrative Summary", ln=1, fill=True)
     pdf.set_font("Arial", '', 10)
     
-    clean_summary = executive_summary_text.replace("**Executive Summary:**\n", "").replace(r"\$", "$").encode('latin-1', 'replace').decode('latin-1')
+    clean_summary = executive_summary_text.replace("**Executive Summary:**\n", "").encode('latin-1', 'replace').decode('latin-1')
     pdf.multi_cell(0, 6, clean_summary)
     pdf.ln(5)
 
@@ -1507,7 +1507,7 @@ def create_pdf(detail_mode):
     
     # Text summary for PDF
     pdf.set_font("Arial", '', 10)
-    clean_strategy_summary = strategy_comparison_text.replace("**", "").replace(r"\$", "$").encode('latin-1', 'replace').decode('latin-1')
+    clean_strategy_summary = strategy_comparison_text.encode('latin-1', 'replace').decode('latin-1')
     pdf.multi_cell(0, 6, clean_strategy_summary)
     pdf.ln(3)
 
@@ -1543,7 +1543,7 @@ def create_pdf(detail_mode):
     
     pdf.ln(5)
     pdf.set_font("Arial", 'I', 8)
-    clean_footnote = strategy_footnote_text.replace("*Note: ", "Note: ").replace("*", "").replace(r"\$", "$").encode('latin-1', 'replace').decode('latin-1')
+    clean_footnote = strategy_footnote_text.replace("*Note: ", "Note: ").replace("*", "").encode('latin-1', 'replace').decode('latin-1')
     pdf.multi_cell(0, 5, clean_footnote)
     pdf.ln(5)
     
