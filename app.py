@@ -1147,8 +1147,8 @@ def create_pdf(include_sublevels):
     pdf.cell(100, 7, "Const. Loan Capitalized Interest:", 0, 0)
     pdf.cell(90, 7, f"${carry_int_base:,.0f}", 0, 1, 'R')
         
-    pdf.cell(100, 7, "Total Soft Costs & Closing Fees:", 0, 0)
-    pdf.cell(90, 7, f"${total_soft_default + const_closing_fee + refi_closing_fee + default_buydown_cost:,.0f}", 0, 1, 'R')
+    pdf.cell(100, 7, "Total Financing & Closing Fees:", 0, 0)
+    pdf.cell(90, 7, f"${const_closing_fee + refi_closing_fee + default_buydown_cost:,.0f}", 0, 1, 'R')
     
     pdf.ln(5)
 
