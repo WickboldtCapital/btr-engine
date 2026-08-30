@@ -201,15 +201,7 @@ with st.sidebar.container():
     st.number_input("Land Basis per Lot ($)", min_value=0, step=1000, format="%d", key="land_basis")
 
 with st.sidebar.container():
-    st.subheader("7. Operating Pro Forma (DSCR)")
-    st.number_input("Gross Monthly Rental Income per Unit ($)", min_value=0, step=50, format="%d", key="gross_monthly_rent")
-    st.number_input("Target Lender DSCR Rate", min_value=1.0, max_value=1.5, value=float(GLOBAL_DRIVERS.get("target_dscr_rate", 1.20)), step=0.05, key="target_dscr_rate")
-    st.number_input("Min. Acceptable Cash Flow / Door ($)", min_value=0.0, max_value=1000.0, value=float(GLOBAL_DRIVERS.get("target_min_cashflow_per_door", 200.0)), step=25.0, key="target_min_cashflow_per_door")
-    st.slider("Vacancy Rate (%)", min_value=0.0, max_value=15.0, step=1.0, key="vacancy_rate_pct")
-    st.slider("Operating Expenses (OpEx) Rate of EGI (%)", min_value=15.0, max_value=50.0, step=1.0, key="opex_rate_pct")
-
-with st.sidebar.container():
-    st.subheader("8. Construction Loan Terms")
+    st.subheader("7. Construction Loan Terms")
     st.slider("Construction / Bank LTC (%)", min_value=60.0, max_value=100.0, step=5.0, key="const_ltv_pct")
     st.slider("Construction Duration (Months)", min_value=3, max_value=18, step=1, key="build_months")
     st.slider("Construction Loan Rate (%)", min_value=4.0, max_value=14.0, step=0.5, key="const_rate_pct")
@@ -217,20 +209,8 @@ with st.sidebar.container():
     st.number_input("Const Loan Closing Fee ($ total)", min_value=0, step=500, format="%d", key="const_closing_fee")
 
 with st.sidebar.container():
-    st.subheader("9. Takeout Refinance Terms")
-    st.slider("Refinance LTV (%)", min_value=60.0, max_value=85.0, step=5.0, key="refi_ltv_pct")
-    st.selectbox("Amortization Term (Years)", [15, 20, 25, 30], key="refi_term_years")
-    st.slider("Base Refi Interest Rate (%)", min_value=4.0, max_value=10.0, step=0.25, key="base_refi_rate_pct")
-    st.number_input("Refinance Closing Fee ($ total)", min_value=0, step=250, format="%d", key="refi_closing_fee")
-    st.checkbox("Apply Interest Rate Buydown Points?", key="apply_buydown")
-    if st.session_state.apply_buydown:
-        st.number_input("Discount Points", min_value=0.0, max_value=5.0, value=float(GLOBAL_DRIVERS.get("buydown_pts", 3.0)), step=0.5, key="buydown_pts")
-        net_rate = max(0.01, (st.session_state.base_refi_rate_pct / 100.0) - (st.session_state.buydown_pts * 0.0025))
-        st.markdown(f"📉 **Buydown Net Rate:** `{net_rate*100:.3f}%`")
-
-with st.sidebar.container():
-    st.subheader("10. Const. Lender Limits")
-    st.number_input("Bank Under underwriting Rent ($)", min_value=0, step=50, format="%d", key="const_bank_rent")
+    st.subheader("8. Const. Lender Limits")
+    st.number_input("Bank Underwriting Rent ($)", min_value=0, step=50, format="%d", key="const_bank_rent")
     st.slider("Bank Underwriting LTV (%)", min_value=50.0, max_value=100.0, step=5.0, key="const_bank_ltv_pct")
     
     st.radio("Bank Valuation Method", ["Gross Rent Multiplier (GRM)", "DSCR Stress Test"], key="const_bank_val_mode")
@@ -243,6 +223,26 @@ with st.sidebar.container():
         st.number_input("Bank Target DSCR", min_value=1.0, max_value=1.5, value=float(GLOBAL_DRIVERS.get("const_bank_dscr", 1.20)), step=0.05, key="const_bank_dscr")
         st.slider("Bank Qualifying Rate (%)", min_value=4.0, max_value=14.0, step=0.25, key="const_bank_qual_rate_pct")
         st.selectbox("Bank Amortization (Years)", [15, 20, 25, 30], key="const_bank_amort_yrs")
+
+with st.sidebar.container():
+    st.subheader("9. Operating Pro Forma (DSCR)")
+    st.number_input("Gross Monthly Rental Income per Unit ($)", min_value=0, step=50, format="%d", key="gross_monthly_rent")
+    st.number_input("Target Lender DSCR Rate", min_value=1.0, max_value=1.5, value=float(GLOBAL_DRIVERS.get("target_dscr_rate", 1.20)), step=0.05, key="target_dscr_rate")
+    st.number_input("Min. Acceptable Cash Flow / Door ($)", min_value=0.0, max_value=1000.0, value=float(GLOBAL_DRIVERS.get("target_min_cashflow_per_door", 200.0)), step=25.0, key="target_min_cashflow_per_door")
+    st.slider("Vacancy Rate (%)", min_value=0.0, max_value=15.0, step=1.0, key="vacancy_rate_pct")
+    st.slider("Operating Expenses (OpEx) Rate of EGI (%)", min_value=15.0, max_value=50.0, step=1.0, key="opex_rate_pct")
+
+with st.sidebar.container():
+    st.subheader("10. Takeout Refinance Terms")
+    st.slider("Refinance LTV (%)", min_value=60.0, max_value=85.0, step=5.0, key="refi_ltv_pct")
+    st.selectbox("Amortization Term (Years)", [15, 20, 25, 30], key="refi_term_years")
+    st.slider("Base Refi Interest Rate (%)", min_value=4.0, max_value=10.0, step=0.25, key="base_refi_rate_pct")
+    st.number_input("Refinance Closing Fee ($ total)", min_value=0, step=250, format="%d", key="refi_closing_fee")
+    st.checkbox("Apply Interest Rate Buydown Points?", key="apply_buydown")
+    if st.session_state.apply_buydown:
+        st.number_input("Discount Points", min_value=0.0, max_value=5.0, value=float(GLOBAL_DRIVERS.get("buydown_pts", 3.0)), step=0.5, key="buydown_pts")
+        net_rate = max(0.01, (st.session_state.base_refi_rate_pct / 100.0) - (st.session_state.buydown_pts * 0.0025))
+        st.markdown(f"📉 **Buydown Net Rate:** `{net_rate*100:.3f}%`")
 
 
 # ==========================================
