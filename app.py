@@ -847,7 +847,14 @@ st.divider()
 st.markdown("### 4. Construction Lender Loan Cap & Stress Test")
 
 if const_bank_val_mode == "DSCR Stress Test":
-    st.caption("The bank determines the implied asset value based on their DSCR test, applies their LTV to get the Loan Value, and subtracts that from the Total Basis to find your required Seed Capital.")
+    dscr_info_text = (
+        f"**Construction Loan Underwriting:** The bank determines the implied asset value based on a "
+        f"**{const_bank_dscr:.2f}x DSCR stress test** (yielding **\${bank_stressed_value:,.0f}**). "
+        f"They apply their **{const_bank_ltv*100:.1f}% LTV** limit to offer a maximum loan of **\${actual_const_loan:,.0f}**, "
+        f"and subtract that from your Total Basis (**\${total_construction_basis:,.0f}**) to determine your required Day-1 Seed Capital of **\${seed_capital:,.0f}**."
+    )
+    st.info(dscr_info_text.replace("$", r"\$"))
+    
     stress_test_data = {
         "Bank Underwriting Step": [
             "1. Gross Potential Rent (Bank Model)",
@@ -871,7 +878,14 @@ if const_bank_val_mode == "DSCR Stress Test":
         ]
     }
 else:
-    st.caption("The bank determines the implied asset value based on a Gross Rent Multiplier (GRM), applies their LTV to get the Loan Value, and subtracts that from the Total Basis to find your required Seed Capital.")
+    grm_info_text = (
+        f"**Construction Loan Underwriting:** The bank determines the implied asset value based on a "
+        f"**{const_bank_grm:.1f}x Gross Rent Multiplier** (yielding **\${bank_stressed_value:,.0f}**). "
+        f"They apply their **{const_bank_ltv*100:.1f}% LTV** limit to offer a maximum loan of **\${actual_const_loan:,.0f}**, "
+        f"and subtract that from your Total Basis (**\${total_construction_basis:,.0f}**) to determine your required Day-1 Seed Capital of **\${seed_capital:,.0f}**."
+    )
+    st.info(grm_info_text.replace("$", r"\$"))
+    
     stress_test_data = {
         "Bank Underwriting Step": [
             "1. Gross Potential Rent (Bank Model)",
@@ -1419,6 +1433,15 @@ def create_pdf(detail_mode):
     pdf.set_font("Arial", '', 10)
     
     if const_bank_val_mode == "DSCR Stress Test":
+        pdf_dscr_info_text = (
+            f"Construction Loan Underwriting: The bank determines the implied asset value based on a "
+            f"{const_bank_dscr:.2f}x DSCR stress test (yielding ${bank_stressed_value:,.0f}). "
+            f"They apply their {const_bank_ltv*100:.1f}% LTV limit to offer a maximum loan of ${actual_const_loan:,.0f}, "
+            f"and subtract that from your Total Basis (${total_construction_basis:,.0f}) to determine your required Day-1 Seed Capital of ${seed_capital:,.0f}."
+        )
+        pdf.multi_cell(0, 6, pdf_dscr_info_text.encode('latin-1', 'replace').decode('latin-1'))
+        pdf.ln(3)
+        
         pdf.cell(100, 7, "Bank Assumed Rent & Target DSCR:", 0, 0)
         pdf.cell(90, 7, f"${const_bank_rent:,.0f}/mo | {const_bank_dscr:.2f}x DSCR", 0, 1, 'R')
         pdf.cell(100, 7, "Bank Vacancy & OpEx Deductions:", 0, 0)
@@ -1426,6 +1449,15 @@ def create_pdf(detail_mode):
         pdf.cell(100, 7, "Bank Implied Asset Value (Refi Stress Test):", 0, 0)
         pdf.cell(90, 7, f"${bank_stressed_value:,.0f}", 0, 1, 'R')
     else:
+        pdf_grm_info_text = (
+            f"Construction Loan Underwriting: The bank determines the implied asset value based on a "
+            f"{const_bank_grm:.1f}x Gross Rent Multiplier (yielding ${bank_stressed_value:,.0f}). "
+            f"They apply their {const_bank_ltv*100:.1f}% LTV limit to offer a maximum loan of ${actual_const_loan:,.0f}, "
+            f"and subtract that from your Total Basis (${total_construction_basis:,.0f}) to determine your required Day-1 Seed Capital of ${seed_capital:,.0f}."
+        )
+        pdf.multi_cell(0, 6, pdf_grm_info_text.encode('latin-1', 'replace').decode('latin-1'))
+        pdf.ln(3)
+        
         pdf.cell(100, 7, "Bank Assumed Rent & Target GRM:", 0, 0)
         pdf.cell(90, 7, f"${const_bank_rent:,.0f}/mo | {const_bank_grm:.1f}x GRM", 0, 1, 'R')
         pdf.cell(100, 7, "Bank Implied Asset Value (GRM Stress Test):", 0, 0)
@@ -1471,6 +1503,7 @@ def create_pdf(detail_mode):
     pdf.set_font("Arial", 'B', 12)
     pdf.set_fill_color(220, 220, 220)
     pdf.cell(0, 8, " 8. Strategy Comparison: Retail Sell vs. Build-to-Rent", ln=1, fill=True)
+    pdf.set_font("Arial", '', 9)
     
     # Text summary for PDF
     pdf.set_font("Arial", '', 10)
