@@ -913,7 +913,7 @@ if ledger_mode == "Manual Ledger Override":
 else:
     st.dataframe(pd.DataFrame(indirects_data).style.format({"Amount ($)": "${:,.0f}"}), hide_index=True, use_container_width=True)
 
-st.markdown(f"### 🎯 TOTAL PROJECT BASIS: **${total_project_basis:,.0f}** *(${total_project_basis/units:,.0f} / Door)*")
+st.markdown(f"### 🎯 TOTAL PROJECT BASIS: **\${total_project_basis:,.0f}** *(\${total_project_basis/units:,.0f} / Door)*")
 st.divider()
 
 
@@ -985,6 +985,10 @@ if cost_calc_mode in ["Reverse-Engineer from Appraisal", "Reverse-Engineer from 
     st.markdown("### 8. Retail Comp & Appraisal Reverse-Engineering Breakdown")
     
     reference_price = arv_per_unit if cost_calc_mode == 'Reverse-Engineer from Appraisal' else comp_equivalent_arv
+    ref_price_sf = reference_price / sqft if sqft > 0 else 0
+    
+    st.info(f"**Reverse-Engineering the \${ref_price_sf:,.0f}/SF Benchmark Price:**\n\nTo establish our baseline construction parameters, we reverse-engineer the benchmark target value of \${reference_price:,.0f} (approximately \${ref_price_sf:,.2f} per heated square foot) to isolate the pure direct hard costs from finished land, builder corporate margins, indirects, and soft costs. This process completely strips away typical retail markups, ensuring our physical construction budget perfectly aligns with proven local market economics.")
+    
     breakdown_data = {
         "Cost Category": [
             f"Baseline Reference Price (Comp / ARV)", 
@@ -1111,6 +1115,11 @@ def create_pdf(detail_mode):
         pdf.set_fill_color(220, 220, 220)
         pdf.cell(0, 8, " 3. Retail Comp & Appraisal Reverse-Engineering", ln=1, fill=True)
         pdf.set_font("Arial", '', 10)
+        
+        # Add dynamic narrative to PDF
+        rev_eng_summary = f"To establish our baseline construction parameters, we reverse-engineer the benchmark target value of ${reference_price:,.0f} (approximately ${ref_price_sf:,.2f} per heated square foot) to isolate the pure direct hard costs from finished land, builder corporate margins, indirects, and soft costs. This ensures the physical build budget perfectly aligns with proven market economics."
+        pdf.multi_cell(0, 6, rev_eng_summary.encode('latin-1', 'replace').decode('latin-1'))
+        pdf.ln(3)
         
         pdf.cell(130, 7, "Baseline Reference Price (Comp / ARV):", 0, 0)
         pdf.cell(60, 7, f"${reference_price:,.0f}", 0, 1, 'R')
