@@ -617,15 +617,15 @@ with st.expander("🧮 View Comp Math Audit & Raw API Data", expanded=False):
     comp_under_roof = comp_heated_sf + comp_aux_sqft
     comp_blended_rate = comp_price / comp_under_roof if comp_under_roof > 0 else 0
     
-    st.markdown("**1. Raw Blended Rate (Total Price ÷ Total Under-Roof SF)**")
+    st.markdown("**2.1 Raw Blended Rate (Total Price ÷ Total Under-Roof SF)**")
     st.code(f"${comp_price:,.0f} ÷ {comp_under_roof:,.0f} Total SF = ${comp_blended_rate:.2f} / SF (Blended)")
     
     if aux_cost_mode == "Percentage of Heated Rate (%)":
-        st.markdown(f"**2. True Isolated Heated Shell Rate (Aux valued at {aux_ratio*100:.0f}% of Heated Shell)**")
+        st.markdown(f"**2.2 True Isolated Heated Shell Rate (Algebraic Extraction)**")
         st.caption(f"If we simply halved the blended rate for the aux space, the total price would fall short. To perfectly distribute the ${comp_price:,.0f} across the spaces at a 100% / {aux_ratio*100:.0f}% ratio, we solve for the 'Effective Equivalent' square footage:")
         st.code(f"Step 1: Find Equivalent SF\n{comp_heated_sf:,.0f} Heated SF + ({comp_aux_sqft:,.0f} Aux SF × {aux_ratio:.2f}) = {effective_comp_heated_sf:,.1f} Eq. SF\n\nStep 2: Solve for True Heated Rate\n${comp_price:,.0f} ÷ {effective_comp_heated_sf:,.1f} Eq. SF = ${isolated_heated_rate:.2f} / Heated SF\n\nStep 3: Solve for True Aux Rate\n${isolated_heated_rate:.2f} × {aux_ratio:.2f} = ${comp_aux_rate_sf:.2f} / Aux SF")
     else:
-        st.markdown(f"**2. True Isolated Heated Shell Rate (Fixed Aux Value: ${aux_fixed_cost_sf:.2f} / SF)**")
+        st.markdown(f"**2.2 True Isolated Heated Shell Rate (Fixed Aux Value: ${aux_fixed_cost_sf:.2f} / SF)**")
         st.code(f"(${comp_price:,.0f} - ${comp_aux_value:,.0f} Aux Value) ÷ {comp_heated_sf:,.0f} SF = ${isolated_heated_rate:.2f} / SF")
         
     if st.session_state.raw_api_data and st.session_state.get("comp_entry_mode") == "RentCast Live API Fetch":
@@ -639,28 +639,79 @@ st.divider()
 st.markdown("### 3. Granular Direct Hard Cost Buildup & Roll-up")
 granular_mode = st.radio("Buildup Entry Mode", ["Auto-Proportional (Linked to Master Model)", "Manual Custom Entry (Bottom-Up)"], horizontal=True)
 
+# Exact NAHB 8 Stages & 36 Components Mapping
 raw_heated_divs = [
-    ("DIVISION 1: FOUNDATION & CONCRETE", 9.50, True, ""),
-    ("DIVISION 2: FRAMING & STRUCTURAL SHELL", 18.50, True, ""),
-    ("DIVISION 3: EXTERIOR ENVELOPE & ROOFING", 10.00, True, ""),
-    ("DIVISION 4: MECHANICAL, ELECTRICAL, PLUMBING", 15.50, True, ""),
-    ("DIVISION 5: INSULATION & DRYWALL", 6.50, True, ""),
-    ("DIVISION 6: INTERIOR FINISHES & CABINETS", 10.50, True, ""),
-    ("DIVISION 7: APPLIANCES & SPECIALTIES", 1.50, True, ""),
-    ("DIVISION 8: EXTERIOR FLATWORK & SITE", 2.00, True, "")
+    ("I. SITE WORK", 7.6, True),
+    ("- Building Permit Fees", 1.8, False),
+    ("- Impact Fee", 1.5, False),
+    ("- Water & Sewer Fees / Inspections", 1.5, False),
+    ("- Architecture & Engineering", 1.5, False),
+    ("- Site Work - Other", 1.3, False),
+
+    ("II. FOUNDATIONS", 10.5, True),
+    ("- Excavation, Foundation, Concrete, Backfill", 10.0, False),
+    ("- Foundations - Other", 0.5, False),
+
+    ("III. FRAMING", 16.6, True),
+    ("- Framing (including roof)", 11.6, False),
+    ("- Trusses", 3.0, False),
+    ("- Sheathing", 1.5, False),
+    ("- General Metal, Steel", 0.4, False),
+    ("- Framing - Other", 0.1, False),
+
+    ("IV. EXTERIOR FINISHES", 13.4, True),
+    ("- Exterior Wall Finish", 5.7, False),
+    ("- Roofing", 3.9, False),
+    ("- Windows and Doors (incl. garage door)", 3.7, False),
+    ("- Exterior Finishes - Other", 0.1, False),
+
+    ("V. MAJOR SYSTEMS ROUGH-INS", 19.2, True),
+    ("- Plumbing (except fixtures)", 6.3, False),
+    ("- Electrical (except fixtures)", 6.4, False),
+    ("- HVAC", 6.3, False),
+    ("- Major Systems - Other", 0.2, False),
+
+    ("VI. INTERIOR FINISHES", 24.1, True),
+    ("- Insulation", 1.6, False),
+    ("- Drywall", 3.3, False),
+    ("- Interior Trims, Doors, and Mirrors", 3.0, False),
+    ("- Painting", 2.6, False),
+    ("- Lighting", 1.3, False),
+    ("- Cabinets, Countertops", 4.4, False),
+    ("- Appliances", 1.7, False),
+    ("- Flooring", 3.6, False),
+    ("- Plumbing Fixtures", 1.8, False),
+    ("- Fireplace", 0.6, False),
+    ("- Interior Finishes - Other", 0.2, False),
+
+    ("VII. FINAL STEPS", 6.5, True),
+    ("- Landscaping", 2.2, False),
+    ("- Outdoor Structures (deck, patio, porches)", 1.1, False),
+    ("- Driveway", 2.3, False),
+    ("- Clean Up", 0.9, False),
+
+    ("VIII. OTHER", 2.1, True),
+    ("- Miscellaneous / Other", 2.1, False),
 ]
+
 raw_struct_divs = [("AUXILIARY: CARPORT / GARAGE", 35.00, True)]
 pdf_granular_data = []
 
 if granular_mode == "Auto-Proportional (Linked to Master Model)":
     st.markdown(f"#### 3.1 Heated Living Area ({sqft} SF @ ${direct_cost_sf:.2f} / SF)")
     h_data = {"Division / Trade Level": [], "Live Cost / SF": [], "Per Unit Cost": []}
-    for name, base_val, is_header, scope in raw_heated_divs:
-        live_sf = direct_cost_sf * (base_val / 74.0)
-        h_data["Division / Trade Level"].append(name)
-        h_data["Live Cost / SF"].append(f"${live_sf:.2f}")
-        h_data["Per Unit Cost"].append(f"${live_sf * sqft:,.0f}")
-        pdf_granular_data.append((name, live_sf, live_sf * sqft, live_sf * sqft * units, True))
+    for name, base_val, is_header in raw_heated_divs:
+        live_sf = direct_cost_sf * (base_val / 100.0)
+        if is_header:
+            h_data["Division / Trade Level"].append(f"{name}")
+            h_data["Live Cost / SF"].append(f"${live_sf:.2f}")
+            h_data["Per Unit Cost"].append(f"${live_sf * sqft:,.0f}")
+            pdf_granular_data.append((name, live_sf, live_sf * sqft, live_sf * sqft * units, True))
+        else:
+            h_data["Division / Trade Level"].append(f"   {name}")
+            h_data["Live Cost / SF"].append(f"${live_sf:.2f}")
+            h_data["Per Unit Cost"].append(f"${live_sf * sqft:,.0f}")
+            pdf_granular_data.append((f"   {name}", live_sf, live_sf * sqft, live_sf * sqft * units, False))
     st.dataframe(pd.DataFrame(h_data), hide_index=True, use_container_width=True)
     
     st.markdown(f"#### 3.2 {st.session_state.structure_type} Auxiliary ({struct_sqft} SF @ ${struct_cost_sf:.2f} / SF)")
@@ -673,12 +724,12 @@ if granular_mode == "Auto-Proportional (Linked to Master Model)":
     st.dataframe(pd.DataFrame(s_data), hide_index=True, use_container_width=True)
 else:
     st.markdown(f"#### 3.1 Heated Living Area ({sqft} SF)")
-    hl_heated = [{"Division / Trade Level": name, "Cost / SF": direct_cost_sf * (base/74.0)} for name, base, is_h, scope in raw_heated_divs]
-    edited_h = st.data_editor(pd.DataFrame(hl_heated), column_config={"Division / Trade Level": st.column_config.TextColumn(disabled=True), "Cost / SF": st.column_config.NumberColumn(format="$%.2f", min_value=0.0, step=0.5)}, hide_index=True, use_container_width=True)
+    hl_heated = [{"Division / Component": name.replace("- ", ""), "Cost / SF": direct_cost_sf * (base/100.0)} for name, base, is_h in raw_heated_divs if not is_h]
+    edited_h = st.data_editor(pd.DataFrame(hl_heated), column_config={"Division / Component": st.column_config.TextColumn(disabled=True), "Cost / SF": st.column_config.NumberColumn(format="$%.2f", min_value=0.0, step=0.5)}, hide_index=True, use_container_width=True)
     direct_cost_sf = edited_h["Cost / SF"].sum()
     for index, row in edited_h.iterrows():
         live_sf = row["Cost / SF"]
-        pdf_granular_data.append((row["Division / Trade Level"], live_sf, live_sf * sqft, live_sf * sqft * units, True))
+        pdf_granular_data.append((row["Division / Component"], live_sf, live_sf * sqft, live_sf * sqft * units, False))
     
     st.markdown(f"#### 3.2 {st.session_state.structure_type} Auxiliary ({struct_sqft} SF)")
     hl_struct = [{"Component Level": name, "Cost / SF": struct_cost_sf * (base/35.0)} for name, base, is_h in raw_struct_divs]
@@ -977,6 +1028,7 @@ def create_pdf(include_sublevels):
     pdf.cell(0, 6, f"Date: {report_date}", ln=1)
     pdf.ln(5)
 
+    # 1. EXECUTIVE SUMMARY
     pdf.set_font("Arial", 'B', 12)
     pdf.set_fill_color(220, 220, 220)
     pdf.cell(0, 8, " 1. Executive Summary & Wealth Creation", ln=1, fill=True)
@@ -999,117 +1051,11 @@ def create_pdf(include_sublevels):
     pdf.cell(90, 7, f"${day1_wealth:,.0f}", 0, 1, 'R')
     pdf.ln(5)
 
-    pdf.set_font("Arial", 'B', 12)
-    pdf.cell(0, 8, " 4. Const. Bank Limits & Loan Cap", ln=1, fill=True)
-    pdf.set_font("Arial", '', 10)
-    
-    if const_bank_val_mode == "DSCR Stress Test":
-        pdf.cell(100, 7, "Bank Assumed Rent & Target DSCR:", 0, 0)
-        pdf.cell(90, 7, f"${const_bank_rent:,.0f}/mo | {const_bank_dscr:.2f}x DSCR", 0, 1, 'R')
-        pdf.cell(100, 7, "Bank Vacancy & OpEx Deductions:", 0, 0)
-        pdf.cell(90, 7, f"{const_bank_vac_pct*100:.1f}% Vac | {const_bank_opex_pct*100:.1f}% OpEx", 0, 1, 'R')
-        pdf.cell(100, 7, "Bank Implied Asset Value (Refi Stress Test):", 0, 0)
-        pdf.cell(90, 7, f"${bank_stressed_value:,.0f}", 0, 1, 'R')
-    else:
-        pdf.cell(100, 7, "Bank Assumed Rent & Target GRM:", 0, 0)
-        pdf.cell(90, 7, f"${const_bank_rent:,.0f}/mo | {const_bank_grm:.1f}x GRM", 0, 1, 'R')
-        pdf.cell(100, 7, "Bank Implied Asset Value (GRM Stress Test):", 0, 0)
-        pdf.cell(90, 7, f"${bank_stressed_value:,.0f}", 0, 1, 'R')
-    
-    pdf.set_font("Arial", 'B', 10)
-    pdf.cell(130, 7, f"Const. Lender Loan Value ({const_bank_ltv*100:.1f}% Bank LTV):", 0, 0)
-    pdf.cell(60, 7, f"${actual_const_loan:,.0f}", 0, 1, 'R')
-    
-    pdf.cell(130, 7, "Total Capitalized Construction Basis:", 0, 0)
-    pdf.cell(60, 7, f"${total_construction_basis:,.0f}", 0, 1, 'R')
-    
-    pdf.cell(130, 7, "Required Seed Capital Reserve (Basis - Loan Value):", 0, 0)
-    pdf.cell(60, 7, f"${seed_capital:,.0f}", 0, 1, 'R')
-    pdf.ln(5)
-
-    pdf.set_font("Arial", 'B', 12)
-    pdf.cell(0, 8, " 5. Detailed Construction Cost Breakdown", fill=True, ln=1)
-    pdf.set_font("Arial", '', 10)
-    
-    pdf.cell(100, 7, "Total Direct Hard Costs:", 0, 0)
-    pdf.cell(90, 7, f"${total_hard_cost:,.0f}", 0, 1, 'R')
-    pdf.cell(100, 7, "Indirects: Permits, Fees, & Insurance:", 0, 0)
-    pdf.cell(90, 7, f"${permits_insurance_cost:,.0f}", 0, 1, 'R')
-    
-    pdf.cell(100, 7, "Indirects: Temporary Site Facilities:", 0, 0)
-    pdf.cell(90, 7, f"${temp_facilities_cost:,.0f}", 0, 1, 'R')
-    
-    gc_label = "Consolidated GC Flat Fee:" if gc_fee_mode == "Consolidated Flat Fee ($ Total)" else "GC Management Fee:"
-    pdf.cell(100, 7, gc_label, 0, 0)
-    pdf.cell(90, 7, f"${default_gc_fee:,.0f}", 0, 1, 'R')
-    
-    pdf.cell(100, 7, "Land Acquisition Basis:", 0, 0)
-    pdf.cell(90, 7, f"${total_land_default:,.0f}", 0, 1, 'R')
-    
-    pdf.cell(100, 7, "Const. Loan Capitalized Interest:", 0, 0)
-    pdf.cell(90, 7, f"${carry_int_base:,.0f}", 0, 1, 'R')
-        
-    pdf.cell(100, 7, "Total Soft Costs & Closing Fees:", 0, 0)
-    pdf.cell(90, 7, f"${total_soft_default + const_closing_fee + refi_closing_fee + default_buydown_cost:,.0f}", 0, 1, 'R')
-    
-    pdf.ln(5)
-    pdf.set_font("Arial", 'B', 12)
-    pdf.set_fill_color(220, 220, 220)
-    pdf.cell(0, 8, " 3. Granular Direct Hard Cost Buildup & Roll-up", ln=1, fill=True)
-    pdf.set_font("Arial", 'B', 9)
-    
-    pdf.cell(90, 6, "Division / Trade Level", 1, 0, 'C')
-    pdf.cell(30, 6, "Live Cost / SF", 1, 0, 'C')
-    pdf.cell(35, 6, f"Per Unit ({sqft} SF)", 1, 0, 'C')
-    pdf.cell(35, 6, "Project Total", 1, 1, 'C')
-    
-    for name, live_sf, unit_cost, proj_cost, is_header in pdf_granular_data:
-        if granular_mode == "Auto-Proportional (Linked to Master Model)":
-            if not st.session_state.get("pdf_include_sublevels", True) and not is_header:
-                continue
-        if is_header:
-            pdf.set_font("Arial", 'B', 9)
-            pdf.set_fill_color(240, 240, 240)
-            pdf.cell(90, 6, name, 1, 0, 'L', fill=True)
-            pdf.cell(30, 6, f"${live_sf:.2f}", 1, 0, 'R', fill=True)
-            pdf.cell(35, 6, f"${unit_cost:,.0f}", 1, 0, 'R', fill=True)
-            pdf.cell(35, 6, f"${proj_cost:,.0f}", 1, 1, 'R', fill=True)
-        else:
-            pdf.set_font("Arial", '', 9)
-            pdf.cell(90, 6, name, 1, 0, 'L')
-            pdf.cell(30, 6, f"${live_sf:.2f}", 1, 0, 'R')
-            pdf.cell(35, 6, f"${unit_cost:,.0f}", 1, 0, 'R')
-            pdf.cell(35, 6, f"${proj_cost:,.0f}", 1, 1, 'R')
-            
-    pdf.ln(5)
-    pdf.set_font("Arial", 'B', 12)
-    pdf.set_fill_color(220, 220, 220)
-    pdf.cell(0, 8, " 7. Refinance Cash Waterfall (Payoff & Cash-Out)", ln=1, fill=True)
-    pdf.set_font("Arial", '', 10)
-    
-    pdf.cell(130, 7, "(+) Permanent Takeout Loan Proceeds:", 0, 0)
-    pdf.cell(60, 7, f"${loan_total:,.0f}", 0, 1, 'R')
-    pdf.cell(130, 7, "(-) Construction Loan Payoff (Prin. & Int.):", 0, 0)
-    pdf.cell(60, 7, f"-${actual_const_loan:,.0f}", 0, 1, 'R')
-    pdf.cell(130, 7, "(-) Refinance Closing Fees & Buydown Points:", 0, 0)
-    pdf.cell(60, 7, f"-${refi_closing_fee + default_buydown_cost:,.0f}", 0, 1, 'R')
-    
-    pdf.set_font("Arial", 'B', 10)
-    pdf.cell(130, 7, "= Net Cash Distributed to Sponsor at Closing:", 0, 0)
-    pdf.cell(60, 7, f"${net_cash_at_closing:,.0f}", 0, 1, 'R')
-    pdf.set_font("Arial", '', 10)
-    pdf.cell(130, 7, "(-) Initial Sponsor Seed Capital Invested:", 0, 0)
-    pdf.cell(60, 7, f"-${seed_capital:,.0f}", 0, 1, 'R')
-    
-    pdf.set_font("Arial", 'B', 10)
-    pdf.cell(130, 7, "= Final Tax-Free Cash Surplus / (Trapped Capital):", 0, 0)
-    pdf.cell(60, 7, f"${cash_surplus:,.0f}", 0, 1, 'R')
-    
+    # 2. REVERSE ENGINEERING (IF APPLICABLE)
     if cost_calc_mode in ["Reverse-Engineer from Appraisal", "Reverse-Engineer from Primary Comp"]:
-        pdf.ln(5)
         pdf.set_font("Arial", 'B', 12)
         pdf.set_fill_color(220, 220, 220)
-        pdf.cell(0, 8, " 8. Retail Comp & Appraisal Reverse-Engineering", ln=1, fill=True)
+        pdf.cell(0, 8, " 2. Retail Comp & Appraisal Reverse-Engineering", ln=1, fill=True)
         pdf.set_font("Arial", '', 10)
         
         pdf.cell(130, 7, "Baseline Reference Price (Comp / ARV):", 0, 0)
@@ -1144,6 +1090,121 @@ def create_pdf(include_sublevels):
         pdf.set_font("Arial", 'B', 10)
         pdf.cell(130, 7, "= Available Budget for Heated Shell:", 0, 0)
         pdf.cell(60, 7, f"${target_heated_hard_cost:,.0f}", 0, 1, 'R')
+        pdf.ln(5)
+
+    # 3. GRANULAR DIRECT HARD COST BUILDUP
+    pdf.set_font("Arial", 'B', 12)
+    pdf.set_fill_color(220, 220, 220)
+    pdf.cell(0, 8, " 3. Granular Direct Hard Cost Buildup", ln=1, fill=True)
+    pdf.set_font("Arial", 'B', 9)
+    
+    pdf.cell(90, 6, "Division / Trade Level", 1, 0, 'C')
+    pdf.cell(30, 6, "Live Cost / SF", 1, 0, 'C')
+    pdf.cell(35, 6, f"Per Unit ({sqft} SF)", 1, 0, 'C')
+    pdf.cell(35, 6, "Project Total", 1, 1, 'C')
+    
+    for name, live_sf, unit_cost, proj_cost, is_header in pdf_granular_data:
+        if granular_mode == "Auto-Proportional (Linked to Master Model)":
+            if not st.session_state.get("pdf_include_sublevels", True) and not is_header:
+                continue
+        if is_header:
+            pdf.set_font("Arial", 'B', 9)
+            pdf.set_fill_color(240, 240, 240)
+            pdf.cell(90, 6, name, 1, 0, 'L', fill=True)
+            pdf.cell(30, 6, f"${live_sf:.2f}", 1, 0, 'R', fill=True)
+            pdf.cell(35, 6, f"${unit_cost:,.0f}", 1, 0, 'R', fill=True)
+            pdf.cell(35, 6, f"${proj_cost:,.0f}", 1, 1, 'R', fill=True)
+        else:
+            pdf.set_font("Arial", '', 9)
+            pdf.cell(90, 6, name, 1, 0, 'L')
+            pdf.cell(30, 6, f"${live_sf:.2f}", 1, 0, 'R')
+            pdf.cell(35, 6, f"${unit_cost:,.0f}", 1, 0, 'R')
+            pdf.cell(35, 6, f"${proj_cost:,.0f}", 1, 1, 'R')
+            
+    pdf.ln(5)
+
+    # 4. DETAILED CONSTRUCTION COST BREAKDOWN
+    pdf.set_font("Arial", 'B', 12)
+    pdf.set_fill_color(220, 220, 220)
+    pdf.cell(0, 8, " 4. Detailed Construction Cost Breakdown", fill=True, ln=1)
+    pdf.set_font("Arial", '', 10)
+    
+    pdf.cell(100, 7, "Total Direct Hard Costs:", 0, 0)
+    pdf.cell(90, 7, f"${total_hard_cost:,.0f}", 0, 1, 'R')
+    pdf.cell(100, 7, "Indirects: Permits, Fees, & Insurance:", 0, 0)
+    pdf.cell(90, 7, f"${permits_insurance_cost:,.0f}", 0, 1, 'R')
+    
+    pdf.cell(100, 7, "Indirects: Temporary Site Facilities:", 0, 0)
+    pdf.cell(90, 7, f"${temp_facilities_cost:,.0f}", 0, 1, 'R')
+    
+    gc_label = "Consolidated GC Flat Fee:" if gc_fee_mode == "Consolidated Flat Fee ($ Total)" else "GC Management Fee:"
+    pdf.cell(100, 7, gc_label, 0, 0)
+    pdf.cell(90, 7, f"${default_gc_fee:,.0f}", 0, 1, 'R')
+    
+    pdf.cell(100, 7, "Land Acquisition Basis:", 0, 0)
+    pdf.cell(90, 7, f"${total_land_default:,.0f}", 0, 1, 'R')
+    
+    pdf.cell(100, 7, "Const. Loan Capitalized Interest:", 0, 0)
+    pdf.cell(90, 7, f"${carry_int_base:,.0f}", 0, 1, 'R')
+        
+    pdf.cell(100, 7, "Total Soft Costs & Closing Fees:", 0, 0)
+    pdf.cell(90, 7, f"${total_soft_default + const_closing_fee + refi_closing_fee + default_buydown_cost:,.0f}", 0, 1, 'R')
+    
+    pdf.ln(5)
+
+    # 5. CONSTRUCTION LENDER LIMITS
+    pdf.set_font("Arial", 'B', 12)
+    pdf.set_fill_color(220, 220, 220)
+    pdf.cell(0, 8, " 5. Construction Bank Limits & Loan Cap", ln=1, fill=True)
+    pdf.set_font("Arial", '', 10)
+    
+    if const_bank_val_mode == "DSCR Stress Test":
+        pdf.cell(100, 7, "Bank Assumed Rent & Target DSCR:", 0, 0)
+        pdf.cell(90, 7, f"${const_bank_rent:,.0f}/mo | {const_bank_dscr:.2f}x DSCR", 0, 1, 'R')
+        pdf.cell(100, 7, "Bank Vacancy & OpEx Deductions:", 0, 0)
+        pdf.cell(90, 7, f"{const_bank_vac_pct*100:.1f}% Vac | {const_bank_opex_pct*100:.1f}% OpEx", 0, 1, 'R')
+        pdf.cell(100, 7, "Bank Implied Asset Value (Refi Stress Test):", 0, 0)
+        pdf.cell(90, 7, f"${bank_stressed_value:,.0f}", 0, 1, 'R')
+    else:
+        pdf.cell(100, 7, "Bank Assumed Rent & Target GRM:", 0, 0)
+        pdf.cell(90, 7, f"${const_bank_rent:,.0f}/mo | {const_bank_grm:.1f}x GRM", 0, 1, 'R')
+        pdf.cell(100, 7, "Bank Implied Asset Value (GRM Stress Test):", 0, 0)
+        pdf.cell(90, 7, f"${bank_stressed_value:,.0f}", 0, 1, 'R')
+    
+    pdf.set_font("Arial", 'B', 10)
+    pdf.cell(130, 7, f"Const. Lender Loan Value ({const_bank_ltv*100:.1f}% Bank LTV):", 0, 0)
+    pdf.cell(60, 7, f"${actual_const_loan:,.0f}", 0, 1, 'R')
+    
+    pdf.cell(130, 7, "Total Capitalized Construction Basis:", 0, 0)
+    pdf.cell(60, 7, f"${total_construction_basis:,.0f}", 0, 1, 'R')
+    
+    pdf.cell(130, 7, "Required Seed Capital Reserve (Basis - Loan Value):", 0, 0)
+    pdf.cell(60, 7, f"${seed_capital:,.0f}", 0, 1, 'R')
+    pdf.ln(5)
+
+    # 6. REFINANCE CASH WATERFALL
+    pdf.set_font("Arial", 'B', 12)
+    pdf.set_fill_color(220, 220, 220)
+    pdf.cell(0, 8, " 6. Refinance Cash Waterfall (Payoff & Cash-Out)", ln=1, fill=True)
+    pdf.set_font("Arial", '', 10)
+    
+    pdf.cell(130, 7, "(+) Permanent Takeout Loan Proceeds:", 0, 0)
+    pdf.cell(60, 7, f"${loan_total:,.0f}", 0, 1, 'R')
+    pdf.cell(130, 7, "(-) Construction Loan Payoff (Prin. & Int.):", 0, 0)
+    pdf.cell(60, 7, f"-${actual_const_loan:,.0f}", 0, 1, 'R')
+    pdf.cell(130, 7, "(-) Refinance Closing Fees & Buydown Points:", 0, 0)
+    pdf.cell(60, 7, f"-${refi_closing_fee + default_buydown_cost:,.0f}", 0, 1, 'R')
+    
+    pdf.set_font("Arial", 'B', 10)
+    pdf.cell(130, 7, "= Net Cash Distributed to Sponsor at Closing:", 0, 0)
+    pdf.cell(60, 7, f"${net_cash_at_closing:,.0f}", 0, 1, 'R')
+    pdf.set_font("Arial", '', 10)
+    pdf.cell(130, 7, "(-) Initial Sponsor Seed Capital Invested:", 0, 0)
+    pdf.cell(60, 7, f"-${seed_capital:,.0f}", 0, 1, 'R')
+    
+    pdf.set_font("Arial", 'B', 10)
+    pdf.cell(130, 7, "= Final Tax-Free Cash Surplus / (Trapped Capital):", 0, 0)
+    pdf.cell(60, 7, f"${cash_surplus:,.0f}", 0, 1, 'R')
     
     with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as tmp:
         pdf.output(tmp.name)
