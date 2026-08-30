@@ -541,6 +541,20 @@ report_date = datetime.now().strftime("%B %d, %Y")
 sub_col1, sub_col2, sub_col3 = st.columns([1, 1, 2])
 project_beds = sub_col1.number_input("Beds per Unit", min_value=1, value=3, step=1)
 project_baths = sub_col2.number_input("Baths per Unit", min_value=1.0, value=2.0, step=0.5)
+
+# --- DYNAMIC EXECUTIVE SUMMARY ---
+address_display = project_address if project_address else "[Project Address]"
+capital_recovery_text = "nearly 100% capital recovery" if -5000 <= cash_surplus <= 5000 else (f"a complete capital recovery with a ${cash_surplus:,.0f} surplus" if cash_surplus > 5000 else f"a capital recovery requiring ${-cash_surplus:,.0f} in retained seed capital")
+
+executive_summary_text = f"""**Executive Summary:**
+This technical brief outlines the pro forma and operational mechanics for a {units}-unit Build-to-Rent (BTR) single-family residential project located at {address_display}. 
+
+Utilizing a {sqft:,.0f} SF heated footprint with a {struct_sqft:,.0f} SF integrated {st.session_state.structure_type.lower()}, the model reverse-engineers national production builder economics to establish a target appraisal value (ARV) of ${arv_per_unit:,.0f} per home. By deploying Wickboldt Capital as the managing general contractor, the project successfully captures active construction management revenue while executing a commercial takeout refinance. 
+
+With a {build_months}-month construction timeline factored into carrying costs, this structure achieves {capital_recovery_text}, a compliant {actual_dscr:.2f}x DSCR generating ${monthly_cash_flow_per_door:,.0f}/month in net passive cash flow per door, and scalable wealth creation totaling ${day1_wealth:,.0f} across the {units}-unit build program.
+"""
+
+st.info(executive_summary_text)
 st.divider()
 
 ui_top_metrics = st.container()
@@ -1054,10 +1068,20 @@ def create_pdf(detail_mode):
     pdf.cell(0, 6, f"Date: {report_date}", ln=1)
     pdf.ln(5)
 
-    # 1. EXECUTIVE SUMMARY
+    # 1. EXECUTIVE NARRATIVE SUMMARY
     pdf.set_font("Arial", 'B', 12)
     pdf.set_fill_color(220, 220, 220)
-    pdf.cell(0, 8, " 1. Executive Summary & Wealth Creation", ln=1, fill=True)
+    pdf.cell(0, 8, " 1. Executive Narrative Summary", ln=1, fill=True)
+    pdf.set_font("Arial", '', 10)
+    
+    clean_summary = executive_summary_text.replace("**Executive Summary:**\n", "").encode('latin-1', 'replace').decode('latin-1')
+    pdf.multi_cell(0, 6, clean_summary)
+    pdf.ln(5)
+
+    # 2. EXECUTIVE METRICS & WEALTH CREATION
+    pdf.set_font("Arial", 'B', 12)
+    pdf.set_fill_color(220, 220, 220)
+    pdf.cell(0, 8, " 2. Capital Metrics & Wealth Creation", ln=1, fill=True)
     pdf.set_font("Arial", '', 10)
     
     pdf.cell(100, 7, "Total Project Basis:", 0, 0)
@@ -1081,11 +1105,11 @@ def create_pdf(detail_mode):
     pdf.cell(90, 7, f"${day1_wealth:,.0f}", 0, 1, 'R')
     pdf.ln(5)
 
-    # 2. REVERSE ENGINEERING (IF APPLICABLE)
+    # 3. REVERSE ENGINEERING (IF APPLICABLE)
     if cost_calc_mode in ["Reverse-Engineer from Appraisal", "Reverse-Engineer from Primary Comp"]:
         pdf.set_font("Arial", 'B', 12)
         pdf.set_fill_color(220, 220, 220)
-        pdf.cell(0, 8, " 2. Retail Comp & Appraisal Reverse-Engineering", ln=1, fill=True)
+        pdf.cell(0, 8, " 3. Retail Comp & Appraisal Reverse-Engineering", ln=1, fill=True)
         pdf.set_font("Arial", '', 10)
         
         pdf.cell(130, 7, "Baseline Reference Price (Comp / ARV):", 0, 0)
@@ -1122,11 +1146,11 @@ def create_pdf(detail_mode):
         pdf.cell(60, 7, f"${target_heated_hard_cost:,.0f}", 0, 1, 'R')
         pdf.ln(5)
 
-    # 3. CONSTRUCTION BUILDUP SELECTION
+    # 4. CONSTRUCTION BUILDUP SELECTION
     if detail_mode == "High-Level Roll-up Only":
         pdf.set_font("Arial", 'B', 12)
         pdf.set_fill_color(220, 220, 220)
-        pdf.cell(0, 8, " 3. Direct Hard Cost Master Roll-up", ln=1, fill=True)
+        pdf.cell(0, 8, " 4. Direct Hard Cost Master Roll-up", ln=1, fill=True)
         pdf.set_font("Arial", 'B', 9)
         
         pdf.cell(85, 6, "Category / Major Sub-Assembly", 1, 0, 'C')
@@ -1151,7 +1175,7 @@ def create_pdf(detail_mode):
     else:
         pdf.set_font("Arial", 'B', 12)
         pdf.set_fill_color(220, 220, 220)
-        pdf.cell(0, 8, " 3. Granular Direct Hard Cost Buildup", ln=1, fill=True)
+        pdf.cell(0, 8, " 4. Granular Direct Hard Cost Buildup", ln=1, fill=True)
         pdf.set_font("Arial", 'B', 9)
         
         pdf.cell(90, 6, "Division / Trade Level", 1, 0, 'C')
@@ -1179,10 +1203,10 @@ def create_pdf(detail_mode):
             
     pdf.ln(5)
 
-    # 4. DETAILED CONSTRUCTION COST BREAKDOWN
+    # 5. DETAILED CONSTRUCTION COST BREAKDOWN
     pdf.set_font("Arial", 'B', 12)
     pdf.set_fill_color(220, 220, 220)
-    pdf.cell(0, 8, " 4. Detailed Construction Cost Breakdown", fill=True, ln=1)
+    pdf.cell(0, 8, " 5. Detailed Construction Cost Breakdown", fill=True, ln=1)
     pdf.set_font("Arial", '', 10)
     
     pdf.cell(100, 7, "Total Direct Hard Costs:", 0, 0)
@@ -1208,10 +1232,10 @@ def create_pdf(detail_mode):
     
     pdf.ln(5)
 
-    # 5. CONSTRUCTION LENDER LIMITS
+    # 6. CONSTRUCTION LENDER LIMITS
     pdf.set_font("Arial", 'B', 12)
     pdf.set_fill_color(220, 220, 220)
-    pdf.cell(0, 8, " 5. Construction Bank Limits & Loan Cap", ln=1, fill=True)
+    pdf.cell(0, 8, " 6. Construction Bank Limits & Loan Cap", ln=1, fill=True)
     pdf.set_font("Arial", '', 10)
     
     if const_bank_val_mode == "DSCR Stress Test":
@@ -1238,10 +1262,10 @@ def create_pdf(detail_mode):
     pdf.cell(60, 7, f"${seed_capital:,.0f}", 0, 1, 'R')
     pdf.ln(5)
 
-    # 6. REFINANCE CASH WATERFALL
+    # 7. REFINANCE CASH WATERFALL
     pdf.set_font("Arial", 'B', 12)
     pdf.set_fill_color(220, 220, 220)
-    pdf.cell(0, 8, " 6. Refinance Cash Waterfall (Payoff & Cash-Out)", ln=1, fill=True)
+    pdf.cell(0, 8, " 7. Refinance Cash Waterfall (Payoff & Cash-Out)", ln=1, fill=True)
     pdf.set_font("Arial", '', 10)
     
     pdf.cell(130, 7, "(+) Permanent Takeout Loan Proceeds:", 0, 0)
