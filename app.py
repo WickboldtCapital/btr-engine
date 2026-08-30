@@ -194,18 +194,22 @@ with st.sidebar.container():
     st.number_input("Land Basis per Lot ($)", min_value=0, step=1000, format="%d", key="land_basis")
 
 with st.sidebar.container():
-    st.subheader("7. Financing & Operations")
+    st.subheader("7. Operating Pro Forma (DSCR)")
     st.number_input("Gross Monthly Rental Income per Unit ($)", min_value=0, step=50, format="%d", key="gross_monthly_rent")
     st.number_input("Target Lender DSCR Rate", min_value=1.0, max_value=1.5, value=float(GLOBAL_DRIVERS.get("target_dscr_rate", 1.20)), step=0.05, key="target_dscr_rate")
     st.slider("Vacancy Rate (%)", min_value=0.0, max_value=15.0, step=1.0, key="vacancy_rate_pct")
     st.slider("Operating Expenses (OpEx) Rate of EGI (%)", min_value=15.0, max_value=50.0, step=1.0, key="opex_rate_pct")
-    
+
+with st.sidebar.container():
+    st.subheader("8. Construction Loan Terms")
     st.slider("Construction / Bank LTC (%)", min_value=60.0, max_value=100.0, step=5.0, key="const_ltv_pct")
     st.slider("Construction Duration (Months)", min_value=3, max_value=18, step=1, key="build_months")
     st.slider("Construction Loan Rate (%)", min_value=4.0, max_value=14.0, step=0.5, key="const_rate_pct")
     st.slider("Avg Draw Utilization (%)", min_value=20.0, max_value=100.0, step=5.0, key="avg_draw_pct")
     st.number_input("Const Loan Closing Fee ($ total)", min_value=0, step=500, format="%d", key="const_closing_fee")
-    
+
+with st.sidebar.container():
+    st.subheader("9. Takeout Refinance Terms")
     st.slider("Refinance LTV (%)", min_value=60.0, max_value=85.0, step=5.0, key="refi_ltv_pct")
     st.selectbox("Amortization Term (Years)", [15, 20, 25, 30], key="refi_term_years")
     st.slider("Base Refi Interest Rate (%)", min_value=4.0, max_value=10.0, step=0.25, key="base_refi_rate_pct")
@@ -217,7 +221,7 @@ with st.sidebar.container():
         st.markdown(f"📉 **Buydown Net Rate:** `{net_rate*100:.3f}%`")
 
 with st.sidebar.container():
-    st.subheader("8. Const. Lender Limits")
+    st.subheader("10. Const. Lender Limits")
     st.number_input("Bank Underwriting Rent ($)", min_value=0, step=50, format="%d", key="const_bank_rent")
     st.slider("Bank Underwriting LTV (%)", min_value=50.0, max_value=100.0, step=5.0, key="const_bank_ltv_pct")
     
@@ -233,7 +237,7 @@ with st.sidebar.container():
         st.selectbox("Bank Amortization (Years)", [15, 20, 25, 30], key="const_bank_amort_yrs")
 
 with st.sidebar.container():
-    st.subheader("9. PDF Export Options")
+    st.subheader("11. PDF Export Options")
     st.checkbox("Include Detailed Sub-Levels in PDF Report", key="pdf_include_sublevels")
 
 
@@ -934,7 +938,7 @@ def create_pdf(include_sublevels):
     pdf.ln(5)
 
     pdf.set_font("Arial", 'B', 12)
-    pdf.cell(0, 8, " 2. Const. Bank Limits & Loan Cap", ln=1, fill=True)
+    pdf.cell(0, 8, " 4. Const. Bank Limits & Loan Cap", ln=1, fill=True)
     pdf.set_font("Arial", '', 10)
     
     if const_bank_val_mode == "DSCR Stress Test":
@@ -962,7 +966,7 @@ def create_pdf(include_sublevels):
     pdf.ln(5)
 
     pdf.set_font("Arial", 'B', 12)
-    pdf.cell(0, 8, " 3. Detailed Construction Cost Breakdown", fill=True, ln=1)
+    pdf.cell(0, 8, " 5. Detailed Construction Cost Breakdown", fill=True, ln=1)
     pdf.set_font("Arial", '', 10)
     
     pdf.cell(100, 7, "Total Direct Hard Costs:", 0, 0)
@@ -986,7 +990,7 @@ def create_pdf(include_sublevels):
     pdf.ln(5)
     pdf.set_font("Arial", 'B', 12)
     pdf.set_fill_color(220, 220, 220)
-    pdf.cell(0, 8, " 4. Granular Direct Hard Cost Buildup & Roll-up", ln=1, fill=True)
+    pdf.cell(0, 8, " 3. Granular Direct Hard Cost Buildup & Roll-up", ln=1, fill=True)
     pdf.set_font("Arial", 'B', 9)
     
     pdf.cell(90, 6, "Division / Trade Level", 1, 0, 'C')
@@ -1015,7 +1019,7 @@ def create_pdf(include_sublevels):
     pdf.ln(5)
     pdf.set_font("Arial", 'B', 12)
     pdf.set_fill_color(220, 220, 220)
-    pdf.cell(0, 8, " 5. Refinance Cash Waterfall (Payoff & Cash-Out)", ln=1, fill=True)
+    pdf.cell(0, 8, " 7. Refinance Cash Waterfall (Payoff & Cash-Out)", ln=1, fill=True)
     pdf.set_font("Arial", '', 10)
     
     pdf.cell(130, 7, "(+) Permanent Takeout Loan Proceeds:", 0, 0)
