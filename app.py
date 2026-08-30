@@ -554,7 +554,7 @@ Utilizing a {sqft:,.0f} SF heated footprint with a {struct_sqft:,.0f} SF integra
 With a {build_months}-month construction timeline factored into carrying costs, this structure achieves {capital_recovery_text}, a compliant {actual_dscr:.2f}x DSCR generating \${monthly_cash_flow_per_door:,.0f}/month in net passive cash flow per door, and scalable wealth creation totaling \${day1_wealth:,.0f} across the {units}-unit build program.
 """
 
-st.info(executive_summary_text)
+st.info(executive_summary_text.replace("$", r"\$"))
 st.divider()
 
 ui_top_metrics = st.container()
@@ -655,7 +655,8 @@ st.divider()
 # ==========================================
 st.markdown("### 3. Granular Direct Hard Cost Buildup & Roll-up")
 
-st.info(f"Below is the itemized cost buildup per trade division required to achieve the baseline **\${direct_cost_sf:.2f}/SF (\${heated_hard_cost:,.0f})** heated living area cost and the **\${struct_cost_sf:.2f}/SF (\${struct_total_cost:,.0f})** {st.session_state.structure_type.lower()} cost, yielding a blended direct hard cost of **\${blended_cost_per_sf:.2f}/SF (\${target_direct_hard_cost:,.0f})** under roof per unit.")
+granular_summary_text = f"Below is the itemized cost buildup per trade division required to achieve the baseline **\${direct_cost_sf:.2f}/SF (\${heated_hard_cost:,.0f})** heated living area cost and the **\${struct_cost_sf:.2f}/SF (\${struct_total_cost:,.0f})** {st.session_state.structure_type.lower()} cost, yielding a blended direct hard cost of **\${blended_cost_per_sf:.2f}/SF (\${target_direct_hard_cost:,.0f})** under roof per unit."
+st.info(granular_summary_text.replace("$", r"\$"))
 
 granular_mode = st.radio("Buildup Entry Mode", ["Auto-Proportional (Linked to Master Model)", "Manual Custom Entry (Bottom-Up)"], horizontal=True)
 
@@ -982,10 +983,72 @@ st.divider()
 
 
 # ==========================================
-# --- 8. REVERSE-ENGINEERING BREAKDOWN ---
+# --- 8. STRATEGY COMPARISON: RETAIL VS BTR ---
+# ==========================================
+st.markdown("### 8. Strategy Comparison: Retail Sell vs. Build-to-Rent")
+
+strategy_comparison_text = f"This comparison models the one-time taxable cash event of the National Builder model versus the wealth-creation mechanics of the BTR model on the exact same project ({units} units, {sqft:,.0f} SF heated with {struct_sqft:,.0f} SF {st.session_state.structure_type.lower()}, \${total_arv:,.0f} ARV)."
+st.caption(strategy_comparison_text.replace("$", r"\$"))
+
+retail_sales_costs = total_arv * 0.08
+retail_total_invested = total_land_default + total_const + total_soft_default + retail_sales_costs
+retail_net_cash = total_arv - retail_total_invested
+
+btr_finance_closing = carry_int_base + const_closing_fee + refi_closing_fee + default_buydown_cost
+btr_total_invested = total_project_basis
+btr_net_cash = cash_surplus
+
+strategy_data = {
+    "Financial Metric": [
+        "Land Basis",
+        "Direct Hard Costs",
+        "Total Construction Cost (incl. GC & Indirects)",
+        "Soft Costs & Permitting",
+        "Sales & Transaction Closing Costs",
+        "Total Capital Invested",
+        "Gross Revenue / Permanent Loan Proceeds",
+        "Net Cash Event at Closing",
+        "Asset Retained on Balance Sheet?",
+        "Ongoing Monthly Cash Flow"
+    ],
+    "National Builder (Retail Sell)": [
+        f"${total_land_default:,.0f}",
+        f"${total_hard_cost:,.0f} (Baseline)",
+        f"${total_const:,.0f}",
+        f"${total_soft_default:,.0f}",
+        f"${retail_sales_costs:,.0f} (~8% Realtor & concessions)",
+        f"${retail_total_invested:,.0f}",
+        f"${total_arv:,.0f} (Retail sales price)",
+        f"+${retail_net_cash:,.0f} (Taxable ordinary income)",
+        "No",
+        "$0"
+    ],
+    "Build-to-Rent (Commercial DSCR Takeout)": [
+        f"${total_land_default:,.0f}",
+        f"${total_hard_cost:,.0f}",
+        f"${total_const:,.0f}",
+        f"${total_soft_default:,.0f}",
+        f"${btr_finance_closing:,.0f} (Const. finance, takeout, buydown)",
+        f"${btr_total_invested:,.0f}",
+        f"${loan_total:,.0f} ({refi_ltv*100:.0f}% LTV DSCR Loan)",
+        f"${btr_net_cash:,.0f} (Seed Capital Retained)" if btr_net_cash < 0 else f"+${btr_net_cash:,.0f} (Tax-Free Cash Out)",
+        f"Yes (${total_arv:,.0f} Asset, ${retained_equity:,.0f} Equity)",
+        f"+${monthly_cash_flow_per_door:,.0f} / month / door"
+    ]
+}
+
+st.dataframe(pd.DataFrame(strategy_data), hide_index=True, use_container_width=True)
+
+strategy_footnote_text = f"***Note:** The BTR model captures \${default_gc_fee:,.0f} in GC Fees during the build. The {build_months}-month construction timeline incurs carrying costs such that the takeout distribution yields a net cash event of \${btr_net_cash:,.0f} at closing. Total Day-1 Created Value equals \${day1_wealth:,.0f}.*"
+st.info(strategy_footnote_text.replace("$", r"\$"))
+st.divider()
+
+
+# ==========================================
+# --- 9. REVERSE-ENGINEERING BREAKDOWN ---
 # ==========================================
 if cost_calc_mode in ["Reverse-Engineer from Appraisal", "Reverse-Engineer from Primary Comp"]:
-    st.markdown("### 8. Retail Comp & Appraisal Reverse-Engineering Breakdown")
+    st.markdown("### 9. Retail Comp & Appraisal Reverse-Engineering Breakdown")
     
     reference_price = arv_per_unit if cost_calc_mode == 'Reverse-Engineer from Appraisal' else comp_equivalent_arv
     ref_price_sf = reference_price / sqft if sqft > 0 else 0
@@ -1038,9 +1101,9 @@ if cost_calc_mode in ["Reverse-Engineer from Appraisal", "Reverse-Engineer from 
 
 
 # ==========================================
-# --- 9. PDF GENERATION ENGINE ---
+# --- 10. PDF GENERATION ENGINE ---
 # ==========================================
-st.markdown("### 🖨️ 9. Export Enterprise PDF Report")
+st.markdown("### 🖨️ 10. Export Enterprise PDF Report")
 pdf_detail_mode = st.radio(
     "Construction Budget Detail Level for PDF:",
     ["Full 36-Component Breakdown", "8 Major NAHB Categories Only", "High-Level Roll-up Only"],
@@ -1307,6 +1370,49 @@ def create_pdf(detail_mode):
     pdf.set_font("Arial", 'B', 10)
     pdf.cell(130, 7, "= Final Tax-Free Cash Surplus / (Trapped Capital):", 0, 0)
     pdf.cell(60, 7, f"${cash_surplus:,.0f}", 0, 1, 'R')
+    pdf.ln(5)
+
+    # 8. STRATEGY COMPARISON: RETAIL VS BTR
+    pdf.set_font("Arial", 'B', 12)
+    pdf.set_fill_color(220, 220, 220)
+    pdf.cell(0, 8, " 8. Strategy Comparison: Retail Sell vs. Build-to-Rent", ln=1, fill=True)
+    pdf.set_font("Arial", '', 9)
+    
+    # Table Header
+    pdf.set_font("Arial", 'B', 9)
+    pdf.cell(70, 6, "Financial Metric", 1, 0, 'C')
+    pdf.cell(60, 6, "National Builder (Retail Sell)", 1, 0, 'C')
+    pdf.cell(60, 6, "Build-to-Rent (DSCR Takeout)", 1, 1, 'C')
+    
+    pdf.set_font("Arial", '', 8)
+    for i in range(len(strategy_data["Financial Metric"])):
+        metric = str(strategy_data["Financial Metric"][i])
+        retail = str(strategy_data["National Builder (Retail Sell)"][i])
+        btr = str(strategy_data["Build-to-Rent (Commercial DSCR Takeout)"][i])
+        
+        # Abbreviate for PDF constraints
+        if "(~8% Realtor & concessions)" in retail:
+            retail = retail.replace("(~8% Realtor & concessions)", "(8% Fees)")
+        if "(Taxable ordinary income)" in retail:
+            retail = retail.replace("(Taxable ordinary income)", "(Taxable)")
+        if "(Const. finance, takeout, buydown)" in btr:
+            btr = btr.replace("(Const. finance, takeout, buydown)", "(Financing Fees)")
+        if "LTV DSCR Loan" in btr:
+            btr = btr.replace(" LTV DSCR Loan", " LTV)")
+        if "(Seed Capital Retained)" in btr:
+            btr = btr.replace("(Seed Capital Retained)", "(Retained)")
+        if "(Tax-Free Cash Out)" in btr:
+            btr = btr.replace("(Tax-Free Cash Out)", "(Cash Out)")
+            
+        pdf.cell(70, 6, metric[:45], 1, 0, 'L')
+        pdf.cell(60, 6, retail[:45], 1, 0, 'C')
+        pdf.cell(60, 6, btr[:45], 1, 1, 'C')
+    
+    pdf.ln(5)
+    pdf.set_font("Arial", 'I', 8)
+    clean_footnote = strategy_footnote_text.replace("*Note: ", "Note: ").replace("*", "").replace(r"\$", "$").encode('latin-1', 'replace').decode('latin-1')
+    pdf.multi_cell(0, 5, clean_footnote)
+    pdf.ln(5)
     
     with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as tmp:
         pdf.output(tmp.name)
