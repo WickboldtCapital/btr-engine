@@ -75,8 +75,6 @@ HARDCODED_DRIVERS = {
     "indirect_permits_pct": 4.5,
     "indirect_temp_facilities_pct": 3.5,
     
-    "pdf_include_sublevels": True,
-    
     "comp_address": "",
     "comp_price": 195000,
     "comp_heated_sf": 1275,
@@ -243,10 +241,6 @@ with st.sidebar.container():
         st.number_input("Bank Target DSCR", min_value=1.0, max_value=1.5, value=float(GLOBAL_DRIVERS.get("const_bank_dscr", 1.20)), step=0.05, key="const_bank_dscr")
         st.slider("Bank Qualifying Rate (%)", min_value=4.0, max_value=14.0, step=0.25, key="const_bank_qual_rate_pct")
         st.selectbox("Bank Amortization (Years)", [15, 20, 25, 30], key="const_bank_amort_yrs")
-
-with st.sidebar.container():
-    st.subheader("11. PDF Export Options")
-    st.checkbox("Include Detailed Sub-Levels in PDF Report", key="pdf_include_sublevels")
 
 
 # ==========================================
@@ -535,7 +529,7 @@ st.divider()
 
 # --- PROJECT INFO ---
 st.markdown("### 📋 Project Information")
-top_col1, top_col2 = st.columns([2, 2])
+top_col1, top_col2, top_col3 = st.columns([2, 2, 1])
 project_name = top_col1.text_input("Project Title", placeholder="e.g. Phase 1 - 24-Lot Build-to-Rent")
 project_address = top_col2.text_input("Project Address", placeholder="e.g. Rogers Moore Parkway, Hammond, LA")
 report_date = datetime.now().strftime("%B %d, %Y")
@@ -543,7 +537,6 @@ report_date = datetime.now().strftime("%B %d, %Y")
 sub_col1, sub_col2, sub_col3 = st.columns([1, 1, 2])
 project_beds = sub_col1.number_input("Beds per Unit", min_value=1, value=3, step=1)
 project_baths = sub_col2.number_input("Baths per Unit", min_value=1.0, value=2.0, step=0.5)
-download_placeholder = sub_col3.empty()
 st.divider()
 
 ui_top_metrics = st.container()
@@ -724,12 +717,28 @@ if granular_mode == "Auto-Proportional (Linked to Master Model)":
     st.dataframe(pd.DataFrame(s_data), hide_index=True, use_container_width=True)
 else:
     st.markdown(f"#### 3.1 Heated Living Area ({sqft} SF)")
-    hl_heated = [{"Division / Component": name.replace("- ", ""), "Cost / SF": direct_cost_sf * (base/100.0)} for name, base, is_h in raw_heated_divs if not is_h]
-    edited_h = st.data_editor(pd.DataFrame(hl_heated), column_config={"Division / Component": st.column_config.TextColumn(disabled=True), "Cost / SF": st.column_config.NumberColumn(format="$%.2f", min_value=0.0, step=0.5)}, hide_index=True, use_container_width=True)
+    hl_heated = []
+    current_header = ""
+    for name, base, is_h in raw_heated_divs:
+        if is_h:
+            current_header = name
+        else:
+            hl_heated.append({"Category": current_header, "Division / Component": name.replace("- ", ""), "Cost / SF": direct_cost_sf * (base/100.0)})
+    
+    df_manual = pd.DataFrame(hl_heated)
+    edited_h = st.data_editor(df_manual.drop(columns=["Category"]), column_config={"Division / Component": st.column_config.TextColumn(disabled=True), "Cost / SF": st.column_config.NumberColumn(format="$%.2f", min_value=0.0, step=0.5)}, hide_index=True, use_container_width=True)
+    
     direct_cost_sf = edited_h["Cost / SF"].sum()
-    for index, row in edited_h.iterrows():
-        live_sf = row["Cost / SF"]
-        pdf_granular_data.append((row["Division / Component"], live_sf, live_sf * sqft, live_sf * sqft * units, False))
+    df_manual["Cost / SF"] = edited_h["Cost / SF"]
+    
+    # Intelligently re-aggregate Manual Custom Items back into the 8 NAHB Headers for the PDF Engine
+    for cat in df_manual["Category"].unique():
+        cat_df = df_manual[df_manual["Category"] == cat]
+        cat_sum = cat_df["Cost / SF"].sum()
+        pdf_granular_data.append((cat, cat_sum, cat_sum * sqft, cat_sum * sqft * units, True))
+        for _, row in cat_df.iterrows():
+            live_sf = row["Cost / SF"]
+            pdf_granular_data.append((f"   - {row['Division / Component']}", live_sf, live_sf * sqft, live_sf * sqft * units, False))
     
     st.markdown(f"#### 3.2 {st.session_state.structure_type} Auxiliary ({struct_sqft} SF)")
     hl_struct = [{"Component Level": name, "Cost / SF": struct_cost_sf * (base/35.0)} for name, base, is_h in raw_struct_divs]
@@ -998,8 +1007,15 @@ if cost_calc_mode in ["Reverse-Engineer from Appraisal", "Reverse-Engineer from 
 
 
 # ==========================================
-# --- PDF GENERATION ENGINE ---
+# --- 9. PDF GENERATION ENGINE ---
 # ==========================================
+st.markdown("### 🖨️ 9. Export Enterprise PDF Report")
+pdf_detail_mode = st.radio(
+    "Construction Budget Detail Level for PDF:",
+    ["Full 36-Component Breakdown", "8 Major NAHB Categories Only", "High-Level Roll-up Only"],
+    horizontal=True
+)
+
 class EnterpriseReport(FPDF):
     def header(self):
         self.set_font('Arial', 'B', 16)
@@ -1014,7 +1030,7 @@ class EnterpriseReport(FPDF):
         self.set_font('Arial', 'I', 8)
         self.cell(0, 10, f'Page {self.page_no()} | Prepared by: Stephen Wickboldt Jr. - Wickboldt Capital', 0, 0, 'C')
 
-def create_pdf(include_sublevels):
+def create_pdf(detail_mode):
     pdf = EnterpriseReport()
     pdf.add_page()
     
@@ -1092,34 +1108,60 @@ def create_pdf(include_sublevels):
         pdf.cell(60, 7, f"${target_heated_hard_cost:,.0f}", 0, 1, 'R')
         pdf.ln(5)
 
-    # 3. GRANULAR DIRECT HARD COST BUILDUP
-    pdf.set_font("Arial", 'B', 12)
-    pdf.set_fill_color(220, 220, 220)
-    pdf.cell(0, 8, " 3. Granular Direct Hard Cost Buildup", ln=1, fill=True)
-    pdf.set_font("Arial", 'B', 9)
-    
-    pdf.cell(90, 6, "Division / Trade Level", 1, 0, 'C')
-    pdf.cell(30, 6, "Live Cost / SF", 1, 0, 'C')
-    pdf.cell(35, 6, f"Per Unit ({sqft} SF)", 1, 0, 'C')
-    pdf.cell(35, 6, "Project Total", 1, 1, 'C')
-    
-    for name, live_sf, unit_cost, proj_cost, is_header in pdf_granular_data:
-        if granular_mode == "Auto-Proportional (Linked to Master Model)":
-            if not st.session_state.get("pdf_include_sublevels", True) and not is_header:
+    # 3. CONSTRUCTION BUILDUP SELECTION
+    if detail_mode == "High-Level Roll-up Only":
+        pdf.set_font("Arial", 'B', 12)
+        pdf.set_fill_color(220, 220, 220)
+        pdf.cell(0, 8, " 3. Direct Hard Cost Master Roll-up", ln=1, fill=True)
+        pdf.set_font("Arial", 'B', 9)
+        
+        pdf.cell(85, 6, "Category / Major Sub-Assembly", 1, 0, 'C')
+        pdf.cell(40, 6, "Effective Rate", 1, 0, 'C')
+        pdf.cell(35, 6, "Per Unit Cost", 1, 0, 'C')
+        pdf.cell(30, 6, "Project Total", 1, 1, 'C')
+        
+        for i, row in direct_rollup_df.iterrows():
+            if i == len(direct_rollup_df) - 1:
+                pdf.set_font("Arial", 'B', 9)
+                pdf.set_fill_color(240, 240, 240)
+                fill = True
+            else:
+                pdf.set_font("Arial", '', 9)
+                fill = False
+            
+            pdf.cell(85, 6, str(row["Category / Major Sub-Assembly"]), 1, 0, 'L', fill=fill)
+            pdf.cell(40, 6, str(row["Effective Rate"]), 1, 0, 'C', fill=fill)
+            pdf.cell(35, 6, f"${row['Per Unit Cost ($)']:,.0f}", 1, 0, 'R', fill=fill)
+            pdf.cell(30, 6, f"${row['Project Total ($)']:,.0f}", 1, 1, 'R', fill=fill)
+            
+    else:
+        pdf.set_font("Arial", 'B', 12)
+        pdf.set_fill_color(220, 220, 220)
+        pdf.cell(0, 8, " 3. Granular Direct Hard Cost Buildup", ln=1, fill=True)
+        pdf.set_font("Arial", 'B', 9)
+        
+        pdf.cell(90, 6, "Division / Trade Level", 1, 0, 'C')
+        pdf.cell(30, 6, "Live Cost / SF", 1, 0, 'C')
+        pdf.cell(35, 6, f"Per Unit ({sqft} SF)", 1, 0, 'C')
+        pdf.cell(35, 6, "Project Total", 1, 1, 'C')
+        
+        for name, live_sf, unit_cost, proj_cost, is_header in pdf_granular_data:
+            if detail_mode == "8 Major NAHB Categories Only" and not is_header:
                 continue
-        if is_header:
-            pdf.set_font("Arial", 'B', 9)
-            pdf.set_fill_color(240, 240, 240)
-            pdf.cell(90, 6, name, 1, 0, 'L', fill=True)
-            pdf.cell(30, 6, f"${live_sf:.2f}", 1, 0, 'R', fill=True)
-            pdf.cell(35, 6, f"${unit_cost:,.0f}", 1, 0, 'R', fill=True)
-            pdf.cell(35, 6, f"${proj_cost:,.0f}", 1, 1, 'R', fill=True)
-        else:
-            pdf.set_font("Arial", '', 9)
-            pdf.cell(90, 6, name, 1, 0, 'L')
-            pdf.cell(30, 6, f"${live_sf:.2f}", 1, 0, 'R')
-            pdf.cell(35, 6, f"${unit_cost:,.0f}", 1, 0, 'R')
-            pdf.cell(35, 6, f"${proj_cost:,.0f}", 1, 1, 'R')
+                
+            if is_header:
+                pdf.set_font("Arial", 'B', 9)
+                pdf.set_fill_color(240, 240, 240)
+                pdf.cell(90, 6, name, 1, 0, 'L', fill=True)
+                pdf.cell(30, 6, f"${live_sf:.2f}", 1, 0, 'R', fill=True)
+                pdf.cell(35, 6, f"${unit_cost:,.0f}", 1, 0, 'R', fill=True)
+                pdf.cell(35, 6, f"${proj_cost:,.0f}", 1, 1, 'R', fill=True)
+            else:
+                pdf.set_font("Arial", '', 9)
+                pdf.cell(90, 6, name, 1, 0, 'L')
+                pdf.cell(30, 6, f"${live_sf:.2f}", 1, 0, 'R')
+                pdf.cell(35, 6, f"${unit_cost:,.0f}", 1, 0, 'R')
+                pdf.cell(35, 6, f"${proj_cost:,.0f}", 1, 1, 'R')
             
     pdf.ln(5)
 
@@ -1211,13 +1253,11 @@ def create_pdf(include_sublevels):
         with open(tmp.name, "rb") as f:
             return f.read()
 
-with download_placeholder:
-    st.markdown("<br>", unsafe_allow_html=True)
-    st.download_button(
-        label="📄 Download Enterprise Report (PDF)",
-        data=create_pdf(st.session_state.get("pdf_include_sublevels", True)),
-        file_name=f"Wickboldt_Capital_ProForma_{report_date.replace(' ', '_').replace(',', '')}.pdf",
-        mime="application/pdf",
-        type="primary",
-        use_container_width=True
-    )
+st.download_button(
+    label="📄 Download Enterprise Report (PDF)",
+    data=create_pdf(pdf_detail_mode),
+    file_name=f"Wickboldt_Capital_ProForma_{report_date.replace(' ', '_').replace(',', '')}.pdf",
+    mime="application/pdf",
+    type="primary",
+    use_container_width=True
+)
