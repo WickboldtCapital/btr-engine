@@ -687,7 +687,8 @@ retained_equity = total_arv - loan_total
 day1_wealth = default_gc_fee + max(0.0, cash_surplus) + retained_equity
 
 btr_finance_closing = carry_int_base + const_closing_fee + refi_closing_fee + default_buydown_cost
-developer_margin = total_arv - (target_total_lot_value + total_hard_cost + total_indirect_costs + total_vertical_soft + btr_finance_closing)
+lot_benchmark = target_total_lot_value
+developer_margin = total_arv - (lot_benchmark + total_hard_cost + total_indirect_costs + total_vertical_soft + btr_finance_closing)
 
 # =========================================================================
 # --- SCALING CALCULATIONS (1 VS 3 VS 6) ---
