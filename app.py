@@ -1230,6 +1230,9 @@ granular_summary_text = (
 )
 st.info(granular_summary_text.replace("$", r"\$"))
 
+# Create an empty placeholder so we can render the chart *above* the expander
+hc_chart_placeholder = st.empty()
+
 with st.expander("🔨 View Granular Trade Buildup & Master Roll-up", expanded=False):
     granular_mode = st.radio("Buildup Entry Mode", ["Auto-Proportional (Linked to Master Model)", "Manual Custom Entry (Bottom-Up)"], horizontal=True)
 
@@ -1396,6 +1399,34 @@ with st.expander("🔨 View Granular Trade Buildup & Master Roll-up", expanded=F
         hide_index=True,
         use_container_width=True
     )
+
+# --- NEW DIRECT HARD COST CHART ---
+# Calculate the chart data now that the user edits have been captured
+viz_categories = []
+viz_amounts = []
+
+for name, live_sf, unit_cost, proj_cost, is_header in pdf_granular_data:
+    if is_header:
+        # Clean up the name (e.g., "I. SITE WORK" -> "Site Work")
+        clean_name = name.split(". ", 1)[-1].title() if ". " in name else name.title()
+        viz_categories.append(clean_name)
+        viz_amounts.append(unit_cost)
+
+# Add the combined Aux & Foundation roll-up
+viz_categories.append("Auxiliary, Porches & Foundation")
+viz_amounts.append(our_aux_cost_total)
+
+hc_df = pd.DataFrame({"Division": viz_categories, "Cost": viz_amounts})
+
+fig_hc = px.bar(hc_df, x="Cost", y="Division", orientation='h',
+                title="Vertical Direct Hard Cost Breakdown per Unit",
+                color="Division", text="Cost")
+fig_hc.update_traces(texttemplate='$%{text:,.0f}', textposition='inside', insidetextanchor='middle')
+fig_hc.update_layout(showlegend=False, yaxis={'categoryorder':'total ascending'}, xaxis_title="Budget Allocation ($)", yaxis_title="")
+
+# Render the chart into the placeholder above the expander!
+hc_chart_placeholder.plotly_chart(fig_hc, use_container_width=True)
+
 st.divider()
 
 
