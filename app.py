@@ -5,6 +5,7 @@ import tempfile
 import requests
 import os
 import json
+import math
 from datetime import datetime
 
 # Page Configuration
@@ -728,6 +729,64 @@ annual_cf_6 = monthly_cf_6 * 12
 def format_surplus(val):
     return f"+${val:,.0f}" if val >= 0 else f"-${-val:,.0f}"
 
+# =========================================================================
+# --- ENTERPRISE S-CURVE DRAW SCHEDULE MATH ---
+# =========================================================================
+if land_entry_mode == "Detailed Horizontal Infrastructure (LF Parametrics)":
+    # Raw land is paid Day 1. The infrastructure development is drawn over time.
+    land_raw_total = st.session_state.get("land_raw_cost", 50000)
+    infra_total = total_land_default - land_raw_total
+else:
+    # If flat lump sum, we assume the whole lot is purchased Day 1.
+    land_raw_total = total_land_default
+    infra_total = 0.0
+
+total_draw_budget = infra_total + total_const + total_vertical_soft
+
+# Track capitalized interest properly
+d_schedule = []
+cum_pct = 0.0
+drawn_loan_balance = 0.0
+
+# Seed capital goes in first. It covers Raw Land + Closing Fees.
+equity_remaining = seed_capital - (land_raw_total + const_closing_fee)
+if equity_remaining < 0:
+    drawn_loan_balance = abs(equity_remaining)
+    equity_remaining = 0.0
+
+actual_scurve_interest = 0.0
+
+for m in range(1, build_months + 1):
+    prev_pct = cum_pct
+    # Math logic: S-curve using Cumulative % = sin^2( (pi/2) * (t/T) )
+    cum_pct = math.pow(math.sin((math.pi / 2.0) * (m / build_months)), 2)
+    month_pct = cum_pct - prev_pct
+    month_draw = total_draw_budget * month_pct
+    
+    # Interest for the month based on previous drawn loan balance
+    month_int = drawn_loan_balance * (const_rate / 12.0)
+    actual_scurve_interest += month_int
+    
+    # Fund the draw from remaining equity first, then the bank loan
+    if equity_remaining >= month_draw:
+        equity_remaining -= month_draw
+        funded_by_loan = 0.0
+    else:
+        funded_by_loan = month_draw - equity_remaining
+        equity_remaining = 0.0
+        
+    drawn_loan_balance += funded_by_loan + month_int  # Interest capitalizes to the loan balance
+    
+    d_schedule.append({
+        "Month": f"Month {m}",
+        "Cum. % Complete": f"{cum_pct*100:.1f}%",
+        "Monthly Draw ($)": month_draw,
+        "Capitalized Interest ($)": month_int,
+        "Total Drawn Balance ($)": drawn_loan_balance
+    })
+
+df_schedule = pd.DataFrame(d_schedule)
+
 # ==========================================
 # --- PAGE HEADER ---
 # ==========================================
@@ -1217,6 +1276,13 @@ st.divider()
 # ==========================================
 st.markdown("### 6. Developer Capital & Construction Ledger")
 
+land_eq_text = (
+    f"**Land Equity Capture:** The Pro Forma valuation benchmark values the lot at {lot_cost_pct*100:.1f}% "
+    f"(**${lot_benchmark:,.0f}**), while the developer's actual out-of-pocket acquisition/development basis is "
+    f"**${total_land_default:,.0f}**. This gap represents immediate land equity."
+)
+st.info(land_eq_text.replace("$", r"\$"))
+
 col1, col2 = st.columns(2)
 with col1:
     st.markdown("#### Pro Forma Valuation Allocation")
@@ -1497,10 +1563,39 @@ st.divider()
 
 
 # ==========================================
-# --- 11. REVERSE-ENGINEERING BREAKDOWN ---
+# --- 11. ENTERPRISE S-CURVE DRAW SCHEDULE ---
+# ==========================================
+st.markdown("### 11. Enterprise S-Curve Draw Schedule & Actual Carry Interest")
+
+scurve_summary = (
+    f"**Capital Deployment Schedule:** Institutional lenders require actual drawdown forecasting. Rather than drawing the construction loan in a flat, straight line, "
+    f"the model maps the **${total_draw_budget:,.0f}** physical development budget across a trigonometric S-Curve. "
+    f"This realistically models slower initial site work, accelerated vertical framing, and tapering final finishes across the **{build_months}-month** timeline. "
+    f"By using the exact cumulative distribution to calculate accrued interest, your True S-Curve Interest is **${actual_scurve_interest:,.0f}** "
+    f"(compared to the straight-line \${carry_int_base:,.0f} rough estimate used earlier in the model)."
+)
+st.info(scurve_summary.replace("$", r"\$"))
+
+# Render Chart
+chart_df = df_schedule.copy()
+chart_df = chart_df.set_index("Month")
+st.bar_chart(chart_df[["Monthly Draw ($)"]], height=300)
+
+# Render Table
+st.dataframe(df_schedule.style.format({
+    "Monthly Draw ($)": "${:,.0f}",
+    "Capitalized Interest ($)": "${:,.0f}",
+    "Total Drawn Balance ($)": "${:,.0f}"
+}), hide_index=True, use_container_width=True)
+
+st.divider()
+
+
+# ==========================================
+# --- 12. REVERSE-ENGINEERING BREAKDOWN ---
 # ==========================================
 if cost_calc_mode in ["Reverse-Engineer from Appraisal", "Reverse-Engineer from Primary Comp"]:
-    st.markdown("### 11. Retail Comp & Appraisal Reverse-Engineering Breakdown")
+    st.markdown("### 12. Retail Comp & Appraisal Reverse-Engineering Breakdown")
     
     reference_price = arv_per_unit if cost_calc_mode == 'Reverse-Engineer from Appraisal' else comp_equivalent_arv
     ref_price_sf = reference_price / sqft if sqft > 0 else 0
@@ -1560,9 +1655,9 @@ if cost_calc_mode in ["Reverse-Engineer from Appraisal", "Reverse-Engineer from 
 
 
 # ==========================================
-# --- 12. PDF GENERATION ENGINE ---
+# --- 13. PDF GENERATION ENGINE ---
 # ==========================================
-st.markdown("### 🖨️ 12. Export Enterprise PDF Report")
+st.markdown("### 🖨️ 13. Export Enterprise PDF Report")
 pdf_detail_mode = st.radio(
     "Construction Budget Detail Level for PDF:",
     ["Full 36-Component Breakdown", "8 Major NAHB Categories Only", "High-Level Roll-up Only"],
@@ -2003,11 +2098,37 @@ def create_pdf(detail_mode):
     pdf.multi_cell(0, 5, clean_scaling_takeaway)
     pdf.ln(5)
 
-    # 11. REVERSE-ENGINEERING BREAKDOWN
+    # 11. ENTERPRISE S-CURVE DRAW SCHEDULE
+    pdf.set_font("Arial", 'B', 12)
+    pdf.set_fill_color(220, 220, 220)
+    pdf.cell(0, 8, " 11. Enterprise S-Curve Draw Schedule", ln=1, fill=True)
+    pdf.set_font("Arial", '', 10)
+    
+    clean_scurve_summary = scurve_summary.replace("**", "").replace(r"\$", "$").encode('latin-1', 'replace').decode('latin-1')
+    pdf.multi_cell(0, 6, clean_scurve_summary)
+    pdf.ln(3)
+    
+    pdf.set_font("Arial", 'B', 9)
+    pdf.cell(30, 6, "Month", 1, 0, 'C')
+    pdf.cell(40, 6, "Cum. % Complete", 1, 0, 'C')
+    pdf.cell(40, 6, "Monthly Draw", 1, 0, 'C')
+    pdf.cell(40, 6, "Capitalized Int.", 1, 0, 'C')
+    pdf.cell(40, 6, "Total Drawn Bal.", 1, 1, 'C')
+    
+    pdf.set_font("Arial", '', 9)
+    for i, row in df_schedule.iterrows():
+        pdf.cell(30, 6, str(row["Month"]), 1, 0, 'C')
+        pdf.cell(40, 6, str(row["Cum. % Complete"]), 1, 0, 'C')
+        pdf.cell(40, 6, f"${row['Monthly Draw ($)']:,.0f}", 1, 0, 'R')
+        pdf.cell(40, 6, f"${row['Capitalized Interest ($)']:,.0f}", 1, 0, 'R')
+        pdf.cell(40, 6, f"${row['Total Drawn Balance ($)']:,.0f}", 1, 1, 'R')
+    pdf.ln(5)
+
+    # 12. REVERSE-ENGINEERING BREAKDOWN
     if cost_calc_mode in ["Reverse-Engineer from Appraisal", "Reverse-Engineer from Primary Comp"]:
         pdf.set_font("Arial", 'B', 12)
         pdf.set_fill_color(220, 220, 220)
-        pdf.cell(0, 8, " 11. Retail Comp & Appraisal Reverse-Engineering", ln=1, fill=True)
+        pdf.cell(0, 8, " 12. Retail Comp & Appraisal Reverse-Engineering", ln=1, fill=True)
         pdf.set_font("Arial", '', 10)
         
         # Add dynamic narrative to PDF
