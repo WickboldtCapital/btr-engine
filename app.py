@@ -36,7 +36,16 @@ HARDCODED_DRIVERS = {
     "const_ltv_pct": 80.0,
     "build_months": 7,
     "const_rate_pct": 7.50,
+    
+    # Construction Loan Closing Fees
+    "const_closing_mode": "Flat Lump Sum",
     "const_closing_fee": 6000,
+    "const_origination_fee": 3000.0,
+    "const_appraisal_fee": 600.0,
+    "const_title_fee": 1200.0,
+    "const_survey_fee": 500.0,
+    "const_legal_fee": 500.0,
+    "const_misc_closing_fee": 200.0,
     
     # Construction Lender Stress Constraints
     "const_bank_rent": 1500,
@@ -809,6 +818,92 @@ annual_cf_6 = monthly_cf_6 * 12
 def format_surplus(val):
     return f"+${val:,.0f}" if val >= 0 else f"-${-val:,.0f}"
 
+# =========================================================================
+# --- SENSITIVITY ANALYSIS / STRESS TESTING MATH ---
+# =========================================================================
+stress_scenarios = [
+    {"Name": "1. Baseline Target (Pro Forma)", "ARV_Shift": 0.0, "Rate_Shift": 0.0, "Delay": 0},
+    {"Name": "2. Mild Rate Hike (+0.50%)", "ARV_Shift": 0.0, "Rate_Shift": 0.005, "Delay": 0},
+    {"Name": "3. Severe Rate Hike (+1.00%)", "ARV_Shift": 0.0, "Rate_Shift": 0.01, "Delay": 0},
+    {"Name": "4. Mild Appraisal Miss (-5%)", "ARV_Shift": -0.05, "Rate_Shift": 0.0, "Delay": 0},
+    {"Name": "5. Severe Appraisal Miss (-10%)", "ARV_Shift": -0.10, "Rate_Shift": 0.0, "Delay": 0},
+    {"Name": "6. Supply Chain Delay (+2 Months)", "ARV_Shift": 0.0, "Rate_Shift": 0.0, "Delay": 2},
+    {"Name": "7. The Perfect Storm (-10% ARV, +1% Rate, +2 Mos)", "ARV_Shift": -0.10, "Rate_Shift": 0.01, "Delay": 2},
+]
+
+stress_results = []
+
+for scn in stress_scenarios:
+    # Adjust ARV and Takeout Loan
+    s_arv = total_arv * (1 + scn["ARV_Shift"])
+    s_loan_total = s_arv * refi_ltv
+    s_buydown = s_loan_total * (buydown_pts / 100.0) if apply_buydown else 0
+    s_months = build_months + scn["Delay"]
+    
+    # Recalculate S-Curve Carry Interest
+    s_carry = actual_const_loan * 0.5 * const_rate * (s_months / 12.0)
+    for _ in range(3):
+        s_basis_ex_refi = total_project_costs_ex_interest + s_carry
+        s_seed = max(0, s_basis_ex_refi - actual_const_loan)
+        
+        eq_rem = s_seed
+        if eq_rem >= day_1_costs:
+            eq_rem -= day_1_costs
+            d_bal = 0.0
+        else:
+            d_bal = day_1_costs - eq_rem
+            eq_rem = 0.0
+        
+        s_int = 0.0
+        cp = 0.0
+        for m in range(1, s_months + 1):
+            pp = cp
+            cp = math.pow(math.sin((math.pi / 2.0) * (m / s_months)), 2)
+            m_drw = total_draw_budget * (cp - pp)
+            m_i = d_bal * (const_rate / 12.0)
+            s_int += m_i
+            
+            if eq_rem >= m_drw:
+                eq_rem -= m_drw
+                f_loan = 0.0
+            else:
+                f_loan = m_drw - eq_rem
+                eq_rem = 0.0
+            d_bal += f_loan + m_i
+        s_carry = s_int
+        
+    s_seed_final = max(0, total_project_costs_ex_interest + s_carry - actual_const_loan)
+    s_net_cash = s_loan_total - actual_const_loan - refi_closing_fee - s_buydown
+    s_surplus = s_net_cash - s_seed_final
+    s_retained_eq = s_arv - s_loan_total
+    s_wealth = default_gc_fee + max(0.0, s_surplus) + s_retained_eq
+    
+    # Recalculate DSCR
+    s_net_rate = net_refi_rate + scn["Rate_Shift"]
+    s_m_rate = s_net_rate / 12.0
+    if s_m_rate > 0:
+        s_pi = (s_loan_total / units) * (s_m_rate * (1 + s_m_rate)**total_payments) / ((1 + s_m_rate)**total_payments - 1)
+    else:
+        s_pi = (s_loan_total / units) / total_payments if total_payments > 0 else 0
+        
+    s_ds = s_pi * units * 12.0
+    s_dscr = annual_noi / s_ds if s_ds > 0 else 0
+    
+    # Emoticon formatting
+    dscr_str = f"🟢 {s_dscr:.2f}x" if s_dscr >= target_dscr_rate else f"🔴 {s_dscr:.2f}x"
+    surplus_str = f"🟢 +${s_surplus:,.0f}" if s_surplus >= 0 else f"🔴 -${abs(s_surplus):,.0f}"
+    
+    stress_results.append({
+        "Stress Scenario": scn["Name"],
+        "Final ARV": f"${s_arv:,.0f}",
+        "Refi Rate": f"{s_net_rate*100:.2f}%",
+        "Build Time": f"{s_months} mos",
+        "DSCR Status": dscr_str,
+        "Net Cash Surplus / (Trapped)": surplus_str,
+        "Total Day-1 Wealth": f"${s_wealth:,.0f}"
+    })
+
+df_stress = pd.DataFrame(stress_results)
 
 # ==========================================
 # --- PAGE HEADER ---
@@ -1619,10 +1714,27 @@ st.divider()
 
 
 # ==========================================
-# --- 12. REVERSE-ENGINEERING BREAKDOWN ---
+# --- 12. SENSITIVITY ANALYSIS (STRESS TEST) ---
+# ==========================================
+st.markdown("### 12. Sensitivity Analysis (Stress Testing)")
+
+stress_test_summary = (
+    f"**Lender Risk Mitigation Matrix:** This matrix dynamically stress-tests the active pro forma against severe market volatility. "
+    f"It calculates the exact impact of commercial rate hikes, appraisal misses, and supply chain delays to prove whether the project "
+    f"maintains a compliant DSCR (**> {target_dscr_rate:.2f}x**) and positive capital recovery under extreme duress."
+)
+st.info(stress_test_summary.replace("$", r"\$"))
+
+st.dataframe(df_stress, hide_index=True, use_container_width=True)
+
+st.divider()
+
+
+# ==========================================
+# --- 13. REVERSE-ENGINEERING BREAKDOWN ---
 # ==========================================
 if cost_calc_mode in ["Reverse-Engineer from Appraisal", "Reverse-Engineer from Primary Comp"]:
-    st.markdown("### 12. Retail Comp & Appraisal Reverse-Engineering Breakdown")
+    st.markdown("### 13. Retail Comp & Appraisal Reverse-Engineering Breakdown")
     
     reference_price = arv_per_unit if cost_calc_mode == 'Reverse-Engineer from Appraisal' else comp_equivalent_arv
     ref_price_sf = reference_price / sqft if sqft > 0 else 0
@@ -1682,9 +1794,9 @@ if cost_calc_mode in ["Reverse-Engineer from Appraisal", "Reverse-Engineer from 
 
 
 # ==========================================
-# --- 13. PDF GENERATION ENGINE ---
+# --- 14. PDF GENERATION ENGINE ---
 # ==========================================
-st.markdown("### 🖨️ 13. Export Enterprise PDF Report")
+st.markdown("### 🖨️ 14. Export Enterprise PDF Report")
 pdf_detail_mode = st.radio(
     "Construction Budget Detail Level for PDF:",
     ["Full 36-Component Breakdown", "8 Major NAHB Categories Only", "High-Level Roll-up Only"],
@@ -2150,12 +2262,44 @@ def create_pdf(detail_mode):
         pdf.cell(40, 6, f"${row['Capitalized Interest ($)']:,.0f}", 1, 0, 'R')
         pdf.cell(40, 6, f"${row['Total Drawn Balance ($)']:,.0f}", 1, 1, 'R')
     pdf.ln(5)
+    
+    # 12. SENSITIVITY ANALYSIS (STRESS TEST)
+    pdf.set_font("Arial", 'B', 12)
+    pdf.set_fill_color(220, 220, 220)
+    pdf.cell(0, 8, " 12. Sensitivity Analysis (Stress Testing)", ln=1, fill=True)
+    pdf.set_font("Arial", '', 10)
+    
+    clean_stress_summary = stress_test_summary.replace("**", "").replace(r"\$", "$").encode('latin-1', 'replace').decode('latin-1')
+    pdf.multi_cell(0, 6, clean_stress_summary)
+    pdf.ln(3)
+    
+    pdf.set_font("Arial", 'B', 8)
+    pdf.cell(60, 6, "Stress Scenario", 1, 0, 'C')
+    pdf.cell(25, 6, "Final ARV", 1, 0, 'C')
+    pdf.cell(20, 6, "Refi Rate", 1, 0, 'C')
+    pdf.cell(25, 6, "DSCR Status", 1, 0, 'C')
+    pdf.cell(35, 6, "Net Cash Surplus", 1, 0, 'C')
+    pdf.cell(30, 6, "Day-1 Wealth", 1, 1, 'C')
+    
+    pdf.set_font("Arial", '', 8)
+    for i, row in df_stress.iterrows():
+        # Remove emojis for PDF rendering
+        dscr_clean = str(row["DSCR Status"]).replace("🟢 ", "").replace("🔴 ", "")
+        surplus_clean = str(row["Net Cash Surplus / (Trapped)"]).replace("🟢 ", "").replace("🔴 ", "")
+        
+        pdf.cell(60, 6, str(row["Stress Scenario"])[:35], 1, 0, 'L')
+        pdf.cell(25, 6, str(row["Final ARV"]), 1, 0, 'C')
+        pdf.cell(20, 6, str(row["Refi Rate"]), 1, 0, 'C')
+        pdf.cell(25, 6, dscr_clean, 1, 0, 'C')
+        pdf.cell(35, 6, surplus_clean, 1, 0, 'R')
+        pdf.cell(30, 6, str(row["Total Day-1 Wealth"]), 1, 1, 'R')
+    pdf.ln(5)
 
-    # 12. REVERSE-ENGINEERING BREAKDOWN
+    # 13. REVERSE-ENGINEERING BREAKDOWN
     if cost_calc_mode in ["Reverse-Engineer from Appraisal", "Reverse-Engineer from Primary Comp"]:
         pdf.set_font("Arial", 'B', 12)
         pdf.set_fill_color(220, 220, 220)
-        pdf.cell(0, 8, " 12. Retail Comp & Appraisal Reverse-Engineering", ln=1, fill=True)
+        pdf.cell(0, 8, " 13. Retail Comp & Appraisal Reverse-Engineering", ln=1, fill=True)
         pdf.set_font("Arial", '', 10)
         
         # Add dynamic narrative to PDF
