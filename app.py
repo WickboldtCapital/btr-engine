@@ -1,6 +1,8 @@
 import streamlit as st
 import pandas as pd
 from fpdf import FPDF
+from pptx import Presentation
+from pptx.util import Inches, Pt
 import tempfile
 import requests
 import os
@@ -31,7 +33,7 @@ HARDCODED_DRIVERS = {
     "target_dscr_rate": 1.20,
     "target_min_cashflow_per_door": 200.0,
     "vacancy_rate_pct": 5.0,
-    "opex_rate_pct": 20.0,  # Updated from 25.0
+    "opex_rate_pct": 20.0,
     
     "const_ltv_pct": 80.0,
     "build_months": 7,
@@ -64,7 +66,7 @@ HARDCODED_DRIVERS = {
     "base_refi_rate_pct": 7.00,
     "refi_closing_fee": 5000,
     "apply_buydown": True,
-    "buydown_pts": 2.75,  # Updated from 3.0
+    "buydown_pts": 2.75,
     
     "gc_fee_mode": "Percentage of Hard Costs (%)",
     "gc_fee_pct": 7.0,
@@ -102,7 +104,7 @@ HARDCODED_DRIVERS = {
     "gas_lateral": 0.0,
     "impact_fees": 500.0,
     
-    "appraisal_mode": "Income Approach (DSCR Loan Sizing)",  # Updated from Income Approach (GRM)
+    "appraisal_mode": "Income Approach (DSCR Loan Sizing)",
     "target_grm": 10.0,
     
     # NAHB & Indirect Cost Breakdowns
@@ -2396,11 +2398,99 @@ def create_pdf(detail_mode):
         with open(tmp.name, "rb") as f:
             return f.read()
 
+# Render PDF Download Button
 st.download_button(
     label="📄 Download Enterprise Report (PDF)",
     data=create_pdf(pdf_detail_mode),
     file_name=f"Wickboldt_Capital_ProForma_{report_date.replace(' ', '_').replace(',', '')}.pdf",
     mime="application/pdf",
     type="primary",
+    use_container_width=True
+)
+
+# ==========================================
+# --- 15. PPTX GENERATION ENGINE ---
+# ==========================================
+st.markdown("### 📊 15. Export Presentation Deck (PPTX)")
+st.info("Automatically generates a 4-slide executive summary deck suitable for investor and commercial lender reviews.")
+
+def create_pptx():
+    prs = Presentation()
+    
+    # 1. Title Slide
+    title_slide_layout = prs.slide_layouts[0]
+    slide = prs.slides.add_slide(title_slide_layout)
+    title = slide.shapes.title
+    subtitle = slide.placeholders[1]
+    title.text = "Wickboldt Capital | BTR Pro Forma Analysis"
+    subtitle.text = f"Project: {project_name if project_name else 'TBD'}\nAddress: {project_address if project_address else 'TBD'}\nPrepared: {report_date}"
+
+    # 2. Exec Summary
+    bullet_slide_layout = prs.slide_layouts[1]
+    slide = prs.slides.add_slide(bullet_slide_layout)
+    shapes = slide.shapes
+    title_shape = shapes.title
+    body_shape = shapes.placeholders[1]
+    title_shape.text = "Executive Summary"
+    tf = body_shape.text_frame
+    tf.text = f"Project Scale: {units} Unit(s)"
+    
+    p = tf.add_paragraph()
+    p.text = f"Total Appraised Value (ARV): ${total_arv:,.0f}"
+    p = tf.add_paragraph()
+    p.text = f"Total Project Basis: ${total_project_basis:,.0f}"
+    p = tf.add_paragraph()
+    p.text = f"Built-in Developer Margin: ${developer_margin:,.0f}"
+    p = tf.add_paragraph()
+    p.text = f"Net Cash Surplus at Refi: ${cash_surplus:,.0f}" if cash_surplus >= 0 else f"Retained Seed Capital: ${-cash_surplus:,.0f}"
+
+    # 3. Operating Metrics
+    slide = prs.slides.add_slide(bullet_slide_layout)
+    shapes = slide.shapes
+    title_shape = shapes.title
+    body_shape = shapes.placeholders[1]
+    title_shape.text = "Operating & DSCR Metrics"
+    tf = body_shape.text_frame
+    tf.text = f"Gross Monthly Income: ${total_gross_monthly_income:,.0f}"
+    
+    p = tf.add_paragraph()
+    p.text = f"Net Operating Income (NOI): ${annual_noi/12:,.0f} / mo"
+    p = tf.add_paragraph()
+    p.text = f"Permanent Debt Service (P&I): ${total_monthly_pi:,.0f} / mo"
+    p = tf.add_paragraph()
+    p.text = f"Monthly Net Cash Flow: ${monthly_cash_flow:,.0f} (${monthly_cash_flow_per_door:,.0f} per door)"
+    p = tf.add_paragraph()
+    p.text = f"Actual DSCR: {actual_dscr:.2f}x (Target: {target_dscr_rate:.2f}x)"
+
+    # 4. Capital Ledger
+    slide = prs.slides.add_slide(bullet_slide_layout)
+    shapes = slide.shapes
+    title_shape = shapes.title
+    body_shape = shapes.placeholders[1]
+    title_shape.text = "Capital Outlay Breakdown"
+    tf = body_shape.text_frame
+    tf.text = f"Horizontal Land Basis: ${total_land_default:,.0f}"
+    p = tf.add_paragraph()
+    p.text = f"Vertical Direct Hard Costs: ${total_hard_cost:,.0f} (${blended_cost_per_sf:.2f} / SF)"
+    p = tf.add_paragraph()
+    p.text = f"Indirects & GC Fee: ${total_indirect_costs:,.0f}"
+    p = tf.add_paragraph()
+    p.text = f"Soft Costs & Utilities: ${total_vertical_soft:,.0f}"
+    p = tf.add_paragraph()
+    p.text = f"Financing & Closing Costs: ${btr_finance_closing:,.0f}"
+
+    # Save
+    with tempfile.NamedTemporaryFile(delete=False, suffix=".pptx") as tmp:
+        prs.save(tmp.name)
+        with open(tmp.name, "rb") as f:
+            return f.read()
+
+# Render PPTX Download Button
+st.download_button(
+    label="📊 Download Investor Pitch Deck (PPTX)",
+    data=create_pptx(),
+    file_name=f"Wickboldt_Capital_Pitch_Deck_{report_date.replace(' ', '_').replace(',', '')}.pptx",
+    mime="application/vnd.openxmlformats-officedocument.presentationml.presentation",
+    type="secondary",
     use_container_width=True
 )
