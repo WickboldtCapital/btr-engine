@@ -494,7 +494,7 @@ if land_entry_mode == "Detailed Horizontal Infrastructure (LF Parametrics)":
     land_basis = total_land_detailed / units if units > 0 else 0
     total_land_default = total_land_detailed
 else:
-    land_basis = st.session_state.get("land_basis", 15000)
+    land_basis = st.session_state.get("land_basis", 10000)
     total_land_default = land_basis * units
 
 appraisal_mode = st.session_state.get("appraisal_mode", "Income Approach (DSCR Loan Sizing)")
@@ -1118,6 +1118,34 @@ horizontal_summary_text = (
     f"(**${total_land_default:,.0f}** total), {land_equity_text}"
 )
 st.info(horizontal_summary_text.replace("$", r"\$"))
+
+# --- NEW LAND EQUITY CHART ---
+if land_equity_captured >= 0:
+    land_viz_data = pd.DataFrame({
+        "Value Stack": ["Target Lot Value", "Target Lot Value"],
+        "Component": ["Actual Cost Basis", "Captured Equity (Margin)"],
+        "Amount ($)": [total_land_default, land_equity_captured]
+    })
+    fig_land = px.bar(land_viz_data, x="Amount ($)", y="Value Stack", color="Component",
+                      orientation='h', text="Amount ($)",
+                      title=f"Land Equity Capture (Total Market Value: ${target_total_lot_value:,.0f})",
+                      color_discrete_map={"Actual Cost Basis": "#1f77b4", "Captured Equity (Margin)": "#2ca02c"})
+    fig_land.update_traces(texttemplate='$%{text:,.0f}', textposition='inside', insidetextanchor='middle')
+    fig_land.update_layout(yaxis_title="", yaxis_visible=False, height=250, legend_title_text="")
+else:
+    land_viz_data = pd.DataFrame({
+        "Metric": ["Target Benchmark Value", "Actual Cost Basis (Over Budget)"],
+        "Amount ($)": [target_total_lot_value, total_land_default]
+    })
+    fig_land = px.bar(land_viz_data, x="Amount ($)", y="Metric", color="Metric",
+                      orientation='h', text="Amount ($)",
+                      title="Cost Overrun Warning: Basis Exceeds Market Value",
+                      color_discrete_map={"Target Benchmark Value": "#7f7f7f", "Actual Cost Basis (Over Budget)": "#d62728"})
+    fig_land.update_traces(texttemplate='$%{text:,.0f}', textposition='outside')
+    fig_land.update_layout(showlegend=False, yaxis_title="", height=250)
+
+st.plotly_chart(fig_land, use_container_width=True)
+
 
 with st.expander("🚜 View Land Development & Infrastructure Budget", expanded=False):
     if land_entry_mode == "Detailed Horizontal Infrastructure (LF Parametrics)":
