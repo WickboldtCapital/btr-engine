@@ -212,24 +212,7 @@ with st.sidebar.container():
     st.number_input("Additional Foundation / Elevation Cost ($)", min_value=0, step=500, format="%d", key="additional_foundation_cost")
 
 with st.sidebar.container():
-    st.subheader("4. Takeout Appraisal Methodology")
-    st.radio("Valuation Mode", [
-        "Sales Comp (Price/SF)", 
-        "Income Approach (GRM)", 
-        "Income Approach (DSCR Loan Sizing)",
-        "Conservative (Lesser of GRM or DSCR)"
-    ], key="appraisal_mode")
-    
-    if st.session_state.appraisal_mode in ["Income Approach (GRM)", "Conservative (Lesser of GRM or DSCR)"]:
-        st.number_input("Gross Rent Multiplier (GRM)", min_value=4.0, max_value=25.0, value=float(GLOBAL_DRIVERS.get("target_grm", 10.0)), step=0.1, key="target_grm")
-        
-    if st.session_state.appraisal_mode == "Income Approach (DSCR Loan Sizing)":
-        st.info("ARV is automatically derived from your Operating (NOI) and Refi Loan terms to exactly meet your Target DSCR and LTV constraints.")
-    elif st.session_state.appraisal_mode == "Conservative (Lesser of GRM or DSCR)":
-        st.info("ARV evaluates both the GRM and the DSCR max loan limit, automatically defaulting to whichever yields the lower valuation.")
-
-with st.sidebar.container():
-    st.subheader("5. Cost Target Mode (Reverse Engineer)")
+    st.subheader("4. Cost Target Mode (Reverse Engineer)")
     st.radio("Calculation Logic", ["Manual Set (Heated SF)", "Reverse-Engineer from Appraisal", "Reverse-Engineer from Primary Comp"], key="cost_calc_mode")
     if st.session_state.cost_calc_mode == "Manual Set (Heated SF)":
         st.slider("Direct Build Cost / SF ($)", min_value=40.0, max_value=150.0, step=1.0, key="base_direct_cost_sf")
@@ -241,7 +224,7 @@ with st.sidebar.container():
         st.slider("Financing Costs (%)", min_value=0.0, max_value=10.0, step=0.1, key="finance_pct")
 
 with st.sidebar.container():
-    st.subheader("6. Horizontal Land Development")
+    st.subheader("5. Horizontal Land Development")
     st.radio("Land Basis Entry Mode", ["Flat Lump Sum per Lot", "Detailed Horizontal Infrastructure (LF Parametrics)"], key="land_entry_mode")
     
     if st.session_state.land_entry_mode == "Flat Lump Sum per Lot":
@@ -292,7 +275,7 @@ with st.sidebar.container():
         st.number_input("Street Lights, Signage & Landscaping ($ Total)", min_value=0.0, step=1000.0, key="site_amenities")
 
 with st.sidebar.container():
-    st.subheader("7. Soft Costs, Permitting & GC Fees")
+    st.subheader("6. Soft Costs, Permitting & GC Fees")
     st.slider("Permits, Fees, & Insurance (% of Direct)", min_value=0.0, max_value=15.0, step=0.5, key="indirect_permits_pct")
     st.slider("Temporary Site Facilities (% of Direct)", min_value=0.0, max_value=15.0, step=0.5, key="indirect_temp_facilities_pct")
     
@@ -310,7 +293,7 @@ with st.sidebar.container():
         st.number_input("Total Consolidated GC Fee ($)", min_value=0, step=1000, format="%d", key="custom_gc_fee")
 
 with st.sidebar.container():
-    st.subheader("8. Construction Loan Terms")
+    st.subheader("7. Construction Loan Terms")
     st.slider("Construction / Bank LTC (%)", min_value=60.0, max_value=100.0, step=5.0, key="const_ltv_pct")
     st.slider("Construction Duration (Months)", min_value=3, max_value=18, step=1, key="build_months")
     st.slider("Construction Loan Rate (%)", min_value=4.0, max_value=14.0, step=0.5, key="const_rate_pct")
@@ -329,7 +312,7 @@ with st.sidebar.container():
             st.number_input("Recording & Misc ($)", min_value=0.0, step=50.0, key="const_misc_closing_fee")
 
 with st.sidebar.container():
-    st.subheader("9. Const. Lender Limits")
+    st.subheader("8. Const. Lender Limits")
     st.number_input("Bank Underwriting Rent ($)", min_value=0, step=50, format="%d", key="const_bank_rent")
     st.slider("Bank Underwriting LTV (%)", min_value=50.0, max_value=100.0, step=5.0, key="const_bank_ltv_pct")
     
@@ -345,12 +328,29 @@ with st.sidebar.container():
         st.selectbox("Bank Amortization (Years)", [15, 20, 25, 30], key="const_bank_amort_yrs")
 
 with st.sidebar.container():
-    st.subheader("10. Operating Pro Forma (DSCR)")
+    st.subheader("9. Operating Pro Forma (DSCR)")
     st.number_input("Gross Monthly Rental Income per Unit ($)", min_value=0, step=50, format="%d", key="gross_monthly_rent")
     st.number_input("Target Lender DSCR Rate", min_value=1.0, max_value=1.5, value=float(GLOBAL_DRIVERS.get("target_dscr_rate", 1.20)), step=0.05, key="target_dscr_rate")
     st.number_input("Min. Acceptable Cash Flow / Door ($)", min_value=0.0, max_value=1000.0, value=float(GLOBAL_DRIVERS.get("target_min_cashflow_per_door", 200.0)), step=25.0, key="target_min_cashflow_per_door")
     st.slider("Vacancy Rate (%)", min_value=0.0, max_value=15.0, step=1.0, key="vacancy_rate_pct")
     st.slider("Operating Expenses (OpEx) Rate of EGI (%)", min_value=15.0, max_value=50.0, step=1.0, key="opex_rate_pct")
+
+with st.sidebar.container():
+    st.subheader("10. Takeout Appraisal Methodology")
+    st.radio("Valuation Mode", [
+        "Sales Comp (Price/SF)", 
+        "Income Approach (GRM)", 
+        "Income Approach (DSCR Loan Sizing)",
+        "Conservative (Lesser of GRM or DSCR)"
+    ], key="appraisal_mode")
+    
+    if st.session_state.appraisal_mode in ["Income Approach (GRM)", "Conservative (Lesser of GRM or DSCR)"]:
+        st.number_input("Gross Rent Multiplier (GRM)", min_value=4.0, max_value=25.0, value=float(GLOBAL_DRIVERS.get("target_grm", 10.0)), step=0.1, key="target_grm")
+        
+    if st.session_state.appraisal_mode == "Income Approach (DSCR Loan Sizing)":
+        st.info("ARV is automatically derived from your Operating (NOI) and Refi Loan terms to exactly meet your Target DSCR and LTV constraints.")
+    elif st.session_state.appraisal_mode == "Conservative (Lesser of GRM or DSCR)":
+        st.info("ARV evaluates both the GRM and the DSCR max loan limit, automatically defaulting to whichever yields the lower valuation.")
 
 with st.sidebar.container():
     st.subheader("11. Takeout Refinance Terms")
