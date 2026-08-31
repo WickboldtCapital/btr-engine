@@ -1062,6 +1062,24 @@ comp_summary_text = (
 )
 st.info(comp_summary_text.replace("$", r"\$"))
 
+# --- NEW COMPARABLE VALUATION CHART ---
+comp_viz_data = pd.DataFrame({
+    "Space Type": ["Heated Living Area", "Auxiliary (Garage/Porches)"],
+    "Square Footage": [comp_heated_sf, comp_aux_sqft],
+    "Derived Rate ($/SF)": [isolated_heated_rate, comp_aux_rate_sf],
+    "Total Value Allocation": [comp_heated_sf * isolated_heated_rate, comp_aux_value]
+})
+
+fig_comp = px.bar(comp_viz_data, x="Total Value Allocation", y="Space Type", 
+                  color="Space Type", text="Total Value Allocation", orientation='h',
+                  title=f"True Value Allocation: Distributing the ${comp_price:,.0f} Comp",
+                  color_discrete_sequence=["#1f77b4", "#7f7f7f"])
+                  
+fig_comp.update_traces(texttemplate='$%{text:,.0f}', textposition='inside', insidetextanchor='middle')
+fig_comp.update_layout(showlegend=False, xaxis_title="Value ($)", yaxis_title="")
+st.plotly_chart(fig_comp, use_container_width=True)
+
+
 with st.expander("🧮 View Comp Math Audit & Raw API Data", expanded=False):
     
     st.markdown("**2.1 Raw Heated Rate (Total Price ÷ Heated SF Only)**")
