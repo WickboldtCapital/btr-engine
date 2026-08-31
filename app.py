@@ -66,8 +66,10 @@ HARDCODED_DRIVERS = {
     "land_basis": 15000,
     "land_raw_cost": 50000,
     "land_earthwork": 15000,
-    "land_water_sewer": 20000,
-    "land_electric_gas": 8000,
+    "land_water": 10000,
+    "land_sewer": 10000,
+    "land_electric": 5000,
+    "land_gas": 3000,
     "land_paving": 25000,
     "land_drainage": 12000,
     "land_misc_site": 5000,
@@ -218,8 +220,10 @@ with st.sidebar.container():
             st.caption("Input the total project costs for the entire development phase.")
             st.number_input("Raw Land Acquisition ($)", min_value=0, step=5000, key="land_raw_cost")
             st.number_input("Clearing, Grading & Earthwork ($)", min_value=0, step=1000, key="land_earthwork")
-            st.number_input("Water & Sewer Infrastructure ($)", min_value=0, step=1000, key="land_water_sewer")
-            st.number_input("Electrical & Gas Trenching ($)", min_value=0, step=1000, key="land_electric_gas")
+            st.number_input("Water Infrastructure ($)", min_value=0, step=1000, key="land_water")
+            st.number_input("Sewer Infrastructure ($)", min_value=0, step=1000, key="land_sewer")
+            st.number_input("Electrical Infrastructure ($)", min_value=0, step=1000, key="land_electric")
+            st.number_input("Gas Infrastructure ($)", min_value=0, step=1000, key="land_gas")
             st.number_input("Roadways, Paving & Flatwork ($)", min_value=0, step=1000, key="land_paving")
             st.number_input("Stormwater & Detention Ponds ($)", min_value=0, step=1000, key="land_drainage")
             st.number_input("Site Amenities, Lights & Signage ($)", min_value=0, step=1000, key="land_misc_site")
@@ -323,13 +327,15 @@ land_entry_mode = st.session_state.get("land_entry_mode", "Flat Lump Sum per Lot
 if land_entry_mode == "Detailed Horizontal Buildup (Project Total)":
     land_raw_cost = st.session_state.get("land_raw_cost", 50000)
     land_earthwork = st.session_state.get("land_earthwork", 15000)
-    land_water_sewer = st.session_state.get("land_water_sewer", 20000)
-    land_electric_gas = st.session_state.get("land_electric_gas", 8000)
+    land_water = st.session_state.get("land_water", 10000)
+    land_sewer = st.session_state.get("land_sewer", 10000)
+    land_electric = st.session_state.get("land_electric", 5000)
+    land_gas = st.session_state.get("land_gas", 3000)
     land_paving = st.session_state.get("land_paving", 25000)
     land_drainage = st.session_state.get("land_drainage", 12000)
     land_misc_site = st.session_state.get("land_misc_site", 5000)
     
-    total_land_detailed = land_raw_cost + land_earthwork + land_water_sewer + land_electric_gas + land_paving + land_drainage + land_misc_site
+    total_land_detailed = land_raw_cost + land_earthwork + land_water + land_sewer + land_electric + land_gas + land_paving + land_drainage + land_misc_site
     land_basis = total_land_detailed / units if units > 0 else 0
     total_land_default = total_land_detailed
 else:
@@ -779,8 +785,10 @@ if land_entry_mode == "Detailed Horizontal Buildup (Project Total)":
         "Cost Category": [
             "Raw Land Acquisition",
             "Clearing, Grading & Earthwork (Fill Dirt)",
-            "Water & Sewer Infrastructure",
-            "Electrical & Gas Trenching",
+            "Water Infrastructure",
+            "Sewer Infrastructure",
+            "Electrical Infrastructure",
+            "Gas Infrastructure",
             "Roadways, Paving & Flatwork",
             "Stormwater & Detention Ponds",
             "Site Amenities, Lights & Signage",
@@ -791,8 +799,10 @@ if land_entry_mode == "Detailed Horizontal Buildup (Project Total)":
         "Total Project Cost": [
             f"${land_raw_cost:,.0f}",
             f"${land_earthwork:,.0f}",
-            f"${land_water_sewer:,.0f}",
-            f"${land_electric_gas:,.0f}",
+            f"${land_water:,.0f}",
+            f"${land_sewer:,.0f}",
+            f"${land_electric:,.0f}",
+            f"${land_gas:,.0f}",
             f"${land_paving:,.0f}",
             f"${land_drainage:,.0f}",
             f"${land_misc_site:,.0f}",
@@ -803,8 +813,10 @@ if land_entry_mode == "Detailed Horizontal Buildup (Project Total)":
         "Cost Per Door": [
             f"${land_raw_cost/units:,.0f}" if units > 0 else "$0",
             f"${land_earthwork/units:,.0f}" if units > 0 else "$0",
-            f"${land_water_sewer/units:,.0f}" if units > 0 else "$0",
-            f"${land_electric_gas/units:,.0f}" if units > 0 else "$0",
+            f"${land_water/units:,.0f}" if units > 0 else "$0",
+            f"${land_sewer/units:,.0f}" if units > 0 else "$0",
+            f"${land_electric/units:,.0f}" if units > 0 else "$0",
+            f"${land_gas/units:,.0f}" if units > 0 else "$0",
             f"${land_paving/units:,.0f}" if units > 0 else "$0",
             f"${land_drainage/units:,.0f}" if units > 0 else "$0",
             f"${land_misc_site/units:,.0f}" if units > 0 else "$0",
@@ -1096,6 +1108,13 @@ st.divider()
 # --- 6. DEVELOPER CAPITAL & CONSTRUCTION LEDGER ---
 # ==========================================
 st.markdown("### 6. Developer Capital & Construction Ledger")
+
+land_eq_text = (
+    f"**Land Equity Capture:** The Pro Forma valuation benchmark values the lot at {lot_cost_pct*100:.1f}% "
+    f"(**${lot_benchmark:,.0f}**), while the developer's actual out-of-pocket acquisition cost is "
+    f"**${total_land_default:,.0f}**. This gap represents immediate land equity."
+)
+st.info(land_eq_text.replace("$", r"\$"))
 
 col1, col2 = st.columns(2)
 with col1:
@@ -1805,7 +1824,7 @@ def create_pdf(detail_mode):
     
     # Text summary for PDF
     pdf.set_font("Arial", '', 10)
-    clean_strategy_summary = strategy_comparison_text.replace("**", "").replace(r"\$", "$").encode('latin-1', 'replace').decode('latin-1')
+    clean_strategy_summary = strategy_comparison_text.replace("**", "").encode('latin-1', 'replace').decode('latin-1')
     pdf.multi_cell(0, 6, clean_strategy_summary)
     pdf.ln(3)
 
@@ -1841,7 +1860,7 @@ def create_pdf(detail_mode):
     
     pdf.ln(5)
     pdf.set_font("Arial", 'I', 8)
-    clean_footnote = strategy_footnote_text.replace("*Note: ", "Note: ").replace("*", "").replace(r"\$", "$").encode('latin-1', 'replace').decode('latin-1')
+    clean_footnote = strategy_footnote_text.replace("*Note: ", "Note: ").replace("*", "").encode('latin-1', 'replace').decode('latin-1')
     pdf.multi_cell(0, 5, clean_footnote)
     pdf.ln(5)
     
