@@ -605,6 +605,8 @@ total_hard_cost = target_direct_hard_cost * units
 total_arv = arv_per_unit * units
 loan_total = total_arv * refi_ltv
 
+default_buydown_cost = loan_total * (buydown_pts / 100.0) if apply_buydown else 0
+
 # Target Lot Benchmarks
 reference_price = arv_per_unit if cost_calc_mode == 'Reverse-Engineer from Appraisal' else comp_equivalent_arv
 target_lot_value_per_door = reference_price * lot_cost_pct
@@ -742,7 +744,6 @@ day1_wealth = default_gc_fee + max(0.0, cash_surplus) + retained_equity
 btr_finance_closing = carry_int_base + const_closing_fee + refi_closing_fee + default_buydown_cost
 developer_margin = total_arv - (target_total_lot_value + total_hard_cost + total_indirect_costs + total_vertical_soft + btr_finance_closing)
 
-
 # =========================================================================
 # --- SCALING CALCULATIONS (1 VS 3 VS 6) ---
 # =========================================================================
@@ -782,7 +783,6 @@ annual_cf_6 = monthly_cf_6 * 12
 
 def format_surplus(val):
     return f"+${val:,.0f}" if val >= 0 else f"-${-val:,.0f}"
-
 
 # ==========================================
 # --- PAGE HEADER ---
