@@ -71,10 +71,10 @@ HARDCODED_DRIVERS = {
     "custom_gc_fee": 20000,
     
     # Horizontal Parametric Development
-    "land_entry_mode": "Detailed Horizontal Infrastructure (LF Parametrics)",
+    "land_entry_mode": "Flat Lump Sum per Lot",
     "site_type_mode": "Auto-Calc LF (Based on Lot Frontage)",
     "manual_infra_lf": 0.0,
-    "land_basis": 15000,
+    "land_basis": 10000,
     "land_raw_cost": 50000,
     "frontage_per_lot": 50.0,
     "lot_depth": 120.0,
