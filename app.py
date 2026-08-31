@@ -1494,6 +1494,27 @@ else:
         ]
     }
 
+# --- NEW LOAN CAP CHART ---
+cap_viz_data = pd.DataFrame({
+    "Metric": ["1. Total Capital Basis", "2. Max Allowed Loan", "3. Bank Appraised Value"],
+    "Amount ($)": [total_construction_basis, actual_const_loan, bank_stressed_value],
+    "Category": ["Basis", "Loan", "Value"]
+})
+
+fig_cap = px.bar(cap_viz_data, x="Metric", y="Amount ($)", color="Category",
+                 text="Amount ($)",
+                 title="Construction Loan Sizing vs. Project Cost",
+                 color_discrete_map={
+                     "Basis": "#ff7f0e", 
+                     "Loan": "#1f77b4", 
+                     "Value": "#2ca02c"
+                 })
+fig_cap.update_traces(texttemplate='$%{text:,.0f}', textposition='outside')
+# Scale the Y-axis up slightly so the text labels don't get cut off at the top
+max_y_val = max(bank_stressed_value, total_construction_basis)
+fig_cap.update_layout(showlegend=False, xaxis_title="", yaxis_title="Amount ($)", yaxis=dict(range=[0, max_y_val * 1.15]))
+st.plotly_chart(fig_cap, use_container_width=True)
+
 with st.expander("🏦 View Bank Stress Test Metrics", expanded=False):
     st.dataframe(pd.DataFrame(stress_test_data), hide_index=True, use_container_width=True)
     if seed_capital > 0:
