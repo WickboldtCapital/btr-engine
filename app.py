@@ -71,7 +71,7 @@ HARDCODED_DRIVERS = {
     "custom_gc_fee": 20000,
     
     # Horizontal Parametric Development
-    "land_entry_mode": "Flat Lump Sum per Lot",
+    "land_entry_mode": "Detailed Horizontal Infrastructure (LF Parametrics)",
     "site_type_mode": "Auto-Calc LF (Based on Lot Frontage)",
     "manual_infra_lf": 0.0,
     "land_basis": 15000,
@@ -99,8 +99,8 @@ HARDCODED_DRIVERS = {
     "water_tap_fee": 1500.0,
     "sewer_tie_in": 1500.0,
     "electric_drop": 1000.0,
-    "gas_lateral": 500.0,
-    "impact_fees": 2500.0,
+    "gas_lateral": 0.0,
+    "impact_fees": 500.0,
     
     "appraisal_mode": "Income Approach (GRM)",
     "target_grm": 10.0,
@@ -419,8 +419,8 @@ custom_gc_fee = st.session_state.get("custom_gc_fee", 20000)
 water_tap_fee = st.session_state.get("water_tap_fee", 1500.0)
 sewer_tie_in = st.session_state.get("sewer_tie_in", 1500.0)
 electric_drop = st.session_state.get("electric_drop", 1000.0)
-gas_lateral = st.session_state.get("gas_lateral", 500.0)
-impact_fees = st.session_state.get("impact_fees", 2500.0)
+gas_lateral = st.session_state.get("gas_lateral", 0.0)
+impact_fees = st.session_state.get("impact_fees", 500.0)
 
 total_tie_in_per_door = water_tap_fee + sewer_tie_in + electric_drop + gas_lateral + impact_fees
 total_vertical_soft = total_tie_in_per_door * units
