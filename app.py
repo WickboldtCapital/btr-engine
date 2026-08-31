@@ -1658,6 +1658,31 @@ else:
 
 st.info(waterfall_summary_text.replace("$", r"\$"))
 
+# --- NEW REFINANCE WATERFALL CHART ---
+fig_refi_waterfall = go.Figure(go.Waterfall(
+    name="Refinance Waterfall",
+    orientation="v",
+    measure=["relative", "relative", "relative", "relative", "total", "relative", "total"],
+    x=["Takeout Loan", "Const. Payoff", "Refi Fees", "Buydown Pts", "Net at Close", "Seed Repayment", "Final Surplus"],
+    textposition="outside",
+    text=[
+        f"+${loan_total:,.0f}", 
+        f"-${actual_const_loan:,.0f}", 
+        f"-${refi_closing_fee:,.0f}", 
+        f"-${default_buydown_cost:,.0f}", 
+        f"${net_cash_at_closing:,.0f}", 
+        f"-${seed_capital:,.0f}", 
+        f"${cash_surplus:,.0f}"
+    ],
+    y=[loan_total, -actual_const_loan, -refi_closing_fee, -default_buydown_cost, net_cash_at_closing, -seed_capital, cash_surplus],
+    connector={"line": {"color": "rgb(63, 63, 63)"}},
+    decreasing={"marker": {"color": "#d62728"}},
+    increasing={"marker": {"color": "#2ca02c"}},
+    totals={"marker": {"color": "#1f77b4"}}
+))
+fig_refi_waterfall.update_layout(title="Refinance Cash Waterfall", showlegend=False, yaxis_title="Amount ($)")
+st.plotly_chart(fig_refi_waterfall, use_container_width=True)
+
 with st.expander("💸 View Cash-Out Waterfall & Wealth Creation Breakdown", expanded=False):
     waterfall_data = {
         "Refinance Closing Line Item": [
