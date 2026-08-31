@@ -36,7 +36,16 @@ HARDCODED_DRIVERS = {
     "const_ltv_pct": 80.0,
     "build_months": 7,
     "const_rate_pct": 7.50,
+    
+    # Construction Loan Closing Fees
+    "const_closing_mode": "Flat Lump Sum",
     "const_closing_fee": 6000,
+    "const_origination_fee": 3000.0,
+    "const_appraisal_fee": 600.0,
+    "const_title_fee": 1200.0,
+    "const_survey_fee": 500.0,
+    "const_legal_fee": 500.0,
+    "const_misc_closing_fee": 200.0,
     
     # Construction Lender Stress Constraints
     "const_bank_rent": 1500,
@@ -294,7 +303,19 @@ with st.sidebar.container():
     st.slider("Construction / Bank LTC (%)", min_value=60.0, max_value=100.0, step=5.0, key="const_ltv_pct")
     st.slider("Construction Duration (Months)", min_value=3, max_value=18, step=1, key="build_months")
     st.slider("Construction Loan Rate (%)", min_value=4.0, max_value=14.0, step=0.5, key="const_rate_pct")
-    st.number_input("Const Loan Closing Fee ($ total)", min_value=0, step=500, format="%d", key="const_closing_fee")
+    
+    st.markdown("##### Closing Costs")
+    st.radio("Closing Fee Entry Mode", ["Flat Lump Sum", "Detailed Enterprise Breakout"], key="const_closing_mode")
+    if st.session_state.const_closing_mode == "Flat Lump Sum":
+        st.number_input("Const Loan Closing Fee ($ total)", min_value=0, step=500, format="%d", key="const_closing_fee")
+    else:
+        with st.expander("💼 Detailed Closing Costs", expanded=True):
+            st.number_input("Origination / Lender Fee ($)", min_value=0.0, step=250.0, key="const_origination_fee")
+            st.number_input("Appraisal & Feasibility ($)", min_value=0.0, step=100.0, key="const_appraisal_fee")
+            st.number_input("Title, Escrow & Insurance ($)", min_value=0.0, step=100.0, key="const_title_fee")
+            st.number_input("Survey & Environmental ($)", min_value=0.0, step=100.0, key="const_survey_fee")
+            st.number_input("Legal & Doc Prep ($)", min_value=0.0, step=100.0, key="const_legal_fee")
+            st.number_input("Recording & Misc ($)", min_value=0.0, step=50.0, key="const_misc_closing_fee")
 
 with st.sidebar.container():
     st.subheader("9. Const. Lender Limits")
@@ -358,7 +379,19 @@ opex_rate = st.session_state.get("opex_rate_pct", 25.0) / 100.0
 const_ltv = st.session_state.get("const_ltv_pct", 80.0) / 100.0
 build_months = st.session_state.get("build_months", 7)
 const_rate = st.session_state.get("const_rate_pct", 7.50) / 100.0
-const_closing_fee = st.session_state.get("const_closing_fee", 6000)
+
+# Construction Closing Fee Logic
+const_closing_mode = st.session_state.get("const_closing_mode", "Flat Lump Sum")
+if const_closing_mode == "Detailed Enterprise Breakout":
+    c_orig = st.session_state.get("const_origination_fee", 3000.0)
+    c_appr = st.session_state.get("const_appraisal_fee", 600.0)
+    c_title = st.session_state.get("const_title_fee", 1200.0)
+    c_surv = st.session_state.get("const_survey_fee", 500.0)
+    c_leg = st.session_state.get("const_legal_fee", 500.0)
+    c_misc = st.session_state.get("const_misc_closing_fee", 200.0)
+    const_closing_fee = c_orig + c_appr + c_title + c_surv + c_leg + c_misc
+else:
+    const_closing_fee = st.session_state.get("const_closing_fee", 6000)
 
 const_bank_rent = st.session_state.get("const_bank_rent", 1500)
 const_bank_ltv = st.session_state.get("const_bank_ltv_pct", 80.0) / 100.0
@@ -1282,6 +1315,10 @@ land_eq_text = (
 )
 st.info(land_eq_text.replace("$", r"\$"))
 
+fin_details = ""
+if const_closing_mode == "Detailed Enterprise Breakout":
+    fin_details = "Origination, Appraisal, Title, Survey, Legal"
+
 col1, col2 = st.columns(2)
 with col1:
     st.markdown("#### Pro Forma Valuation Allocation")
@@ -1296,7 +1333,7 @@ with col2:
     fin_breakdown_df = pd.DataFrame({
         "Component": ["Const. Loan Closing Fees", "Carrying Interest", "Perm. Takeout Fees", f"Rate Buydown ({buydown_pts} pts)"],
         "Amount": [f"${const_closing_fee:,.0f}", f"${carry_int_base:,.0f}", f"${refi_closing_fee:,.0f}", f"${default_buydown_cost:,.0f}"],
-        "Details": ["", f"({build_months} months @ {const_rate*100:.2f}% on S-Curve schedule)", "", ""]
+        "Details": [fin_details, f"({build_months} months @ {const_rate*100:.2f}% on S-Curve schedule)", "", ""]
     })
     st.dataframe(fin_breakdown_df, hide_index=True, use_container_width=True)
 
