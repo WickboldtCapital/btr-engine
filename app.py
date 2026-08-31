@@ -31,7 +31,7 @@ HARDCODED_DRIVERS = {
     "target_dscr_rate": 1.20,
     "target_min_cashflow_per_door": 200.0,
     "vacancy_rate_pct": 5.0,
-    "opex_rate_pct": 25.0,
+    "opex_rate_pct": 20.0,  # Updated from 25.0
     
     "const_ltv_pct": 80.0,
     "build_months": 7,
@@ -64,7 +64,7 @@ HARDCODED_DRIVERS = {
     "base_refi_rate_pct": 7.00,
     "refi_closing_fee": 5000,
     "apply_buydown": True,
-    "buydown_pts": 3.0,
+    "buydown_pts": 2.75,  # Updated from 3.0
     
     "gc_fee_mode": "Percentage of Hard Costs (%)",
     "gc_fee_pct": 7.0,
@@ -102,7 +102,7 @@ HARDCODED_DRIVERS = {
     "gas_lateral": 0.0,
     "impact_fees": 500.0,
     
-    "appraisal_mode": "Income Approach (GRM)",
+    "appraisal_mode": "Income Approach (DSCR Loan Sizing)",  # Updated from Income Approach (GRM)
     "target_grm": 10.0,
     
     # NAHB & Indirect Cost Breakdowns
@@ -386,7 +386,7 @@ gross_monthly_rent = st.session_state.get("gross_monthly_rent", 1600)
 target_dscr_rate = st.session_state.get("target_dscr_rate", 1.20)
 target_min_cashflow_per_door = st.session_state.get("target_min_cashflow_per_door", 200.0)
 vacancy_rate = st.session_state.get("vacancy_rate_pct", 5.0) / 100.0
-opex_rate = st.session_state.get("opex_rate_pct", 25.0) / 100.0
+opex_rate = st.session_state.get("opex_rate_pct", 20.0) / 100.0
 const_ltv = st.session_state.get("const_ltv_pct", 80.0) / 100.0
 build_months = st.session_state.get("build_months", 7)
 const_rate = st.session_state.get("const_rate_pct", 7.50) / 100.0
@@ -419,7 +419,7 @@ refi_term_years = st.session_state.get("refi_term_years", 30)
 base_refi_rate = st.session_state.get("base_refi_rate_pct", 7.00) / 100.0
 refi_closing_fee = st.session_state.get("refi_closing_fee", 5000)
 apply_buydown = st.session_state.get("apply_buydown", True)
-buydown_pts = st.session_state.get("buydown_pts", 3.0)
+buydown_pts = st.session_state.get("buydown_pts", 2.75)
 net_refi_rate = max(0.01, base_refi_rate - (buydown_pts * 0.0025)) if apply_buydown else base_refi_rate
 
 gc_fee_mode = st.session_state.get("gc_fee_mode", "Percentage of Hard Costs (%)")
@@ -495,7 +495,7 @@ else:
     land_basis = st.session_state.get("land_basis", 15000)
     total_land_default = land_basis * units
 
-appraisal_mode = st.session_state.get("appraisal_mode", "Income Approach (GRM)")
+appraisal_mode = st.session_state.get("appraisal_mode", "Income Approach (DSCR Loan Sizing)")
 target_grm = st.session_state.get("target_grm", 10.0)
 
 # NAHB & Indirect Cost Breakdowns
