@@ -68,7 +68,13 @@ HARDCODED_DRIVERS = {
     "land_basis": 15000,
     "land_raw_cost": 50000,
     "frontage_per_lot": 50.0,
+    "lot_depth": 120.0,
+    "road_width": 24.0,
     "road_layout": "Double-Sided Street (Yields 2 Lots per LF)",
+    "lot_fill_inches": 12,
+    "road_fill_inches": 10,
+    "fill_cost_cy": 18.0,
+    "clearing_per_lot": 3000.0,
     "paving_type": "Concrete",
     "paving_cost_lf": 125.0,
     "drainage_type": "Curb & Subsurface Catch Basins",
@@ -77,7 +83,6 @@ HARDCODED_DRIVERS = {
     "sewer_main_lf": 65.0,
     "electric_main_lf": 35.0,
     "gas_main_lf": 20.0,
-    "earthwork_per_lot": 3000.0,
     "detention_pond": 15000.0,
     "site_amenities": 4500.0,
     
@@ -224,16 +229,28 @@ with st.sidebar.container():
     else:
         st.number_input("Raw Land Acquisition ($ Total)", min_value=0, step=5000, key="land_raw_cost")
         
-        st.markdown("##### Infrastructure Sizing")
-        st.radio("Infrastructure Scope", ["Auto-Calc LF (Based on Lot Frontage)", "Manual Total LF (Infill / Custom)"], key="site_type_mode")
+        st.markdown("##### Subdivision Geometry & Sizing")
+        c_geom1, c_geom2 = st.columns(2)
+        c_geom1.number_input("Average Lot Frontage (ft)", min_value=10.0, step=5.0, key="frontage_per_lot")
+        c_geom2.number_input("Average Lot Depth (ft)", min_value=50.0, step=10.0, key="lot_depth")
         
+        st.radio("Infrastructure Scope", ["Auto-Calc LF (Based on Lot Frontage)", "Manual Total LF (Infill / Custom)"], key="site_type_mode")
         if st.session_state.site_type_mode == "Auto-Calc LF (Based on Lot Frontage)":
-            st.number_input("Average Lot Frontage (Linear Feet)", min_value=10.0, step=5.0, key="frontage_per_lot")
             st.radio("Street Layout / Orientation", ["Single-Sided Street (1 Lot per LF)", "Double-Sided Street (Yields 2 Lots per LF)"], key="road_layout")
         else:
-            st.number_input("Total New Street & Main Extension Length (LF)", min_value=0.0, step=10.0, key="manual_infra_lf", help="Set to 0 for infill lots where the road and mains already exist.")
+            st.number_input("Total New Street & Main Ext. Length (LF)", min_value=0.0, step=10.0, key="manual_infra_lf", help="Set to 0 for infill lots where the road and mains already exist.")
+
+        st.markdown("##### Earthwork & Fill Dirt Calculator")
+        c_fill1, c_fill2 = st.columns(2)
+        c_fill1.number_input("Lot Fill Depth (Inches)", min_value=0, max_value=48, step=6, key="lot_fill_inches", help="Assumes 6-inch compaction lifts.")
+        c_fill2.number_input("Road Fill Depth (Inches)", min_value=0, max_value=48, step=5, key="road_fill_inches", help="Assumes 5-inch compaction lifts.")
+        
+        c_fill3, c_fill4 = st.columns(2)
+        c_fill3.number_input("Fill Cost ($/CY Compacted)", min_value=0.0, step=1.0, key="fill_cost_cy")
+        c_fill4.number_input("Base Clear/Grub ($/Lot)", min_value=0.0, step=500.0, key="clearing_per_lot")
 
         st.markdown("##### Roadway & Trenching Rates ($ / LF)")
+        st.number_input("Road Width (Feet)", min_value=10.0, step=2.0, key="road_width")
         c_pave1, c_pave2 = st.columns(2)
         c_pave1.selectbox("Paving Material", ["Asphalt", "Concrete"], key="paving_type")
         c_pave2.number_input("Paving Rate ($/LF)", min_value=0.0, step=5.0, key="paving_cost_lf")
@@ -250,8 +267,7 @@ with st.sidebar.container():
         c_ut3.number_input("Elec/Comm Trench ($/LF)", min_value=0.0, step=2.5, key="electric_main_lf")
         c_ut4.number_input("Gas Main Ext. ($/LF)", min_value=0.0, step=2.5, key="gas_main_lf")
 
-        st.markdown("##### Site-Wide Earthwork & Amenities ($ Total)")
-        st.number_input("Fill Dirt, Clearing & Grading ($ per Lot)", min_value=0.0, step=500.0, key="earthwork_per_lot")
+        st.markdown("##### Site-Wide Amenities ($ Total)")
         st.number_input("Stormwater Detention Pond ($ Total)", min_value=0.0, step=2500.0, key="detention_pond")
         st.number_input("Street Lights, Signage & Landscaping ($ Total)", min_value=0.0, step=1000.0, key="site_amenities")
 
@@ -382,21 +398,40 @@ total_vertical_soft = total_tie_in_per_door * units
 land_entry_mode = st.session_state.get("land_entry_mode", "Flat Lump Sum per Lot")
 if land_entry_mode == "Detailed Horizontal Infrastructure (LF Parametrics)":
     land_raw_cost = st.session_state.get("land_raw_cost", 50000)
+    frontage_per_lot = st.session_state.get("frontage_per_lot", 50.0)
+    lot_depth = st.session_state.get("lot_depth", 120.0)
     
     site_type_mode = st.session_state.get("site_type_mode", "Auto-Calc LF (Based on Lot Frontage)")
     if site_type_mode == "Auto-Calc LF (Based on Lot Frontage)":
-        frontage_per_lot = st.session_state.get("frontage_per_lot", 50.0)
         road_layout = st.session_state.get("road_layout", "Double-Sided Street (Yields 2 Lots per LF)")
         total_road_lf = (frontage_per_lot * units) if "Single" in road_layout else (frontage_per_lot * units) / 2.0
     else:
         total_road_lf = st.session_state.get("manual_infra_lf", 0.0)
         
+    road_width = st.session_state.get("road_width", 24.0)
     paving_cost_lf = st.session_state.get("paving_cost_lf", 125.0)
     drainage_cost_lf = st.session_state.get("drainage_cost_lf", 85.0)
     water_main_lf = st.session_state.get("water_main_lf", 45.0)
     sewer_main_lf = st.session_state.get("sewer_main_lf", 65.0)
     electric_main_lf = st.session_state.get("electric_main_lf", 35.0)
     gas_main_lf = st.session_state.get("gas_main_lf", 20.0)
+    
+    # Volumetric Earthwork Calculation
+    lot_fill_inches = st.session_state.get("lot_fill_inches", 12.0)
+    road_fill_inches = st.session_state.get("road_fill_inches", 10.0)
+    fill_cost_cy = st.session_state.get("fill_cost_cy", 18.0)
+    clearing_per_lot = st.session_state.get("clearing_per_lot", 3000.0)
+    
+    lot_sqft_total = frontage_per_lot * lot_depth * units
+    road_sqft_total = total_road_lf * road_width
+    
+    lot_fill_cy = (lot_sqft_total * (lot_fill_inches / 12.0)) / 27.0
+    road_fill_cy = (road_sqft_total * (road_fill_inches / 12.0)) / 27.0
+    total_fill_cy = lot_fill_cy + road_fill_cy
+    
+    fill_dirt_cost = total_fill_cy * fill_cost_cy
+    base_clearing_cost = clearing_per_lot * units
+    land_earthwork = base_clearing_cost + fill_dirt_cost
     
     land_paving = total_road_lf * paving_cost_lf
     land_drainage = total_road_lf * drainage_cost_lf
@@ -405,7 +440,6 @@ if land_entry_mode == "Detailed Horizontal Infrastructure (LF Parametrics)":
     land_electric_main = total_road_lf * electric_main_lf
     land_gas_main = total_road_lf * gas_main_lf
     
-    land_earthwork = st.session_state.get("earthwork_per_lot", 3000.0) * units
     detention_pond = st.session_state.get("detention_pond", 15000.0)
     site_amenities = st.session_state.get("site_amenities", 4500.0)
     
@@ -448,7 +482,7 @@ comp_storage_sf = st.session_state.get("comp_storage_sf", 0)
 aux_sqft_total = struct_sqft + front_porch_sqft + back_porch_sqft + storage_sqft
 total_under_roof_sqft = sqft + aux_sqft_total
 
-comp_aux_sqft = comp_struct_sf + comp_front_sf + back_porch_sqft + storage_sqft
+comp_aux_sqft = comp_struct_sf + comp_front_sf + comp_back_sf + comp_storage_sf
 comp_total_sf = comp_heated_sf + comp_aux_sqft
 raw_comp_price_sf = comp_price / comp_heated_sf if comp_heated_sf > 0 else 0
 
@@ -654,7 +688,6 @@ day1_wealth = default_gc_fee + max(0.0, cash_surplus) + retained_equity
 btr_finance_closing = carry_int_base + const_closing_fee + refi_closing_fee + default_buydown_cost
 developer_margin = total_arv - (target_total_lot_value + total_hard_cost + total_indirect_costs + total_vertical_soft + btr_finance_closing)
 
-
 # =========================================================================
 # --- SCALING CALCULATIONS (1 VS 3 VS 6) ---
 # =========================================================================
@@ -859,7 +892,7 @@ if land_entry_mode == "Detailed Horizontal Infrastructure (LF Parametrics)":
     horizontal_data = {
         "Cost Category": [
             "Raw Land Acquisition",
-            "Clearing, Grading & Earthwork (Fill Dirt)",
+            f"Earthwork & Fill ({total_fill_cy:,.0f} CY @ ${fill_cost_cy:,.0f}/CY + Clearing)",
             f"Water Main Infrastructure ({total_road_lf:,.0f} LF @ ${water_main_lf:,.0f}/LF)",
             f"Sewer Main Infrastructure ({total_road_lf:,.0f} LF @ ${sewer_main_lf:,.0f}/LF)",
             f"Electrical/Comm Trenching ({total_road_lf:,.0f} LF @ ${electric_main_lf:,.0f}/LF)",
@@ -1183,13 +1216,6 @@ st.divider()
 # --- 6. DEVELOPER CAPITAL & CONSTRUCTION LEDGER ---
 # ==========================================
 st.markdown("### 6. Developer Capital & Construction Ledger")
-
-land_eq_text = (
-    f"**Land Equity Capture:** The Pro Forma valuation benchmark values the lot at {lot_cost_pct*100:.1f}% "
-    f"(**${lot_benchmark:,.0f}**), while the developer's actual out-of-pocket acquisition/development basis is "
-    f"**${total_land_default:,.0f}**. This gap represents immediate land equity."
-)
-st.info(land_eq_text.replace("$", r"\$"))
 
 col1, col2 = st.columns(2)
 with col1:
