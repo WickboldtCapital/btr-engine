@@ -3,6 +3,7 @@ import pandas as pd
 from fpdf import FPDF
 from pptx import Presentation
 import plotly.express as px
+import plotly.graph_objects as go
 import tempfile
 import requests
 import os
@@ -1597,6 +1598,25 @@ operating_summary_text = (
     f"in net passive cash flow per door every month."
 )
 st.info(operating_summary_text.replace("$", r"\$"))
+
+# --- NEW OPERATING WATERFALL CHART ---
+monthly_opex = annual_opex / 12.0
+fig_op = go.Figure(go.Waterfall(
+    name="Operating Cash Flow",
+    orientation="v",
+    measure=["relative", "relative", "relative", "total", "relative", "total"],
+    x=["Gross Rent", "Vacancy Loss", "Operating Expenses", "NOI", "Debt Service (P&I)", "Net Cash Flow"],
+    textposition="outside",
+    text=[f"+${total_gross_monthly_income:,.0f}", f"-${monthly_vacancy_loss:,.0f}", f"-${monthly_opex:,.0f}", f"${monthly_noi:,.0f}", f"-${total_monthly_pi:,.0f}", f"${monthly_cash_flow:,.0f}"],
+    y=[total_gross_monthly_income, -monthly_vacancy_loss, -monthly_opex, monthly_noi, -total_monthly_pi, monthly_cash_flow],
+    connector={"line": {"color": "rgb(63, 63, 63)"}},
+    decreasing={"marker": {"color": "#d62728"}},
+    increasing={"marker": {"color": "#2ca02c"}},
+    totals={"marker": {"color": "#1f77b4"}}
+))
+fig_op.update_layout(title="Monthly Operating Cash Flow Waterfall", showlegend=False, yaxis_title="Amount ($)")
+st.plotly_chart(fig_op, use_container_width=True)
+
 
 with st.expander("🏢 View Stabilized Operating Pro Forma (DSCR)", expanded=False):
     dscr_summary_data = {
