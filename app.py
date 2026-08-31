@@ -1099,71 +1099,72 @@ horizontal_summary_text = (
 )
 st.info(horizontal_summary_text.replace("$", r"\$"))
 
-if land_entry_mode == "Detailed Horizontal Infrastructure (LF Parametrics)":
-    horizontal_data = {
-        "Cost Category": [
-            "Raw Land Acquisition",
-            f"Earthwork & Fill ({total_fill_cy:,.0f} CY @ ${fill_cost_cy:,.0f}/CY + Clearing)",
-            f"Water Main Infrastructure ({total_road_lf:,.0f} LF @ ${water_main_lf:,.0f}/LF)",
-            f"Sewer Main Infrastructure ({total_road_lf:,.0f} LF @ ${sewer_main_lf:,.0f}/LF)",
-            f"Electrical/Comm Trenching ({total_road_lf:,.0f} LF @ ${electric_main_lf:,.0f}/LF)",
-            f"Gas Main Infrastructure ({total_road_lf:,.0f} LF @ ${gas_main_lf:,.0f}/LF)",
-            f"Roadways, Paving & Flatwork ({total_road_lf:,.0f} LF @ ${paving_cost_lf:,.0f}/LF)",
-            f"Stormwater & Drainage ({total_road_lf:,.0f} LF @ ${drainage_cost_lf:,.0f}/LF + Pond)",
-            "Site Amenities, Lights & Signage",
-            "TOTAL ACTUAL HORIZONTAL BASIS",
-            "TARGET FINISHED LOT VALUE (BENCHMARK)",
-            "CAPTURED LAND EQUITY"
-        ],
-        "Total Project Cost": [
-            f"${land_raw_cost:,.0f}",
-            f"${land_earthwork:,.0f}",
-            f"${land_water_main:,.0f}",
-            f"${land_sewer_main:,.0f}",
-            f"${land_electric_main:,.0f}",
-            f"${land_gas_main:,.0f}",
-            f"${land_paving:,.0f}",
-            f"${land_drainage + detention_pond:,.0f}",
-            f"${site_amenities:,.0f}",
-            f"${total_land_default:,.0f}",
-            f"${target_total_lot_value:,.0f}",
-            f"${land_equity_captured:,.0f}"
-        ],
-        "Cost Per Door": [
-            f"${land_raw_cost/units:,.0f}" if units > 0 else "$0",
-            f"${land_earthwork/units:,.0f}" if units > 0 else "$0",
-            f"${land_water_main/units:,.0f}" if units > 0 else "$0",
-            f"${land_sewer_main/units:,.0f}" if units > 0 else "$0",
-            f"${land_electric_main/units:,.0f}" if units > 0 else "$0",
-            f"${land_gas_main/units:,.0f}" if units > 0 else "$0",
-            f"${land_paving/units:,.0f}" if units > 0 else "$0",
-            f"${(land_drainage + detention_pond)/units:,.0f}" if units > 0 else "$0",
-            f"${site_amenities/units:,.0f}" if units > 0 else "$0",
-            f"${land_basis:,.0f}",
-            f"${target_lot_value_per_door:,.0f}",
-            f"${land_equity_captured/units:,.0f}" if units > 0 else "$0"
-        ]
-    }
-    st.dataframe(pd.DataFrame(horizontal_data), hide_index=True, use_container_width=True)
-else:
-    horizontal_data = {
-        "Cost Category": [
-            "Total Flat Finished Lot Basis",
-            "Target Finished Lot Value (Benchmark)",
-            "Captured Land Equity"
-        ],
-        "Total Project Cost": [
-            f"${total_land_default:,.0f}",
-            f"${target_total_lot_value:,.0f}",
-            f"${land_equity_captured:,.0f}"
-        ],
-        "Cost Per Door": [
-            f"${land_basis:,.0f}",
-            f"${target_lot_value_per_door:,.0f}",
-            f"${land_equity_captured/units:,.0f}" if units > 0 else "$0"
-        ]
-    }
-    st.dataframe(pd.DataFrame(horizontal_data), hide_index=True, use_container_width=True)
+with st.expander("🚜 View Land Development & Infrastructure Budget", expanded=False):
+    if land_entry_mode == "Detailed Horizontal Infrastructure (LF Parametrics)":
+        horizontal_data = {
+            "Cost Category": [
+                "Raw Land Acquisition",
+                f"Earthwork & Fill ({total_fill_cy:,.0f} CY @ ${fill_cost_cy:,.0f}/CY + Clearing)",
+                f"Water Main Infrastructure ({total_road_lf:,.0f} LF @ ${water_main_lf:,.0f}/LF)",
+                f"Sewer Main Infrastructure ({total_road_lf:,.0f} LF @ ${sewer_main_lf:,.0f}/LF)",
+                f"Electrical/Comm Trenching ({total_road_lf:,.0f} LF @ ${electric_main_lf:,.0f}/LF)",
+                f"Gas Main Infrastructure ({total_road_lf:,.0f} LF @ ${gas_main_lf:,.0f}/LF)",
+                f"Roadways, Paving & Flatwork ({total_road_lf:,.0f} LF @ ${paving_cost_lf:,.0f}/LF)",
+                f"Stormwater & Drainage ({total_road_lf:,.0f} LF @ ${drainage_cost_lf:,.0f}/LF + Pond)",
+                "Site Amenities, Lights & Signage",
+                "TOTAL ACTUAL HORIZONTAL BASIS",
+                "TARGET FINISHED LOT VALUE (BENCHMARK)",
+                "CAPTURED LAND EQUITY"
+            ],
+            "Total Project Cost": [
+                f"${land_raw_cost:,.0f}",
+                f"${land_earthwork:,.0f}",
+                f"${land_water_main:,.0f}",
+                f"${land_sewer_main:,.0f}",
+                f"${land_electric_main:,.0f}",
+                f"${land_gas_main:,.0f}",
+                f"${land_paving:,.0f}",
+                f"${land_drainage + detention_pond:,.0f}",
+                f"${site_amenities:,.0f}",
+                f"${total_land_default:,.0f}",
+                f"${target_total_lot_value:,.0f}",
+                f"${land_equity_captured:,.0f}"
+            ],
+            "Cost Per Door": [
+                f"${land_raw_cost/units:,.0f}" if units > 0 else "$0",
+                f"${land_earthwork/units:,.0f}" if units > 0 else "$0",
+                f"${land_water_main/units:,.0f}" if units > 0 else "$0",
+                f"${land_sewer_main/units:,.0f}" if units > 0 else "$0",
+                f"${land_electric_main/units:,.0f}" if units > 0 else "$0",
+                f"${land_gas_main/units:,.0f}" if units > 0 else "$0",
+                f"${land_paving/units:,.0f}" if units > 0 else "$0",
+                f"${(land_drainage + detention_pond)/units:,.0f}" if units > 0 else "$0",
+                f"${site_amenities/units:,.0f}" if units > 0 else "$0",
+                f"${land_basis:,.0f}",
+                f"${target_lot_value_per_door:,.0f}",
+                f"${land_equity_captured/units:,.0f}" if units > 0 else "$0"
+            ]
+        }
+        st.dataframe(pd.DataFrame(horizontal_data), hide_index=True, use_container_width=True)
+    else:
+        horizontal_data = {
+            "Cost Category": [
+                "Total Flat Finished Lot Basis",
+                "Target Finished Lot Value (Benchmark)",
+                "Captured Land Equity"
+            ],
+            "Total Project Cost": [
+                f"${total_land_default:,.0f}",
+                f"${target_total_lot_value:,.0f}",
+                f"${land_equity_captured:,.0f}"
+            ],
+            "Cost Per Door": [
+                f"${land_basis:,.0f}",
+                f"${target_lot_value_per_door:,.0f}",
+                f"${land_equity_captured/units:,.0f}" if units > 0 else "$0"
+            ]
+        }
+        st.dataframe(pd.DataFrame(horizontal_data), hide_index=True, use_container_width=True)
 
 st.divider()
 
@@ -1181,171 +1182,172 @@ granular_summary_text = (
 )
 st.info(granular_summary_text.replace("$", r"\$"))
 
-granular_mode = st.radio("Buildup Entry Mode", ["Auto-Proportional (Linked to Master Model)", "Manual Custom Entry (Bottom-Up)"], horizontal=True)
+with st.expander("🔨 View Granular Trade Buildup & Master Roll-up", expanded=False):
+    granular_mode = st.radio("Buildup Entry Mode", ["Auto-Proportional (Linked to Master Model)", "Manual Custom Entry (Bottom-Up)"], horizontal=True)
 
-# Exact NAHB 8 Stages & 36 Components Mapping
-raw_heated_divs = [
-    ("I. SITE WORK", 7.6, True),
-    ("- Building Permit Fees", 1.8, False),
-    ("- Impact Fee", 1.5, False),
-    ("- Water & Sewer Fees / Inspections", 1.5, False),
-    ("- Architecture & Engineering", 1.5, False),
-    ("- Site Work - Other", 1.3, False),
+    # Exact NAHB 8 Stages & 36 Components Mapping
+    raw_heated_divs = [
+        ("I. SITE WORK", 7.6, True),
+        ("- Building Permit Fees", 1.8, False),
+        ("- Impact Fee", 1.5, False),
+        ("- Water & Sewer Fees / Inspections", 1.5, False),
+        ("- Architecture & Engineering", 1.5, False),
+        ("- Site Work - Other", 1.3, False),
 
-    ("II. FOUNDATIONS", 10.5, True),
-    ("- Excavation, Foundation, Concrete, Backfill", 10.0, False),
-    ("- Foundations - Other", 0.5, False),
+        ("II. FOUNDATIONS", 10.5, True),
+        ("- Excavation, Foundation, Concrete, Backfill", 10.0, False),
+        ("- Foundations - Other", 0.5, False),
 
-    ("III. FRAMING", 16.6, True),
-    ("- Framing (including roof)", 11.6, False),
-    ("- Trusses", 3.0, False),
-    ("- Sheathing", 1.5, False),
-    ("- General Metal, Steel", 0.4, False),
-    ("- Framing - Other", 0.1, False),
+        ("III. FRAMING", 16.6, True),
+        ("- Framing (including roof)", 11.6, False),
+        ("- Trusses", 3.0, False),
+        ("- Sheathing", 1.5, False),
+        ("- General Metal, Steel", 0.4, False),
+        ("- Framing - Other", 0.1, False),
 
-    ("IV. EXTERIOR FINISHES", 13.4, True),
-    ("- Exterior Wall Finish", 5.7, False),
-    ("- Roofing", 3.9, False),
-    ("- Windows and Doors (incl. garage door)", 3.7, False),
-    ("- Exterior Finishes - Other", 0.1, False),
+        ("IV. EXTERIOR FINISHES", 13.4, True),
+        ("- Exterior Wall Finish", 5.7, False),
+        ("- Roofing", 3.9, False),
+        ("- Windows and Doors (incl. garage door)", 3.7, False),
+        ("- Exterior Finishes - Other", 0.1, False),
 
-    ("V. MAJOR SYSTEMS ROUGH-INS", 19.2, True),
-    ("- Plumbing (except fixtures)", 6.3, False),
-    ("- Electrical (except fixtures)", 6.4, False),
-    ("- HVAC", 6.3, False),
-    ("- Major Systems - Other", 0.2, False),
+        ("V. MAJOR SYSTEMS ROUGH-INS", 19.2, True),
+        ("- Plumbing (except fixtures)", 6.3, False),
+        ("- Electrical (except fixtures)", 6.4, False),
+        ("- HVAC", 6.3, False),
+        ("- Major Systems - Other", 0.2, False),
 
-    ("VI. INTERIOR FINISHES", 24.1, True),
-    ("- Insulation", 1.6, False),
-    ("- Drywall", 3.3, False),
-    ("- Interior Trims, Doors, and Mirrors", 3.0, False),
-    ("- Painting", 2.6, False),
-    ("- Lighting", 1.3, False),
-    ("- Cabinets, Countertops", 4.4, False),
-    ("- Appliances", 1.7, False),
-    ("- Flooring", 3.6, False),
-    ("- Plumbing Fixtures", 1.8, False),
-    ("- Fireplace", 0.6, False),
-    ("- Interior Finishes - Other", 0.2, False),
+        ("VI. INTERIOR FINISHES", 24.1, True),
+        ("- Insulation", 1.6, False),
+        ("- Drywall", 3.3, False),
+        ("- Interior Trims, Doors, and Mirrors", 3.0, False),
+        ("- Painting", 2.6, False),
+        ("- Lighting", 1.3, False),
+        ("- Cabinets, Countertops", 4.4, False),
+        ("- Appliances", 1.7, False),
+        ("- Flooring", 3.6, False),
+        ("- Plumbing Fixtures", 1.8, False),
+        ("- Fireplace", 0.6, False),
+        ("- Interior Finishes - Other", 0.2, False),
 
-    ("VII. FINAL STEPS", 6.5, True),
-    ("- Landscaping", 2.2, False),
-    ("- Outdoor Structures (deck, patio, porches)", 1.1, False),
-    ("- Driveway", 2.3, False),
-    ("- Clean Up", 0.9, False),
+        ("VII. FINAL STEPS", 6.5, True),
+        ("- Landscaping", 2.2, False),
+        ("- Outdoor Structures (deck, patio, porches)", 1.1, False),
+        ("- Driveway", 2.3, False),
+        ("- Clean Up", 0.9, False),
 
-    ("VIII. OTHER", 2.1, True),
-    ("- Miscellaneous / Other", 2.1, False),
-]
-
-raw_struct_divs = [("AUXILIARY: CARPORT / GARAGE", 35.00, True)]
-pdf_granular_data = []
-
-if granular_mode == "Auto-Proportional (Linked to Master Model)":
-    st.markdown(f"#### 4.1 Heated Living Area ({sqft} SF @ ${direct_cost_sf:.2f} / SF)".replace("$", r"\$"))
-    h_data = {"Division / Trade Level": [], "Live Cost / SF": [], "Per Unit Cost": []}
-    for name, base_val, is_header in raw_heated_divs:
-        live_sf = direct_cost_sf * (base_val / 100.0)
-        if is_header:
-            h_data["Division / Trade Level"].append(f"{name}")
-            h_data["Live Cost / SF"].append(f"${live_sf:.2f}")
-            h_data["Per Unit Cost"].append(f"${live_sf * sqft:,.0f}")
-            pdf_granular_data.append((name, live_sf, live_sf * sqft, live_sf * sqft * units, True))
-        else:
-            h_data["Division / Trade Level"].append(f"   {name}")
-            h_data["Live Cost / SF"].append(f"${live_sf:.2f}")
-            h_data["Per Unit Cost"].append(f"${live_sf * sqft:,.0f}")
-            pdf_granular_data.append((f"   {name}", live_sf, live_sf * sqft, live_sf * sqft * units, False))
-    st.dataframe(pd.DataFrame(h_data), hide_index=True, use_container_width=True)
-    
-    st.markdown(f"#### 4.2 {st.session_state.structure_type} Auxiliary ({struct_sqft} SF @ ${struct_cost_sf:.2f} / SF)".replace("$", r"\$"))
-    s_data = {"Component Level": [], "Live Cost / SF": [], "Per Unit Cost": []}
-    for name, base_val, is_header in raw_struct_divs:
-        live_sf = struct_cost_sf * (base_val / 35.0)
-        s_data["Component Level"].append(name)
-        s_data["Live Cost / SF"].append(f"${live_sf:.2f}")
-        s_data["Per Unit Cost"].append(f"${live_sf * struct_sqft:,.0f}")
-    st.dataframe(pd.DataFrame(s_data), hide_index=True, use_container_width=True)
-else:
-    st.markdown(f"#### 4.1 Heated Living Area ({sqft} SF)")
-    hl_heated = []
-    current_header = ""
-    for name, base, is_h in raw_heated_divs:
-        if is_h:
-            current_header = name
-        else:
-            hl_heated.append({"Category": current_header, "Division / Component": name.replace("- ", ""), "Cost / SF": direct_cost_sf * (base/100.0)})
-    
-    df_manual = pd.DataFrame(hl_heated)
-    edited_h = st.data_editor(df_manual.drop(columns=["Category"]), column_config={"Division / Component": st.column_config.TextColumn(disabled=True), "Cost / SF": st.column_config.NumberColumn(format="$%.2f", min_value=0.0, step=0.5)}, hide_index=True, use_container_width=True)
-    
-    direct_cost_sf = edited_h["Cost / SF"].sum()
-    df_manual["Cost / SF"] = edited_h["Cost / SF"]
-    
-    # Intelligently re-aggregate Manual Custom Items back into the 8 NAHB Headers for the PDF Engine
-    for cat in df_manual["Category"].unique():
-        cat_df = df_manual[df_manual["Category"] == cat]
-        cat_sum = cat_df["Cost / SF"].sum()
-        pdf_granular_data.append((cat, cat_sum, cat_sum * sqft, cat_sum * sqft * units, True))
-        for _, row in cat_df.iterrows():
-            live_sf = row["Cost / SF"]
-            pdf_granular_data.append((f"   - {row['Division / Component']}", live_sf, live_sf * sqft, live_sf * sqft * units, False))
-    
-    st.markdown(f"#### 4.2 {st.session_state.structure_type} Auxiliary ({struct_sqft} SF)")
-    hl_struct = [{"Component Level": name, "Cost / SF": struct_cost_sf * (base/35.0)} for name, base, is_h in raw_struct_divs]
-    edited_s = st.data_editor(pd.DataFrame(hl_struct), column_config={"Component Level": st.column_config.TextColumn(disabled=True), "Cost / SF": st.column_config.NumberColumn(format="$%.2f", min_value=0.0, step=0.5)}, hide_index=True, use_container_width=True)
-    struct_cost_sf = edited_s["Cost / SF"].sum()
-
-st.markdown("#### 4.3 Auxiliary, Foundation & Outdoor Living")
-p_data = {
-    "Component": ["Front Porch", "Back Porch", "Storage Room", "Addit. Foundation / Elevation", "TOTAL AUX/OUTDOOR"],
-    "Area (SF)": [f"{front_porch_sqft} SF", f"{back_porch_sqft} SF", f"{storage_sqft} SF", "Site Specific", "Total"],
-    "Cost / SF": [f"${front_porch_cost_sf:.2f}", f"${back_porch_cost_sf:.2f}", f"${storage_cost_sf:.2f}", "-", "-"],
-    "Total Amount": [f"${front_porch_cost:,.0f}", f"${back_porch_cost:,.0f}", f"${storage_cost:,.0f}", f"${additional_foundation_cost:,.0f}", f"${our_aux_cost_total:,.0f}"]
-}
-st.dataframe(pd.DataFrame(p_data), hide_index=True, use_container_width=True)
-
-# Master Direct Hard Cost Roll-up Table
-st.markdown("#### 4.4 Direct Hard Cost Master Roll-up")
-direct_rollup_df = pd.DataFrame({
-    "Category / Major Sub-Assembly": [
-        f"1. Heated Living Area ({sqft:,} SF)",
-        f"2. {st.session_state.structure_type} Structure ({struct_sqft:,} SF)",
-        f"3. Outdoor & Storage Spaces ({front_porch_sqft + back_porch_sqft + storage_sqft:,} SF)",
-        "4. Site Foundation & Elevation Premium",
-        "TOTAL DIRECT HARD COST BUDGET"
-    ],
-    "Effective Rate": [
-        f"${direct_cost_sf:.2f} / Heated SF",
-        f"${struct_cost_sf:.2f} / SF",
-        f"${struct_cost_sf:.2f} / SF (Avg)",
-        "Flat Lump Sum",
-        f"${blended_cost_per_sf:.2f} / SF Under Roof"
-    ],
-    "Per Unit Cost ($)": [
-        heated_hard_cost,
-        struct_total_cost,
-        outdoor_aux_subtotal_unit,
-        additional_foundation_cost,
-        target_direct_hard_cost
-    ],
-    "Project Total ($)": [
-        heated_hard_cost * units,
-        struct_total_cost * units,
-        outdoor_aux_subtotal_unit * units,
-        additional_foundation_cost * units,
-        total_hard_cost
+        ("VIII. OTHER", 2.1, True),
+        ("- Miscellaneous / Other", 2.1, False),
     ]
-})
 
-st.dataframe(
-    direct_rollup_df.style.format({
-        "Per Unit Cost ($)": "${:,.0f}",
-        "Project Total ($)": "${:,.0f}"
-    }),
-    hide_index=True,
-    use_container_width=True
-)
+    raw_struct_divs = [("AUXILIARY: CARPORT / GARAGE", 35.00, True)]
+    pdf_granular_data = []
+
+    if granular_mode == "Auto-Proportional (Linked to Master Model)":
+        st.markdown(f"#### 4.1 Heated Living Area ({sqft} SF @ ${direct_cost_sf:.2f} / SF)".replace("$", r"\$"))
+        h_data = {"Division / Trade Level": [], "Live Cost / SF": [], "Per Unit Cost": []}
+        for name, base_val, is_header in raw_heated_divs:
+            live_sf = direct_cost_sf * (base_val / 100.0)
+            if is_header:
+                h_data["Division / Trade Level"].append(f"{name}")
+                h_data["Live Cost / SF"].append(f"${live_sf:.2f}")
+                h_data["Per Unit Cost"].append(f"${live_sf * sqft:,.0f}")
+                pdf_granular_data.append((name, live_sf, live_sf * sqft, live_sf * sqft * units, True))
+            else:
+                h_data["Division / Trade Level"].append(f"   {name}")
+                h_data["Live Cost / SF"].append(f"${live_sf:.2f}")
+                h_data["Per Unit Cost"].append(f"${live_sf * sqft:,.0f}")
+                pdf_granular_data.append((f"   {name}", live_sf, live_sf * sqft, live_sf * sqft * units, False))
+        st.dataframe(pd.DataFrame(h_data), hide_index=True, use_container_width=True)
+        
+        st.markdown(f"#### 4.2 {st.session_state.structure_type} Auxiliary ({struct_sqft} SF @ ${struct_cost_sf:.2f} / SF)".replace("$", r"\$"))
+        s_data = {"Component Level": [], "Live Cost / SF": [], "Per Unit Cost": []}
+        for name, base_val, is_header in raw_struct_divs:
+            live_sf = struct_cost_sf * (base_val / 35.0)
+            s_data["Component Level"].append(name)
+            s_data["Live Cost / SF"].append(f"${live_sf:.2f}")
+            s_data["Per Unit Cost"].append(f"${live_sf * struct_sqft:,.0f}")
+        st.dataframe(pd.DataFrame(s_data), hide_index=True, use_container_width=True)
+    else:
+        st.markdown(f"#### 4.1 Heated Living Area ({sqft} SF)")
+        hl_heated = []
+        current_header = ""
+        for name, base, is_h in raw_heated_divs:
+            if is_h:
+                current_header = name
+            else:
+                hl_heated.append({"Category": current_header, "Division / Component": name.replace("- ", ""), "Cost / SF": direct_cost_sf * (base/100.0)})
+        
+        df_manual = pd.DataFrame(hl_heated)
+        edited_h = st.data_editor(df_manual.drop(columns=["Category"]), column_config={"Division / Component": st.column_config.TextColumn(disabled=True), "Cost / SF": st.column_config.NumberColumn(format="$%.2f", min_value=0.0, step=0.5)}, hide_index=True, use_container_width=True)
+        
+        direct_cost_sf = edited_h["Cost / SF"].sum()
+        df_manual["Cost / SF"] = edited_h["Cost / SF"]
+        
+        # Intelligently re-aggregate Manual Custom Items back into the 8 NAHB Headers for the PDF Engine
+        for cat in df_manual["Category"].unique():
+            cat_df = df_manual[df_manual["Category"] == cat]
+            cat_sum = cat_df["Cost / SF"].sum()
+            pdf_granular_data.append((cat, cat_sum, cat_sum * sqft, cat_sum * sqft * units, True))
+            for _, row in cat_df.iterrows():
+                live_sf = row["Cost / SF"]
+                pdf_granular_data.append((f"   - {row['Division / Component']}", live_sf, live_sf * sqft, live_sf * sqft * units, False))
+        
+        st.markdown(f"#### 4.2 {st.session_state.structure_type} Auxiliary ({struct_sqft} SF)")
+        hl_struct = [{"Component Level": name, "Cost / SF": struct_cost_sf * (base/35.0)} for name, base, is_h in raw_struct_divs]
+        edited_s = st.data_editor(pd.DataFrame(hl_struct), column_config={"Component Level": st.column_config.TextColumn(disabled=True), "Cost / SF": st.column_config.NumberColumn(format="$%.2f", min_value=0.0, step=0.5)}, hide_index=True, use_container_width=True)
+        struct_cost_sf = edited_s["Cost / SF"].sum()
+
+    st.markdown("#### 4.3 Auxiliary, Foundation & Outdoor Living")
+    p_data = {
+        "Component": ["Front Porch", "Back Porch", "Storage Room", "Addit. Foundation / Elevation", "TOTAL AUX/OUTDOOR"],
+        "Area (SF)": [f"{front_porch_sqft} SF", f"{back_porch_sqft} SF", f"{storage_sqft} SF", "Site Specific", "Total"],
+        "Cost / SF": [f"${front_porch_cost_sf:.2f}", f"${back_porch_cost_sf:.2f}", f"${storage_cost_sf:.2f}", "-", "-"],
+        "Total Amount": [f"${front_porch_cost:,.0f}", f"${back_porch_cost:,.0f}", f"${storage_cost:,.0f}", f"${additional_foundation_cost:,.0f}", f"${our_aux_cost_total:,.0f}"]
+    }
+    st.dataframe(pd.DataFrame(p_data), hide_index=True, use_container_width=True)
+
+    # Master Direct Hard Cost Roll-up Table
+    st.markdown("#### 4.4 Direct Hard Cost Master Roll-up")
+    direct_rollup_df = pd.DataFrame({
+        "Category / Major Sub-Assembly": [
+            f"1. Heated Living Area ({sqft:,} SF)",
+            f"2. {st.session_state.structure_type} Structure ({struct_sqft:,} SF)",
+            f"3. Outdoor & Storage Spaces ({front_porch_sqft + back_porch_sqft + storage_sqft:,} SF)",
+            "4. Site Foundation & Elevation Premium",
+            "TOTAL DIRECT HARD COST BUDGET"
+        ],
+        "Effective Rate": [
+            f"${direct_cost_sf:.2f} / Heated SF",
+            f"${struct_cost_sf:.2f} / SF",
+            f"${struct_cost_sf:.2f} / SF (Avg)",
+            "Flat Lump Sum",
+            f"${blended_cost_per_sf:.2f} / SF Under Roof"
+        ],
+        "Per Unit Cost ($)": [
+            heated_hard_cost,
+            struct_total_cost,
+            outdoor_aux_subtotal_unit,
+            additional_foundation_cost,
+            target_direct_hard_cost
+        ],
+        "Project Total ($)": [
+            heated_hard_cost * units,
+            struct_total_cost * units,
+            outdoor_aux_subtotal_unit * units,
+            additional_foundation_cost * units,
+            total_hard_cost
+        ]
+    })
+
+    st.dataframe(
+        direct_rollup_df.style.format({
+            "Per Unit Cost ($)": "${:,.0f}",
+            "Project Total ($)": "${:,.0f}"
+        }),
+        hide_index=True,
+        use_container_width=True
+    )
 st.divider()
 
 
@@ -1412,14 +1414,15 @@ else:
             f"${seed_capital:,.0f}"
         ]
     }
-st.dataframe(pd.DataFrame(stress_test_data), hide_index=True, use_container_width=True)
 
-if seed_capital > 0:
-    warning_text = f"**Seed Capital Required:** The bank will fund **${actual_const_loan:,.0f}** based on the appraised value. Your Total Construction Basis is **${total_construction_basis:,.0f}**. You must bring **${seed_capital:,.0f}** in Day-1 Seed Capital (Reserves)."
-    st.warning(warning_text.replace("$", r"\$"))
-else:
-    success_text = f"**Fully Funded:** The bank's loan value of **${actual_const_loan:,.0f}** covers your entire construction basis. No Day-1 Seed Capital is required."
-    st.success(success_text.replace("$", r"\$"))
+with st.expander("🏦 View Bank Stress Test Metrics", expanded=False):
+    st.dataframe(pd.DataFrame(stress_test_data), hide_index=True, use_container_width=True)
+    if seed_capital > 0:
+        warning_text = f"**Seed Capital Required:** The bank will fund **${actual_const_loan:,.0f}** based on the appraised value. Your Total Construction Basis is **${total_construction_basis:,.0f}**. You must bring **${seed_capital:,.0f}** in Day-1 Seed Capital (Reserves)."
+        st.warning(warning_text.replace("$", r"\$"))
+    else:
+        success_text = f"**Fully Funded:** The bank's loan value of **${actual_const_loan:,.0f}** covers your entire construction basis. No Day-1 Seed Capital is required."
+        st.success(success_text.replace("$", r"\$"))
 st.divider()
 
 
@@ -1435,35 +1438,36 @@ land_eq_text = (
 )
 st.info(land_eq_text.replace("$", r"\$"))
 
-fin_details = ""
-if const_closing_mode == "Detailed Enterprise Breakout":
-    fin_details = "Origination, Appraisal, Title, Survey, Legal"
+with st.expander("💰 View Capital Ledgers & Transaction Scope", expanded=False):
+    fin_details = ""
+    if const_closing_mode == "Detailed Enterprise Breakout":
+        fin_details = "Origination, Appraisal, Title, Survey, Legal"
 
-col1, col2 = st.columns(2)
-with col1:
-    st.markdown("#### Pro Forma Valuation Allocation")
-    val_alloc_df = pd.DataFrame({
-        "Component": [f"Finished Lot Benchmark ({lot_cost_pct*100:.1f}%)", "Adjusted BTR Hard Costs", "Indirects + GC Fee", "On-Lot Utilities & Soft Costs", "Finance, Closing & Buydown", "Built-in Developer Margin", "Total Appraised Value (ARV)"],
-        "Amount": [f"${lot_benchmark:,.0f}", f"${total_hard_cost:,.0f}", f"${total_indirect_costs:,.0f}", f"${total_vertical_soft:,.0f}", f"${btr_finance_closing:,.0f}", f"${developer_margin:,.0f}", f"${total_arv:,.0f}"]
-    })
-    st.dataframe(val_alloc_df, hide_index=True, use_container_width=True)
-    
-with col2:
-    st.markdown("#### Financing Breakdown")
-    fin_breakdown_df = pd.DataFrame({
-        "Component": ["Const. Loan Closing Fees", "Carrying Interest", "Perm. Takeout Fees", f"Rate Buydown ({buydown_pts:.2f} pts)"],
-        "Amount": [f"${const_closing_fee:,.0f}", f"${carry_int_base:,.0f}", f"${refi_closing_fee:,.0f}", f"${default_buydown_cost:,.0f}"],
-        "Details": [fin_details, f"({build_months} months @ {const_rate*100:.2f}% on S-Curve schedule)", "", ""]
-    })
-    st.dataframe(fin_breakdown_df, hide_index=True, use_container_width=True)
+    col1, col2 = st.columns(2)
+    with col1:
+        st.markdown("#### Pro Forma Valuation Allocation")
+        val_alloc_df = pd.DataFrame({
+            "Component": [f"Finished Lot Benchmark ({lot_cost_pct*100:.1f}%)", "Adjusted BTR Hard Costs", "Indirects + GC Fee", "On-Lot Utilities & Soft Costs", "Finance, Closing & Buydown", "Built-in Developer Margin", "Total Appraised Value (ARV)"],
+            "Amount": [f"${lot_benchmark:,.0f}", f"${total_hard_cost:,.0f}", f"${total_indirect_costs:,.0f}", f"${total_vertical_soft:,.0f}", f"${btr_finance_closing:,.0f}", f"${developer_margin:,.0f}", f"${total_arv:,.0f}"]
+        })
+        st.dataframe(val_alloc_df, hide_index=True, use_container_width=True)
+        
+    with col2:
+        st.markdown("#### Financing Breakdown")
+        fin_breakdown_df = pd.DataFrame({
+            "Component": ["Const. Loan Closing Fees", "Carrying Interest", "Perm. Takeout Fees", f"Rate Buydown ({buydown_pts:.2f} pts)"],
+            "Amount": [f"${const_closing_fee:,.0f}", f"${carry_int_base:,.0f}", f"${refi_closing_fee:,.0f}", f"${default_buydown_cost:,.0f}"],
+            "Details": [fin_details, f"({build_months} months @ {const_rate*100:.2f}% on S-Curve schedule)", "", ""]
+        })
+        st.dataframe(fin_breakdown_df, hide_index=True, use_container_width=True)
 
-st.markdown("#### Capital Outlay & Transaction Scope")
-transaction_df = pd.DataFrame({
-    "Phase / Project Cash Event": ["1. Horizontal Dev & Land", "2. Vertical Construction Cost", "3. Utility Taps & Soft Costs", "4. Construction Financing Costs", "5. Permanent Refinance Takeout", "Total Project Capital Basis"],
-    "Transaction Scope": ["Out-of-pocket acquisition and civil infrastructure", "Baseline Hard Costs + Indirects + GC Fee", "Water/sewer/electric/gas tie-ins, permits, builder's risk", f"Lender closing fees (${const_closing_fee:,.0f}) & accrued interest (${carry_int_base:,.0f})", f"Commercial fees (${refi_closing_fee:,.0f}) + {buydown_pts:.2f} pt rate buydown (${default_buydown_cost:,.0f})", "All-in total cost to build, finance, close, and stabilize"],
-    "Actual Capital Outlay": [f"-${total_land_default:,.0f}", f"-${total_const:,.0f}", f"-${total_vertical_soft:,.0f}", f"-${const_closing_fee + carry_int_base:,.0f}", f"-${refi_closing_fee + default_buydown_cost:,.0f}", f"-${total_project_basis:,.0f}"]
-})
-st.dataframe(transaction_df, hide_index=True, use_container_width=True)
+    st.markdown("#### Capital Outlay & Transaction Scope")
+    transaction_df = pd.DataFrame({
+        "Phase / Project Cash Event": ["1. Horizontal Dev & Land", "2. Vertical Construction Cost", "3. Utility Taps & Soft Costs", "4. Construction Financing Costs", "5. Permanent Refinance Takeout", "Total Project Capital Basis"],
+        "Transaction Scope": ["Out-of-pocket acquisition and civil infrastructure", "Baseline Hard Costs + Indirects + GC Fee", "Water/sewer/electric/gas tie-ins, permits, builder's risk", f"Lender closing fees (${const_closing_fee:,.0f}) & accrued interest (${carry_int_base:,.0f})", f"Commercial fees (${refi_closing_fee:,.0f}) + {buydown_pts:.2f} pt rate buydown (${default_buydown_cost:,.0f})", "All-in total cost to build, finance, close, and stabilize"],
+        "Actual Capital Outlay": [f"-${total_land_default:,.0f}", f"-${total_const:,.0f}", f"-${total_vertical_soft:,.0f}", f"-${const_closing_fee + carry_int_base:,.0f}", f"-${refi_closing_fee + default_buydown_cost:,.0f}", f"-${total_project_basis:,.0f}"]
+    })
+    st.dataframe(transaction_df, hide_index=True, use_container_width=True)
 st.divider()
 
 
@@ -1483,24 +1487,25 @@ operating_summary_text = (
 )
 st.info(operating_summary_text.replace("$", r"\$"))
 
-dscr_summary_data = {
-    "Pro Forma Line Item": [
-        "Gross Potential Rent (GPR)", f"(-) Vacancy Loss @ {vacancy_rate*100:.1f}%", "= Effective Gross Income (EGI)", 
-        f"(-) Operating Expenses (OpEx) @ {opex_rate*100:.1f}%", "= Net Operating Income (NOI)", "(-) Total Debt Service (P&I)", "= Net Cash Flow",
-        "---", "Actual DSCR Rate", "Target Lender DSCR", "DSCR Variance"
-    ],
-    "Monthly": [
-        f"${total_gross_monthly_income:,.2f}", f"-${monthly_vacancy_loss:,.2f}", f"${annual_egi / 12:,.2f}", 
-        f"-${annual_opex / 12:,.2f}", f"${monthly_noi:,.2f}", f"-${total_monthly_pi:,.2f}", f"${monthly_cash_flow:,.2f}",
-        "---", f"{actual_dscr:.2f}x", f"{target_dscr_rate:.2f}x", f"{dscr_variance:+.2f}x"
-    ],
-    "Annual": [
-        f"${total_gross_monthly_income * 12:,.2f}", f"-${annual_vacancy_loss:,.2f}", f"${annual_egi:,.2f}", 
-        f"-${annual_opex / 12:,.2f}", f"${annual_noi:,.2f}", f"${annual_debt_service:,.2f}", f"${monthly_cash_flow * 12:,.2f}",
-        "---", f"{actual_dscr:.2f}x", f"{target_dscr_rate:.2f}x", f"{dscr_variance:+.2f}x"
-    ]
-}
-st.dataframe(pd.DataFrame(dscr_summary_data), hide_index=True, use_container_width=True)
+with st.expander("🏢 View Stabilized Operating Pro Forma (DSCR)", expanded=False):
+    dscr_summary_data = {
+        "Pro Forma Line Item": [
+            "Gross Potential Rent (GPR)", f"(-) Vacancy Loss @ {vacancy_rate*100:.1f}%", "= Effective Gross Income (EGI)", 
+            f"(-) Operating Expenses (OpEx) @ {opex_rate*100:.1f}%", "= Net Operating Income (NOI)", "(-) Total Debt Service (P&I)", "= Net Cash Flow",
+            "---", "Actual DSCR Rate", "Target Lender DSCR", "DSCR Variance"
+        ],
+        "Monthly": [
+            f"${total_gross_monthly_income:,.2f}", f"-${monthly_vacancy_loss:,.2f}", f"${annual_egi / 12:,.2f}", 
+            f"-${annual_opex / 12:,.2f}", f"${monthly_noi:,.2f}", f"-${total_monthly_pi:,.2f}", f"${monthly_cash_flow:,.2f}",
+            "---", f"{actual_dscr:.2f}x", f"{target_dscr_rate:.2f}x", f"{dscr_variance:+.2f}x"
+        ],
+        "Annual": [
+            f"${total_gross_monthly_income * 12:,.2f}", f"-${annual_vacancy_loss:,.2f}", f"${annual_egi:,.2f}", 
+            f"-${annual_opex / 12:,.2f}", f"${annual_noi:,.2f}", f"${annual_debt_service:,.2f}", f"${monthly_cash_flow * 12:,.2f}",
+            "---", f"{actual_dscr:.2f}x", f"{target_dscr_rate:.2f}x", f"{dscr_variance:+.2f}x"
+        ]
+    }
+    st.dataframe(pd.DataFrame(dscr_summary_data), hide_index=True, use_container_width=True)
 st.divider()
 
 
@@ -1522,33 +1527,34 @@ else:
 
 st.info(waterfall_summary_text.replace("$", r"\$"))
 
-waterfall_data = {
-    "Refinance Closing Line Item": [
-        "(+) Permanent Takeout Loan Proceeds",
-        "(-) Construction Loan Payoff (Prin. & Int.)",
-        "(-) Refinance Closing Fees",
-        f"(-) Rate Buydown Points Cost ({buydown_pts:.2f} pts)",
-        "= Net Cash Distributed to Sponsor at Closing",
-        "(-) Initial Sponsor Seed Capital Invested",
-        "= Final Tax-Free Cash Surplus / (Trapped Capital)"
-    ],
-    "Amount ($)": [
-        f"${loan_total:,.0f}",
-        f"-${actual_const_loan:,.0f}",
-        f"-${refi_closing_fee:,.0f}",
-        f"-${default_buydown_cost:,.0f}",
-        f"${net_cash_at_closing:,.0f}",
-        f"-${seed_capital:,.0f}",
-        f"${cash_surplus:,.0f}"
-    ]
-}
-st.dataframe(pd.DataFrame(waterfall_data), hide_index=True, use_container_width=True)
+with st.expander("💸 View Cash-Out Waterfall & Wealth Creation Breakdown", expanded=False):
+    waterfall_data = {
+        "Refinance Closing Line Item": [
+            "(+) Permanent Takeout Loan Proceeds",
+            "(-) Construction Loan Payoff (Prin. & Int.)",
+            "(-) Refinance Closing Fees",
+            f"(-) Rate Buydown Points Cost ({buydown_pts:.2f} pts)",
+            "= Net Cash Distributed to Sponsor at Closing",
+            "(-) Initial Sponsor Seed Capital Invested",
+            "= Final Tax-Free Cash Surplus / (Trapped Capital)"
+        ],
+        "Amount ($)": [
+            f"${loan_total:,.0f}",
+            f"-${actual_const_loan:,.0f}",
+            f"-${refi_closing_fee:,.0f}",
+            f"-${default_buydown_cost:,.0f}",
+            f"${net_cash_at_closing:,.0f}",
+            f"-${seed_capital:,.0f}",
+            f"${cash_surplus:,.0f}"
+        ]
+    }
+    st.dataframe(pd.DataFrame(waterfall_data), hide_index=True, use_container_width=True)
 
-wealth_data = {
-    "Pocket Component": ["Pocket 1: Active GC Fee Revenue", "Pocket 2: Tax-Free Cash Surplus at Close", "Pocket 3: Retained Asset Equity", "TOTAL DAY-1 CREATED VALUE"],
-    "Value ($)": [f"${default_gc_fee:,.0f}", f"${cash_surplus:,.0f}", f"${retained_equity:,.0f}", f"${day1_wealth:,.0f}"]
-}
-st.dataframe(pd.DataFrame(wealth_data), hide_index=True, use_container_width=True)
+    wealth_data = {
+        "Pocket Component": ["Pocket 1: Active GC Fee Revenue", "Pocket 2: Tax-Free Cash Surplus at Close", "Pocket 3: Retained Asset Equity", "TOTAL DAY-1 CREATED VALUE"],
+        "Value ($)": [f"${default_gc_fee:,.0f}", f"${cash_surplus:,.0f}", f"${retained_equity:,.0f}", f"${day1_wealth:,.0f}"]
+    }
+    st.dataframe(pd.DataFrame(wealth_data), hide_index=True, use_container_width=True)
 st.divider()
 
 
@@ -1570,53 +1576,54 @@ strategy_comparison_text = (
 )
 st.info(strategy_comparison_text.replace("$", r"\$"))
 
-strategy_data = {
-    "Financial Metric": [
-        "Land Basis",
-        "Direct Hard Costs",
-        "Total Construction Cost (incl. GC & Indirects)",
-        "On-Lot Utilities & Soft Costs",
-        "Sales & Transaction Closing Costs",
-        "Total Capital Invested",
-        "Gross Revenue / Permanent Loan Proceeds",
-        "Net Cash Event at Closing",
-        "Asset Retained on Balance Sheet?",
-        "Ongoing Monthly Cash Flow"
-    ],
-    "National Builder (Retail Sell)": [
-        f"${total_land_default:,.0f}",
-        f"${total_hard_cost:,.0f} (Baseline)",
-        f"${total_const:,.0f}",
-        f"${total_vertical_soft:,.0f}",
-        f"${retail_sales_costs:,.0f} (~8% Realtor & concessions)",
-        f"${retail_total_invested:,.0f}",
-        f"${total_arv:,.0f} (Retail sales price)",
-        f"+${retail_net_cash:,.0f} (Taxable ordinary income)",
-        "No",
-        "$0"
-    ],
-    "Build-to-Rent (Commercial DSCR Takeout)": [
-        f"${total_land_default:,.0f}",
-        f"${total_hard_cost:,.0f}",
-        f"${total_const:,.0f}",
-        f"${total_vertical_soft:,.0f}",
-        f"${btr_finance_closing:,.0f} (Const. finance, takeout, buydown)",
-        f"${total_project_basis:,.0f}",
-        f"${loan_total:,.0f} ({refi_ltv*100:.0f}% LTV DSCR Loan)",
-        f"${cash_surplus:,.0f} (Seed Capital Retained)" if cash_surplus < 0 else f"+${cash_surplus:,.0f} (Tax-Free Cash Out)",
-        f"Yes (${total_arv:,.0f} Asset, ${retained_equity:,.0f} Equity)",
-        f"+${monthly_cash_flow_per_door:,.0f} / month / door"
-    ]
-}
+with st.expander("⚖️ View Financial Strategy Comparison Matrix", expanded=False):
+    strategy_data = {
+        "Financial Metric": [
+            "Land Basis",
+            "Direct Hard Costs",
+            "Total Construction Cost (incl. GC & Indirects)",
+            "On-Lot Utilities & Soft Costs",
+            "Sales & Transaction Closing Costs",
+            "Total Capital Invested",
+            "Gross Revenue / Permanent Loan Proceeds",
+            "Net Cash Event at Closing",
+            "Asset Retained on Balance Sheet?",
+            "Ongoing Monthly Cash Flow"
+        ],
+        "National Builder (Retail Sell)": [
+            f"${total_land_default:,.0f}",
+            f"${total_hard_cost:,.0f} (Baseline)",
+            f"${total_const:,.0f}",
+            f"${total_vertical_soft:,.0f}",
+            f"${retail_sales_costs:,.0f} (~8% Realtor & concessions)",
+            f"${retail_total_invested:,.0f}",
+            f"${total_arv:,.0f} (Retail sales price)",
+            f"+${retail_net_cash:,.0f} (Taxable ordinary income)",
+            "No",
+            "$0"
+        ],
+        "Build-to-Rent (Commercial DSCR Takeout)": [
+            f"${total_land_default:,.0f}",
+            f"${total_hard_cost:,.0f}",
+            f"${total_const:,.0f}",
+            f"${total_vertical_soft:,.0f}",
+            f"${btr_finance_closing:,.0f} (Const. finance, takeout, buydown)",
+            f"${total_project_basis:,.0f}",
+            f"${loan_total:,.0f} ({refi_ltv*100:.0f}% LTV DSCR Loan)",
+            f"${cash_surplus:,.0f} (Seed Capital Retained)" if cash_surplus < 0 else f"+${cash_surplus:,.0f} (Tax-Free Cash Out)",
+            f"Yes (${total_arv:,.0f} Asset, ${retained_equity:,.0f} Equity)",
+            f"+${monthly_cash_flow_per_door:,.0f} / month / door"
+        ]
+    }
 
-st.dataframe(pd.DataFrame(strategy_data), hide_index=True, use_container_width=True)
+    st.dataframe(pd.DataFrame(strategy_data), hide_index=True, use_container_width=True)
 
-strategy_footnote_text = (
-    f"***Note:** The BTR model captures ${default_gc_fee:,.0f} in GC Fees during the build. "
-    f"The {build_months}-month construction timeline incurs carrying costs such that the takeout distribution "
-    f"yields a net cash event of ${cash_surplus:,.0f} at closing. Total Day-1 Created Value equals ${day1_wealth:,.0f}.*"
-)
-st.caption(strategy_footnote_text.replace("$", r"\$"))
+    strategy_footnote_text = (
+        f"***Note:** The BTR model captures ${default_gc_fee:,.0f} in GC Fees during the build. "
+        f"The {build_months}-month construction timeline incurs carrying costs such that the takeout distribution "
+        f"yields a net cash event of ${cash_surplus:,.0f} at closing. Total Day-1 Created Value equals ${day1_wealth:,.0f}.*"
+    )
+    st.caption(strategy_footnote_text.replace("$", r"\$"))
 st.divider()
 
 
@@ -1633,88 +1640,89 @@ scaling_intro = (
 )
 st.info(scaling_intro.replace("$", r"\$"))
 
-scaling_data = {
-    "Portfolio Metric": [
-        "Total Units Built in Year 1",
-        f"Land Basis (${unit_land:,.0f} / lot)",
-        f"Adjusted Hard Costs (${unit_hard:,.0f} / house)",
-        "Optimized Management Fees (GenCond + GC Fee)",
-        f"On-Lot Utilities & Soft Costs (${unit_soft:,.0f} / house)",
-        "Financing, Closing & Buydown",
-        "Total Program Capital Invested",
-        f"Permanent Commercial Loan Proceeds ({refi_ltv*100:.0f}% LTV)",
-        "Net Program Cash Surplus at Close",
-        f"Total Retained Asset Equity ({100 - refi_ltv*100:.0f}% ARV)",
-        "Total Day-1 Wealth Created (Program)"
-    ],
-    "Single-House Baseline": [
-        "1 Unit",
-        f"${unit_land:,.0f}",
-        f"${unit_hard:,.0f}",
-        f"${unit_gc_baseline:,.0f}",
-        f"${unit_soft:,.0f}",
-        f"${unit_fin:,.0f}",
-        f"${cap_1:,.0f}",
-        f"${loan_1:,.0f}",
-        format_surplus(surplus_1),
-        f"${eq_1:,.0f}",
-        f"${wealth_1:,.0f}"
-    ],
-    "3-House Simultaneous Phase": [
-        "3 Units",
-        f"${unit_land * 3:,.0f}",
-        f"${unit_hard * 3:,.0f}",
-        f"${opt_gc_3:,.0f}",
-        f"${unit_soft * 3:,.0f}",
-        f"${unit_fin * 3:,.0f}",
-        f"${cap_3:,.0f}",
-        f"${loan_3:,.0f}",
-        format_surplus(surplus_3),
-        f"${eq_3:,.0f}",
-        f"${wealth_3:,.0f}"
-    ],
-    "6-House Annual Build (Year 1)": [
-        "6 Units",
-        f"${unit_land * 6:,.0f}",
-        f"${unit_hard * 6:,.0f}",
-        f"${opt_gc_6:,.0f}",
-        f"${unit_soft * 6:,.0f}",
-        f"${unit_fin * 6:,.0f}",
-        f"${cap_6:,.0f}",
-        f"${loan_6:,.0f}",
-        format_surplus(surplus_6),
-        f"${eq_6:,.0f}",
-        f"${wealth_6:,.0f}"
-    ],
-    "Program Optimization Notes": [
-        "Scaled velocity across fiscal year.",
-        "Concurrent lot acquisition.",
-        "Direct materials & labor.",
-        "$20k per 3-house cluster ($6,667/house).",
-        "Utility taps, impact fees, builder's risk.",
-        f"Const. loans, {build_months}-mo carry interest, takeout pts.",
-        "Total capital required for annual program.",
-        f"${loan_1:,.0f} takeout loan per door at {net_refi_rate*100:.2f}% ({actual_dscr:.2f}x DSCR).",
-        "Tax-free cash distributed above full seed return.",
-        "Unencumbered equity across portfolio doors.",
-        "Combined active GC fees, surplus, & equity."
-    ]
-}
+with st.expander("📈 View Multi-Unit Scaling & Portfolio Optimization", expanded=False):
+    scaling_data = {
+        "Portfolio Metric": [
+            "Total Units Built in Year 1",
+            f"Land Basis (${unit_land:,.0f} / lot)",
+            f"Adjusted Hard Costs (${unit_hard:,.0f} / house)",
+            "Optimized Management Fees (GenCond + GC Fee)",
+            f"On-Lot Utilities & Soft Costs (${unit_soft:,.0f} / house)",
+            "Financing, Closing & Buydown",
+            "Total Program Capital Invested",
+            f"Permanent Commercial Loan Proceeds ({refi_ltv*100:.0f}% LTV)",
+            "Net Program Cash Surplus at Close",
+            f"Total Retained Asset Equity ({100 - refi_ltv*100:.0f}% ARV)",
+            "Total Day-1 Wealth Created (Program)"
+        ],
+        "Single-House Baseline": [
+            "1 Unit",
+            f"${unit_land:,.0f}",
+            f"${unit_hard:,.0f}",
+            f"${unit_gc_baseline:,.0f}",
+            f"${unit_soft:,.0f}",
+            f"${unit_fin:,.0f}",
+            f"${cap_1:,.0f}",
+            f"${loan_1:,.0f}",
+            format_surplus(surplus_1),
+            f"${eq_1:,.0f}",
+            f"${wealth_1:,.0f}"
+        ],
+        "3-House Simultaneous Phase": [
+            "3 Units",
+            f"${unit_land * 3:,.0f}",
+            f"${unit_hard * 3:,.0f}",
+            f"${opt_gc_3:,.0f}",
+            f"${unit_soft * 3:,.0f}",
+            f"${unit_fin * 3:,.0f}",
+            f"${cap_3:,.0f}",
+            f"${loan_3:,.0f}",
+            format_surplus(surplus_3),
+            f"${eq_3:,.0f}",
+            f"${wealth_3:,.0f}"
+        ],
+        "6-House Annual Build (Year 1)": [
+            "6 Units",
+            f"${unit_land * 6:,.0f}",
+            f"${unit_hard * 6:,.0f}",
+            f"${opt_gc_6:,.0f}",
+            f"${unit_soft * 6:,.0f}",
+            f"${unit_fin * 6:,.0f}",
+            f"${cap_6:,.0f}",
+            f"${loan_6:,.0f}",
+            format_surplus(surplus_6),
+            f"${eq_6:,.0f}",
+            f"${wealth_6:,.0f}"
+        ],
+        "Program Optimization Notes": [
+            "Scaled velocity across fiscal year.",
+            "Concurrent lot acquisition.",
+            "Direct materials & labor.",
+            "$20k per 3-house cluster ($6,667/house).",
+            "Utility taps, impact fees, builder's risk.",
+            f"Const. loans, {build_months}-mo carry interest, takeout pts.",
+            "Total capital required for annual program.",
+            f"${loan_1:,.0f} takeout loan per door at {net_refi_rate*100:.2f}% ({actual_dscr:.2f}x DSCR).",
+            "Tax-free cash distributed above full seed return.",
+            "Unencumbered equity across portfolio doors.",
+            "Combined active GC fees, surplus, & equity."
+        ]
+    }
 
-st.dataframe(pd.DataFrame(scaling_data), hide_index=True, use_container_width=True)
+    st.dataframe(pd.DataFrame(scaling_data), hide_index=True, use_container_width=True)
 
-trapped_text = f"zero net capital trapped" if surplus_6 >= 0 else f"requiring ${-surplus_6:,.0f} in net capital trapped"
-surplus_extract_text = f"pulls out ${surplus_6:,.0f} in tax-free cash surplus" if surplus_6 >= 0 else f"retains ${-surplus_6:,.0f} as trapped seed capital"
+    trapped_text = f"zero net capital trapped" if surplus_6 >= 0 else f"requiring ${-surplus_6:,.0f} in net capital trapped"
+    surplus_extract_text = f"pulls out ${surplus_6:,.0f} in tax-free cash surplus" if surplus_6 >= 0 else f"retains ${-surplus_6:,.0f} as trapped seed capital"
 
-scaling_takeaway = (
-    f"**Annual Build Program Takeaway (6 Houses in Year 1)**\n\n"
-    f"Executing a 6-house annual program in two 3-house concurrent phases maximizes both corporate revenue and portfolio scale. "
-    f"Wickboldt Capital earns **${opt_gc_6:,.0f}** in active GC management fees (saving **${savings_per_door * 6:,.0f}** overall), "
-    f"the holding entity {surplus_extract_text} at refinance close, and the portfolio holds "
-    f"**${eq_6:,.0f}** in unencumbered equity while generating **${monthly_cf_6:,.0f}/month** (**${annual_cf_6:,.0f}/year**) "
-    f"in total net passive cash flow across all 6 doors at {trapped_text}."
-)
-st.success(scaling_takeaway.replace("$", r"\$"))
+    scaling_takeaway = (
+        f"**Annual Build Program Takeaway (6 Houses in Year 1)**\n\n"
+        f"Executing a 6-house annual program in two 3-house concurrent phases maximizes both corporate revenue and portfolio scale. "
+        f"Wickboldt Capital earns **${opt_gc_6:,.0f}** in active GC management fees (saving **${savings_per_door * 6:,.0f}** overall), "
+        f"the holding entity {surplus_extract_text} at refinance close, and the portfolio holds "
+        f"**${eq_6:,.0f}** in unencumbered equity while generating **${monthly_cf_6:,.0f}/month** (**${annual_cf_6:,.0f}/year**) "
+        f"in total net passive cash flow across all 6 doors at {trapped_text}."
+    )
+    st.success(scaling_takeaway.replace("$", r"\$"))
 st.divider()
 
 
@@ -1732,17 +1740,18 @@ scurve_summary = (
 )
 st.info(scurve_summary.replace("$", r"\$"))
 
-# Render Chart
-chart_df = df_schedule.copy()
-chart_df = chart_df.set_index("Month")
-st.bar_chart(chart_df[["Monthly Draw ($)"]], height=300)
+with st.expander("📉 View S-Curve Draw Chart & Capitalization Schedule", expanded=False):
+    # Render Chart
+    chart_df = df_schedule.copy()
+    chart_df = chart_df.set_index("Month")
+    st.bar_chart(chart_df[["Monthly Draw ($)"]], height=300)
 
-# Render Table
-st.dataframe(df_schedule.style.format({
-    "Monthly Draw ($)": "${:,.0f}",
-    "Capitalized Interest ($)": "${:,.0f}",
-    "Total Drawn Balance ($)": "${:,.0f}"
-}), hide_index=True, use_container_width=True)
+    # Render Table
+    st.dataframe(df_schedule.style.format({
+        "Monthly Draw ($)": "${:,.0f}",
+        "Capitalized Interest ($)": "${:,.0f}",
+        "Total Drawn Balance ($)": "${:,.0f}"
+    }), hide_index=True, use_container_width=True)
 
 st.divider()
 
@@ -1759,7 +1768,8 @@ stress_test_summary = (
 )
 st.info(stress_test_summary.replace("$", r"\$"))
 
-st.dataframe(df_stress, hide_index=True, use_container_width=True)
+with st.expander("🌩️ View Lender Risk Mitigation Matrix", expanded=False):
+    st.dataframe(df_stress, hide_index=True, use_container_width=True)
 
 st.divider()
 
@@ -1782,48 +1792,49 @@ if cost_calc_mode in ["Reverse-Engineer from Appraisal", "Reverse-Engineer from 
     )
     st.info(rev_eng_summary.replace("$", r"\$"))
     
-    breakdown_data = {
-        "Cost Category": [
-            f"Project Target ARV (Derived from Comp)", 
-            "(-) Finished Lot Cost", 
-            "(-) Builder Profit (Pre-tax)", 
-            "(-) Overhead & General Expenses",
-            "(-) Sales & Marketing", 
-            "(-) Financing Costs", 
-            "= Total Construction Budget (Direct + Indirect)", 
-            "(-) Indirects (Permits, Temp Site, GC Fee)",
-            "= Direct Hard Cost Budget",
-            "(-) Fixed Auxiliary & Elevation Costs", 
-            "= Available Budget for Heated Shell"
-        ],
-        "Value ($)": [
-            f"${reference_price:,.0f}", 
-            f"-${reference_price * lot_cost_pct:,.0f}", 
-            f"-${reference_price * profit_margin_pct:,.0f}", 
-            f"-${reference_price * overhead_pct:,.0f}", 
-            f"-${reference_price * sales_pct:,.0f}", 
-            f"-${reference_price * finance_pct:,.0f}", 
-            f"${total_construction_budget:,.0f}", 
-            f"-${total_indirect_costs:,.0f}",
-            f"${target_direct_hard_cost:,.0f}",
-            f"-${our_aux_cost_total:,.0f}", 
-            f"${target_heated_hard_cost:,.0f}"
-        ],
-        "Description": [
-            "Projected value of your build using the Comp's isolated rates.",
-            "Land acquisition, grading, and utility infrastructure.",
-            "Net profit margin retained by the homebuilding company.",
-            "Office staff, software, vehicles, insurance, and administrative tools.",
-            "Sales commissions and marketing costs to close the deal.",
-            "Short-term interest paid on the builder's construction loan.",
-            "Total budget available for all physical construction (Direct + Indirect).",
-            "Permits, site facilities, and GC management fees.",
-            "Total budget exclusively for physical structure and materials.",
-            "Locked budget required for outdoor footprint and foundation elevation.",
-            f"Yields exactly ${direct_cost_sf:.2f} / SF across {sqft} Heated SF."
-        ]
-    }
-    st.dataframe(pd.DataFrame(breakdown_data), hide_index=True, use_container_width=True)
+    with st.expander("⚙️ View Reverse-Engineering Budget Breakdown", expanded=False):
+        breakdown_data = {
+            "Cost Category": [
+                f"Project Target ARV (Derived from Comp)", 
+                "(-) Finished Lot Cost", 
+                "(-) Builder Profit (Pre-tax)", 
+                "(-) Overhead & General Expenses",
+                "(-) Sales & Marketing", 
+                "(-) Financing Costs", 
+                "= Total Construction Budget (Direct + Indirect)", 
+                "(-) Indirects (Permits, Temp Site, GC Fee)",
+                "= Direct Hard Cost Budget",
+                "(-) Fixed Auxiliary & Elevation Costs", 
+                "= Available Budget for Heated Shell"
+            ],
+            "Value ($)": [
+                f"${reference_price:,.0f}", 
+                f"-${reference_price * lot_cost_pct:,.0f}", 
+                f"-${reference_price * profit_margin_pct:,.0f}", 
+                f"-${reference_price * overhead_pct:,.0f}", 
+                f"-${reference_price * sales_pct:,.0f}", 
+                f"-${reference_price * finance_pct:,.0f}", 
+                f"${total_construction_budget:,.0f}", 
+                f"-${total_indirect_costs:,.0f}",
+                f"${target_direct_hard_cost:,.0f}",
+                f"-${our_aux_cost_total:,.0f}", 
+                f"${target_heated_hard_cost:,.0f}"
+            ],
+            "Description": [
+                "Projected value of your build using the Comp's isolated rates.",
+                "Land acquisition, grading, and utility infrastructure.",
+                "Net profit margin retained by the homebuilding company.",
+                "Office staff, software, vehicles, insurance, and administrative tools.",
+                "Sales commissions and marketing costs to close the deal.",
+                "Short-term interest paid on the builder's construction loan.",
+                "Total budget available for all physical construction (Direct + Indirect).",
+                "Permits, site facilities, and GC management fees.",
+                "Total budget exclusively for physical structure and materials.",
+                "Locked budget required for outdoor footprint and foundation elevation.",
+                f"Yields exactly ${direct_cost_sf:.2f} / SF across {sqft} Heated SF."
+            ]
+        }
+        st.dataframe(pd.DataFrame(breakdown_data), hide_index=True, use_container_width=True)
     st.divider()
 
 
