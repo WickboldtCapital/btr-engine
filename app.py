@@ -2,6 +2,7 @@ import streamlit as st
 import pandas as pd
 from fpdf import FPDF
 from pptx import Presentation
+import plotly.express as px
 import tempfile
 import requests
 import os
@@ -1439,6 +1440,17 @@ land_eq_text = (
 )
 st.info(land_eq_text.replace("$", r"\$"))
 
+# --- NEW DONUT CHART ---
+basis_breakdown = pd.DataFrame({
+    "Category": ["Land & Horizontal", "Vertical Hard Costs", "Indirects & Soft Costs", "Financing & Closing"],
+    "Amount": [total_land_default, total_hard_cost, total_indirect_costs + total_vertical_soft, btr_finance_closing]
+})
+fig_donut = px.pie(basis_breakdown, names="Category", values="Amount", hole=0.45,
+                   title="Total Project Capital Basis Breakdown",
+                   color_discrete_sequence=["#1f77b4", "#ff7f0e", "#2ca02c", "#d62728"])
+fig_donut.update_traces(textposition='inside', textinfo='percent+label')
+st.plotly_chart(fig_donut, use_container_width=True)
+
 with st.expander("💰 View Capital Ledgers & Transaction Scope", expanded=False):
     fin_details = ""
     if const_closing_mode == "Detailed Enterprise Breakout":
@@ -1641,7 +1653,22 @@ scaling_intro = (
 )
 st.info(scaling_intro.replace("$", r"\$"))
 
-with st.expander("📈 View Multi-Unit Scaling & Portfolio Optimization", expanded=False):
+# --- NEW COMPARATIVE BAR CHART ---
+scaling_viz_data = pd.DataFrame({
+    "Scale": ["1-House Baseline", "3-House Phase", "6-House Annual"],
+    "Total Capital Invested per Door": [cap_1, cap_3 / 3, cap_6 / 6],
+    "GC Fee per Door": [unit_gc_baseline, opt_gc_3 / 3, opt_gc_6 / 6],
+    "Wealth Created per Door": [wealth_1, wealth_3 / 3, wealth_6 / 6]
+})
+
+scaling_melted = scaling_viz_data.melt(id_vars="Scale", var_name="Metric", value_name="Amount ($)")
+fig_bar = px.bar(scaling_melted, x="Scale", y="Amount ($)", color="Metric", barmode="group",
+                 title="Economies of Scale: Per-Door Financial Impact",
+                 text_auto='.2s')
+st.plotly_chart(fig_bar, use_container_width=True)
+
+
+with st.expander("📈 View Multi-Unit Scaling & Portfolio Optimization Table", expanded=False):
     scaling_data = {
         "Portfolio Metric": [
             "Total Units Built in Year 1",
@@ -2505,11 +2532,11 @@ def create_slide_pdf():
     pdf.line(10, 30, 270, 30) # Separator line
     pdf.set_font('Arial', '', 18)
     pdf.ln(10)
-    pdf.cell(0, 12, f"- Project Scale: {units} Unit(s)", ln=1)
-    pdf.cell(0, 12, f"- Total Appraised Value (ARV): ${total_arv:,.0f}", ln=1)
-    pdf.cell(0, 12, f"- Total Project Basis: ${total_project_basis:,.0f}", ln=1)
-    pdf.cell(0, 12, f"- Built-in Developer Margin: ${developer_margin:,.0f}", ln=1)
-    cash_text = f"- Net Cash Surplus at Refi: ${cash_surplus:,.0f}" if cash_surplus >= 0 else f"- Retained Seed Capital: ${-cash_surplus:,.0f}"
+    pdf.cell(0, 12, f"• Project Scale: {units} Unit(s)", ln=1)
+    pdf.cell(0, 12, f"• Total Appraised Value (ARV): ${total_arv:,.0f}", ln=1)
+    pdf.cell(0, 12, f"• Total Project Basis: ${total_project_basis:,.0f}", ln=1)
+    pdf.cell(0, 12, f"• Built-in Developer Margin: ${developer_margin:,.0f}", ln=1)
+    cash_text = f"• Net Cash Surplus at Refi: ${cash_surplus:,.0f}" if cash_surplus >= 0 else f"• Retained Seed Capital: ${-cash_surplus:,.0f}"
     pdf.cell(0, 12, cash_text, ln=1)
     
     # 3. Operating Metrics
@@ -2519,11 +2546,11 @@ def create_slide_pdf():
     pdf.line(10, 30, 270, 30)
     pdf.set_font('Arial', '', 18)
     pdf.ln(10)
-    pdf.cell(0, 12, f"- Gross Monthly Income: ${total_gross_monthly_income:,.0f}", ln=1)
-    pdf.cell(0, 12, f"- Net Operating Income (NOI): ${annual_noi/12:,.0f} / mo", ln=1)
-    pdf.cell(0, 12, f"- Permanent Debt Service (P&I): ${total_monthly_pi:,.0f} / mo", ln=1)
-    pdf.cell(0, 12, f"- Monthly Net Cash Flow: ${monthly_cash_flow:,.0f} (${monthly_cash_flow_per_door:,.0f} per door)", ln=1)
-    pdf.cell(0, 12, f"- Actual DSCR: {actual_dscr:.2f}x (Target: {target_dscr_rate:.2f}x)", ln=1)
+    pdf.cell(0, 12, f"• Gross Monthly Income: ${total_gross_monthly_income:,.0f}", ln=1)
+    pdf.cell(0, 12, f"• Net Operating Income (NOI): ${annual_noi/12:,.0f} / mo", ln=1)
+    pdf.cell(0, 12, f"• Permanent Debt Service (P&I): ${total_monthly_pi:,.0f} / mo", ln=1)
+    pdf.cell(0, 12, f"• Monthly Net Cash Flow: ${monthly_cash_flow:,.0f} (${monthly_cash_flow_per_door:,.0f} per door)", ln=1)
+    pdf.cell(0, 12, f"• Actual DSCR: {actual_dscr:.2f}x (Target: {target_dscr_rate:.2f}x)", ln=1)
     
     # 4. Capital Ledger
     pdf.add_page()
@@ -2532,11 +2559,11 @@ def create_slide_pdf():
     pdf.line(10, 30, 270, 30)
     pdf.set_font('Arial', '', 18)
     pdf.ln(10)
-    pdf.cell(0, 12, f"- Horizontal Land Basis: ${total_land_default:,.0f}", ln=1)
-    pdf.cell(0, 12, f"- Vertical Direct Hard Costs: ${total_hard_cost:,.0f} (${blended_cost_per_sf:.2f} / SF)", ln=1)
-    pdf.cell(0, 12, f"- Indirects & GC Fee: ${total_indirect_costs:,.0f}", ln=1)
-    pdf.cell(0, 12, f"- Soft Costs & Utilities: ${total_vertical_soft:,.0f}", ln=1)
-    pdf.cell(0, 12, f"- Financing & Closing Costs: ${btr_finance_closing:,.0f}", ln=1)
+    pdf.cell(0, 12, f"• Horizontal Land Basis: ${total_land_default:,.0f}", ln=1)
+    pdf.cell(0, 12, f"• Vertical Direct Hard Costs: ${total_hard_cost:,.0f} (${blended_cost_per_sf:.2f} / SF)", ln=1)
+    pdf.cell(0, 12, f"• Indirects & GC Fee: ${total_indirect_costs:,.0f}", ln=1)
+    pdf.cell(0, 12, f"• Soft Costs & Utilities: ${total_vertical_soft:,.0f}", ln=1)
+    pdf.cell(0, 12, f"• Financing & Closing Costs: ${btr_finance_closing:,.0f}", ln=1)
     
     with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as tmp:
         pdf.output(tmp.name)
