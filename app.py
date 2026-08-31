@@ -36,7 +36,6 @@ HARDCODED_DRIVERS = {
     "const_ltv_pct": 80.0,
     "build_months": 7,
     "const_rate_pct": 7.50,
-    "avg_draw_pct": 50.0,
     "const_closing_fee": 6000,
     
     # Construction Lender Stress Constraints
@@ -295,7 +294,6 @@ with st.sidebar.container():
     st.slider("Construction / Bank LTC (%)", min_value=60.0, max_value=100.0, step=5.0, key="const_ltv_pct")
     st.slider("Construction Duration (Months)", min_value=3, max_value=18, step=1, key="build_months")
     st.slider("Construction Loan Rate (%)", min_value=4.0, max_value=14.0, step=0.5, key="const_rate_pct")
-    st.slider("Avg Draw Utilization (%)", min_value=20.0, max_value=100.0, step=5.0, key="avg_draw_pct")
     st.number_input("Const Loan Closing Fee ($ total)", min_value=0, step=500, format="%d", key="const_closing_fee")
 
 with st.sidebar.container():
@@ -360,7 +358,6 @@ opex_rate = st.session_state.get("opex_rate_pct", 25.0) / 100.0
 const_ltv = st.session_state.get("const_ltv_pct", 80.0) / 100.0
 build_months = st.session_state.get("build_months", 7)
 const_rate = st.session_state.get("const_rate_pct", 7.50) / 100.0
-avg_draw_pct = st.session_state.get("avg_draw_pct", 50.0) / 100.0
 const_closing_fee = st.session_state.get("const_closing_fee", 6000)
 
 const_bank_rent = st.session_state.get("const_bank_rent", 1500)
@@ -643,18 +640,74 @@ else:
 
 actual_const_loan = bank_stressed_value * const_bank_ltv
 
-time_years = build_months / 12.0
-carry_int_base = actual_const_loan * avg_draw_pct * const_rate * time_years
-
-default_buydown_cost = loan_total * (buydown_pts / 100.0) if apply_buydown else 0
-
 total_const = total_hard_cost + total_indirect_costs
 total_project_costs_ex_interest = total_land_default + total_const + total_vertical_soft + const_closing_fee
 
+# --- NEW S-CURVE ITERATIVE SOLVER ---
+if land_entry_mode == "Detailed Horizontal Infrastructure (LF Parametrics)":
+    land_raw_total = st.session_state.get("land_raw_cost", 50000)
+    infra_total = total_land_default - land_raw_total
+else:
+    land_raw_total = total_land_default
+    infra_total = 0.0
+
+total_draw_budget = infra_total + total_const + total_vertical_soft
+
+# Initial Guess for loop
+carry_int_base = actual_const_loan * 0.5 * const_rate * (build_months / 12.0)
+
+# Iterate 5 times to perfectly converge the capitalized interest cost against drawn loan balance
+for _ in range(5):
+    total_construction_basis = total_project_costs_ex_interest + carry_int_base
+    seed_capital = max(0, total_construction_basis - actual_const_loan)
+    
+    equity_remaining = seed_capital
+    day_1_costs = land_raw_total + const_closing_fee
+    
+    if equity_remaining >= day_1_costs:
+        equity_remaining -= day_1_costs
+        drawn_loan_balance = 0.0
+    else:
+        drawn_loan_balance = day_1_costs - equity_remaining
+        equity_remaining = 0.0
+        
+    actual_scurve_interest = 0.0
+    cum_pct = 0.0
+    d_schedule = []
+    
+    for m in range(1, build_months + 1):
+        prev_pct = cum_pct
+        cum_pct = math.pow(math.sin((math.pi / 2.0) * (m / build_months)), 2)
+        month_pct = cum_pct - prev_pct
+        month_draw = total_draw_budget * month_pct
+        
+        month_int = drawn_loan_balance * (const_rate / 12.0)
+        actual_scurve_interest += month_int
+        
+        if equity_remaining >= month_draw:
+            equity_remaining -= month_draw
+            funded_by_loan = 0.0
+        else:
+            funded_by_loan = month_draw - equity_remaining
+            equity_remaining = 0.0
+            
+        drawn_loan_balance += funded_by_loan + month_int 
+        
+        d_schedule.append({
+            "Month": f"Month {m}",
+            "Cum. % Complete": f"{cum_pct*100:.1f}%",
+            "Monthly Draw ($)": month_draw,
+            "Capitalized Interest ($)": month_int,
+            "Total Drawn Balance ($)": drawn_loan_balance
+        })
+        
+    carry_int_base = actual_scurve_interest
+
+df_schedule = pd.DataFrame(d_schedule)
+
 total_construction_basis = total_project_costs_ex_interest + carry_int_base
 total_project_basis = total_construction_basis + refi_closing_fee + default_buydown_cost
-
-seed_capital = total_construction_basis - actual_const_loan
+seed_capital = max(0, total_construction_basis - actual_const_loan)
 
 
 # --- REFINANCE & OPERATING UNDERWRITING ---
@@ -687,8 +740,8 @@ retained_equity = total_arv - loan_total
 day1_wealth = default_gc_fee + max(0.0, cash_surplus) + retained_equity
 
 btr_finance_closing = carry_int_base + const_closing_fee + refi_closing_fee + default_buydown_cost
-lot_benchmark = target_total_lot_value
-developer_margin = total_arv - (lot_benchmark + total_hard_cost + total_indirect_costs + total_vertical_soft + btr_finance_closing)
+developer_margin = total_arv - (target_total_lot_value + total_hard_cost + total_indirect_costs + total_vertical_soft + btr_finance_closing)
+
 
 # =========================================================================
 # --- SCALING CALCULATIONS (1 VS 3 VS 6) ---
@@ -730,63 +783,6 @@ annual_cf_6 = monthly_cf_6 * 12
 def format_surplus(val):
     return f"+${val:,.0f}" if val >= 0 else f"-${-val:,.0f}"
 
-# =========================================================================
-# --- ENTERPRISE S-CURVE DRAW SCHEDULE MATH ---
-# =========================================================================
-if land_entry_mode == "Detailed Horizontal Infrastructure (LF Parametrics)":
-    # Raw land is paid Day 1. The infrastructure development is drawn over time.
-    land_raw_total = st.session_state.get("land_raw_cost", 50000)
-    infra_total = total_land_default - land_raw_total
-else:
-    # If flat lump sum, we assume the whole lot is purchased Day 1.
-    land_raw_total = total_land_default
-    infra_total = 0.0
-
-total_draw_budget = infra_total + total_const + total_vertical_soft
-
-# Track capitalized interest properly
-d_schedule = []
-cum_pct = 0.0
-drawn_loan_balance = 0.0
-
-# Seed capital goes in first. It covers Raw Land + Closing Fees.
-equity_remaining = seed_capital - (land_raw_total + const_closing_fee)
-if equity_remaining < 0:
-    drawn_loan_balance = abs(equity_remaining)
-    equity_remaining = 0.0
-
-actual_scurve_interest = 0.0
-
-for m in range(1, build_months + 1):
-    prev_pct = cum_pct
-    # Math logic: S-curve using Cumulative % = sin^2( (pi/2) * (t/T) )
-    cum_pct = math.pow(math.sin((math.pi / 2.0) * (m / build_months)), 2)
-    month_pct = cum_pct - prev_pct
-    month_draw = total_draw_budget * month_pct
-    
-    # Interest for the month based on previous drawn loan balance
-    month_int = drawn_loan_balance * (const_rate / 12.0)
-    actual_scurve_interest += month_int
-    
-    # Fund the draw from remaining equity first, then the bank loan
-    if equity_remaining >= month_draw:
-        equity_remaining -= month_draw
-        funded_by_loan = 0.0
-    else:
-        funded_by_loan = month_draw - equity_remaining
-        equity_remaining = 0.0
-        
-    drawn_loan_balance += funded_by_loan + month_int  # Interest capitalizes to the loan balance
-    
-    d_schedule.append({
-        "Month": f"Month {m}",
-        "Cum. % Complete": f"{cum_pct*100:.1f}%",
-        "Monthly Draw ($)": month_draw,
-        "Capitalized Interest ($)": month_int,
-        "Total Drawn Balance ($)": drawn_loan_balance
-    })
-
-df_schedule = pd.DataFrame(d_schedule)
 
 # ==========================================
 # --- PAGE HEADER ---
@@ -1298,7 +1294,7 @@ with col2:
     fin_breakdown_df = pd.DataFrame({
         "Component": ["Const. Loan Closing Fees", "Carrying Interest", "Perm. Takeout Fees", f"Rate Buydown ({buydown_pts} pts)"],
         "Amount": [f"${const_closing_fee:,.0f}", f"${carry_int_base:,.0f}", f"${refi_closing_fee:,.0f}", f"${default_buydown_cost:,.0f}"],
-        "Details": ["", f"({build_months} months @ {const_rate*100:.2f}% on {avg_draw_pct*100:.0f}% avg drawn balance)", "", ""]
+        "Details": ["", f"({build_months} months @ {const_rate*100:.2f}% on S-Curve schedule)", "", ""]
     })
     st.dataframe(fin_breakdown_df, hide_index=True, use_container_width=True)
 
@@ -1572,8 +1568,8 @@ scurve_summary = (
     f"**Capital Deployment Schedule:** Institutional lenders require actual drawdown forecasting. Rather than drawing the construction loan in a flat, straight line, "
     f"the model maps the **${total_draw_budget:,.0f}** physical development budget across a trigonometric S-Curve. "
     f"This realistically models slower initial site work, accelerated vertical framing, and tapering final finishes across the **{build_months}-month** timeline. "
-    f"By using the exact cumulative distribution to calculate accrued interest, your True S-Curve Interest is **${actual_scurve_interest:,.0f}** "
-    f"(compared to the straight-line \${carry_int_base:,.0f} rough estimate used earlier in the model)."
+    f"By using the exact cumulative distribution to dynamically calculate accrued interest, your True S-Curve Interest is mathematically locked at **${carry_int_base:,.0f}**, "
+    f"ensuring an institutional-grade basis validation."
 )
 st.info(scurve_summary.replace("$", r"\$"))
 
