@@ -36,16 +36,7 @@ HARDCODED_DRIVERS = {
     "const_ltv_pct": 80.0,
     "build_months": 7,
     "const_rate_pct": 7.50,
-    
-    # Construction Loan Closing Fees
-    "const_closing_mode": "Flat Lump Sum",
     "const_closing_fee": 6000,
-    "const_origination_fee": 3000.0,
-    "const_appraisal_fee": 600.0,
-    "const_title_fee": 1200.0,
-    "const_survey_fee": 500.0,
-    "const_legal_fee": 500.0,
-    "const_misc_closing_fee": 200.0,
     
     # Construction Lender Stress Constraints
     "const_bank_rent": 1500,
@@ -71,7 +62,7 @@ HARDCODED_DRIVERS = {
     "custom_gc_fee": 20000,
     
     # Horizontal Parametric Development
-    "land_entry_mode": "Detailed Horizontal Infrastructure (LF Parametrics)",
+    "land_entry_mode": "Flat Lump Sum per Lot",
     "site_type_mode": "Auto-Calc LF (Based on Lot Frontage)",
     "manual_infra_lf": 0.0,
     "land_basis": 15000,
@@ -1407,7 +1398,7 @@ waterfall_data = {
         "(+) Permanent Takeout Loan Proceeds",
         "(-) Construction Loan Payoff (Prin. & Int.)",
         "(-) Refinance Closing Fees",
-        "(-) Rate Buydown Points Cost",
+        f"(-) Rate Buydown Points Cost ({buydown_pts:.2f} pts)",
         "= Net Cash Distributed to Sponsor at Closing",
         "(-) Initial Sponsor Seed Capital Invested",
         "= Final Tax-Free Cash Surplus / (Trapped Capital)"
