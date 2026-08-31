@@ -61,18 +61,32 @@ HARDCODED_DRIVERS = {
     "gc_fee_pct": 7.0,
     "custom_gc_fee": 20000,
     
-    # Horizontal Development
-    "land_entry_mode": "Flat Lump Sum per Lot",
+    # Horizontal Parametric Development
+    "land_entry_mode": "Detailed Horizontal Infrastructure (LF Parametrics)",
+    "site_type_mode": "Auto-Calc LF (Based on Lot Frontage)",
+    "manual_infra_lf": 0.0,
     "land_basis": 15000,
     "land_raw_cost": 50000,
-    "land_earthwork": 15000,
-    "land_water": 10000,
-    "land_sewer": 10000,
-    "land_electric": 5000,
-    "land_gas": 3000,
-    "land_paving": 25000,
-    "land_drainage": 12000,
-    "land_misc_site": 5000,
+    "frontage_per_lot": 50.0,
+    "road_layout": "Double-Sided Street (Yields 2 Lots per LF)",
+    "paving_type": "Concrete",
+    "paving_cost_lf": 125.0,
+    "drainage_type": "Curb & Subsurface Catch Basins",
+    "drainage_cost_lf": 85.0,
+    "water_main_lf": 45.0,
+    "sewer_main_lf": 65.0,
+    "electric_main_lf": 35.0,
+    "gas_main_lf": 20.0,
+    "earthwork_per_lot": 3000.0,
+    "detention_pond": 15000.0,
+    "site_amenities": 4500.0,
+    
+    # Vertical Hookups / Tap Fees
+    "water_tap_fee": 1500.0,
+    "sewer_tie_in": 1500.0,
+    "electric_drop": 1000.0,
+    "gas_lateral": 500.0,
+    "impact_fees": 2500.0,
     
     "appraisal_mode": "Income Approach (GRM)",
     "target_grm": 10.0,
@@ -202,34 +216,65 @@ with st.sidebar.container():
         st.slider("Financing Costs (%)", min_value=0.0, max_value=10.0, step=0.1, key="finance_pct")
 
 with st.sidebar.container():
-    st.subheader("6. Indirect Costs, GC Fee & Land")
+    st.subheader("6. Horizontal Land Development")
+    st.radio("Land Basis Entry Mode", ["Flat Lump Sum per Lot", "Detailed Horizontal Infrastructure (LF Parametrics)"], key="land_entry_mode")
+    
+    if st.session_state.land_entry_mode == "Flat Lump Sum per Lot":
+        st.number_input("Finished Lot Basis per Lot ($)", min_value=0, step=1000, format="%d", key="land_basis")
+    else:
+        st.number_input("Raw Land Acquisition ($ Total)", min_value=0, step=5000, key="land_raw_cost")
+        
+        st.markdown("##### Infrastructure Sizing")
+        st.radio("Infrastructure Scope", ["Auto-Calc LF (Based on Lot Frontage)", "Manual Total LF (Infill / Custom)"], key="site_type_mode")
+        
+        if st.session_state.site_type_mode == "Auto-Calc LF (Based on Lot Frontage)":
+            st.number_input("Average Lot Frontage (Linear Feet)", min_value=10.0, step=5.0, key="frontage_per_lot")
+            st.radio("Street Layout / Orientation", ["Single-Sided Street (1 Lot per LF)", "Double-Sided Street (Yields 2 Lots per LF)"], key="road_layout")
+        else:
+            st.number_input("Total New Street & Main Extension Length (LF)", min_value=0.0, step=10.0, key="manual_infra_lf", help="Set to 0 for infill lots where the road and mains already exist.")
+
+        st.markdown("##### Roadway & Trenching Rates ($ / LF)")
+        c_pave1, c_pave2 = st.columns(2)
+        c_pave1.selectbox("Paving Material", ["Asphalt", "Concrete"], key="paving_type")
+        c_pave2.number_input("Paving Rate ($/LF)", min_value=0.0, step=5.0, key="paving_cost_lf")
+        
+        c_drain1, c_drain2 = st.columns(2)
+        c_drain1.selectbox("Street Drainage", ["Curb & Catch Basins", "Open Ditch / Swale"], key="drainage_type")
+        c_drain2.number_input("Drainage Rate ($/LF)", min_value=0.0, step=5.0, key="drainage_cost_lf")
+        
+        c_ut1, c_ut2 = st.columns(2)
+        c_ut1.number_input("Water Main Ext. ($/LF)", min_value=0.0, step=2.5, key="water_main_lf")
+        c_ut2.number_input("Sewer Main Ext. ($/LF)", min_value=0.0, step=2.5, key="sewer_main_lf")
+        
+        c_ut3, c_ut4 = st.columns(2)
+        c_ut3.number_input("Elec/Comm Trench ($/LF)", min_value=0.0, step=2.5, key="electric_main_lf")
+        c_ut4.number_input("Gas Main Ext. ($/LF)", min_value=0.0, step=2.5, key="gas_main_lf")
+
+        st.markdown("##### Site-Wide Earthwork & Amenities ($ Total)")
+        st.number_input("Fill Dirt, Clearing & Grading ($ per Lot)", min_value=0.0, step=500.0, key="earthwork_per_lot")
+        st.number_input("Stormwater Detention Pond ($ Total)", min_value=0.0, step=2500.0, key="detention_pond")
+        st.number_input("Street Lights, Signage & Landscaping ($ Total)", min_value=0.0, step=1000.0, key="site_amenities")
+
+with st.sidebar.container():
+    st.subheader("7. Soft Costs, Permitting & GC Fees")
     st.slider("Permits, Fees, & Insurance (% of Direct)", min_value=0.0, max_value=15.0, step=0.5, key="indirect_permits_pct")
     st.slider("Temporary Site Facilities (% of Direct)", min_value=0.0, max_value=15.0, step=0.5, key="indirect_temp_facilities_pct")
+    
+    st.markdown("##### On-Lot Utility Hookups & Tap Fees ($ per Door)")
+    st.number_input("Water Meter & Tap Fee", min_value=0.0, step=100.0, key="water_tap_fee")
+    st.number_input("Sewer Tie-in Fee", min_value=0.0, step=100.0, key="sewer_tie_in")
+    st.number_input("Electric Meter & Service Drop", min_value=0.0, step=100.0, key="electric_drop")
+    st.number_input("Gas Service Lateral", min_value=0.0, step=100.0, key="gas_lateral")
+    st.number_input("Municipal Impact Fees", min_value=0.0, step=250.0, key="impact_fees")
+
     st.radio("GC Fee Structure", ["Percentage of Hard Costs (%)", "Consolidated Flat Fee ($ Total)"], key="gc_fee_mode")
     if st.session_state.gc_fee_mode == "Percentage of Hard Costs (%)":
         st.number_input("GC Management Fee (%)", min_value=0.0, max_value=50.0, step=0.5, key="gc_fee_pct")
     else:
         st.number_input("Total Consolidated GC Fee ($)", min_value=0, step=1000, format="%d", key="custom_gc_fee")
-        
-    st.markdown("##### Land Acquisition & Infrastructure")
-    st.radio("Land Basis Entry Mode", ["Flat Lump Sum per Lot", "Detailed Horizontal Buildup (Project Total)"], key="land_entry_mode")
-    if st.session_state.land_entry_mode == "Flat Lump Sum per Lot":
-        st.number_input("Finished Lot Basis per Lot ($)", min_value=0, step=1000, format="%d", key="land_basis")
-    else:
-        with st.expander("🌍 Detailed Horizontal Infrastructure Budget", expanded=True):
-            st.caption("Input the total project costs for the entire development phase.")
-            st.number_input("Raw Land Acquisition ($)", min_value=0, step=5000, key="land_raw_cost")
-            st.number_input("Clearing, Grading & Earthwork ($)", min_value=0, step=1000, key="land_earthwork")
-            st.number_input("Water Infrastructure ($)", min_value=0, step=1000, key="land_water")
-            st.number_input("Sewer Infrastructure ($)", min_value=0, step=1000, key="land_sewer")
-            st.number_input("Electrical Infrastructure ($)", min_value=0, step=1000, key="land_electric")
-            st.number_input("Gas Infrastructure ($)", min_value=0, step=1000, key="land_gas")
-            st.number_input("Roadways, Paving & Flatwork ($)", min_value=0, step=1000, key="land_paving")
-            st.number_input("Stormwater & Detention Ponds ($)", min_value=0, step=1000, key="land_drainage")
-            st.number_input("Site Amenities, Lights & Signage ($)", min_value=0, step=1000, key="land_misc_site")
 
 with st.sidebar.container():
-    st.subheader("7. Construction Loan Terms")
+    st.subheader("8. Construction Loan Terms")
     st.slider("Construction / Bank LTC (%)", min_value=60.0, max_value=100.0, step=5.0, key="const_ltv_pct")
     st.slider("Construction Duration (Months)", min_value=3, max_value=18, step=1, key="build_months")
     st.slider("Construction Loan Rate (%)", min_value=4.0, max_value=14.0, step=0.5, key="const_rate_pct")
@@ -237,7 +282,7 @@ with st.sidebar.container():
     st.number_input("Const Loan Closing Fee ($ total)", min_value=0, step=500, format="%d", key="const_closing_fee")
 
 with st.sidebar.container():
-    st.subheader("8. Const. Lender Limits")
+    st.subheader("9. Const. Lender Limits")
     st.number_input("Bank Underwriting Rent ($)", min_value=0, step=50, format="%d", key="const_bank_rent")
     st.slider("Bank Underwriting LTV (%)", min_value=50.0, max_value=100.0, step=5.0, key="const_bank_ltv_pct")
     
@@ -253,7 +298,7 @@ with st.sidebar.container():
         st.selectbox("Bank Amortization (Years)", [15, 20, 25, 30], key="const_bank_amort_yrs")
 
 with st.sidebar.container():
-    st.subheader("9. Operating Pro Forma (DSCR)")
+    st.subheader("10. Operating Pro Forma (DSCR)")
     st.number_input("Gross Monthly Rental Income per Unit ($)", min_value=0, step=50, format="%d", key="gross_monthly_rent")
     st.number_input("Target Lender DSCR Rate", min_value=1.0, max_value=1.5, value=float(GLOBAL_DRIVERS.get("target_dscr_rate", 1.20)), step=0.05, key="target_dscr_rate")
     st.number_input("Min. Acceptable Cash Flow / Door ($)", min_value=0.0, max_value=1000.0, value=float(GLOBAL_DRIVERS.get("target_min_cashflow_per_door", 200.0)), step=25.0, key="target_min_cashflow_per_door")
@@ -261,7 +306,7 @@ with st.sidebar.container():
     st.slider("Operating Expenses (OpEx) Rate of EGI (%)", min_value=15.0, max_value=50.0, step=1.0, key="opex_rate_pct")
 
 with st.sidebar.container():
-    st.subheader("10. Takeout Refinance Terms")
+    st.subheader("11. Takeout Refinance Terms")
     st.slider("Refinance LTV (%)", min_value=60.0, max_value=85.0, step=5.0, key="refi_ltv_pct")
     st.selectbox("Amortization Term (Years)", [15, 20, 25, 30], key="refi_term_years")
     st.slider("Base Refi Interest Rate (%)", min_value=4.0, max_value=10.0, step=0.25, key="base_refi_rate_pct")
@@ -323,19 +368,51 @@ gc_fee_mode = st.session_state.get("gc_fee_mode", "Percentage of Hard Costs (%)"
 gc_fee_pct = st.session_state.get("gc_fee_pct", 7.0) / 100.0
 custom_gc_fee = st.session_state.get("custom_gc_fee", 20000)
 
+# Soft Costs / Utility Tie-ins
+water_tap_fee = st.session_state.get("water_tap_fee", 1500.0)
+sewer_tie_in = st.session_state.get("sewer_tie_in", 1500.0)
+electric_drop = st.session_state.get("electric_drop", 1000.0)
+gas_lateral = st.session_state.get("gas_lateral", 500.0)
+impact_fees = st.session_state.get("impact_fees", 2500.0)
+
+total_tie_in_per_door = water_tap_fee + sewer_tie_in + electric_drop + gas_lateral + impact_fees
+total_vertical_soft = total_tie_in_per_door * units
+
+# Horizontal Land Development Parametrics
 land_entry_mode = st.session_state.get("land_entry_mode", "Flat Lump Sum per Lot")
-if land_entry_mode == "Detailed Horizontal Buildup (Project Total)":
+if land_entry_mode == "Detailed Horizontal Infrastructure (LF Parametrics)":
     land_raw_cost = st.session_state.get("land_raw_cost", 50000)
-    land_earthwork = st.session_state.get("land_earthwork", 15000)
-    land_water = st.session_state.get("land_water", 10000)
-    land_sewer = st.session_state.get("land_sewer", 10000)
-    land_electric = st.session_state.get("land_electric", 5000)
-    land_gas = st.session_state.get("land_gas", 3000)
-    land_paving = st.session_state.get("land_paving", 25000)
-    land_drainage = st.session_state.get("land_drainage", 12000)
-    land_misc_site = st.session_state.get("land_misc_site", 5000)
     
-    total_land_detailed = land_raw_cost + land_earthwork + land_water + land_sewer + land_electric + land_gas + land_paving + land_drainage + land_misc_site
+    site_type_mode = st.session_state.get("site_type_mode", "Auto-Calc LF (Based on Lot Frontage)")
+    if site_type_mode == "Auto-Calc LF (Based on Lot Frontage)":
+        frontage_per_lot = st.session_state.get("frontage_per_lot", 50.0)
+        road_layout = st.session_state.get("road_layout", "Double-Sided Street (Yields 2 Lots per LF)")
+        total_road_lf = (frontage_per_lot * units) if "Single" in road_layout else (frontage_per_lot * units) / 2.0
+    else:
+        total_road_lf = st.session_state.get("manual_infra_lf", 0.0)
+        
+    paving_cost_lf = st.session_state.get("paving_cost_lf", 125.0)
+    drainage_cost_lf = st.session_state.get("drainage_cost_lf", 85.0)
+    water_main_lf = st.session_state.get("water_main_lf", 45.0)
+    sewer_main_lf = st.session_state.get("sewer_main_lf", 65.0)
+    electric_main_lf = st.session_state.get("electric_main_lf", 35.0)
+    gas_main_lf = st.session_state.get("gas_main_lf", 20.0)
+    
+    land_paving = total_road_lf * paving_cost_lf
+    land_drainage = total_road_lf * drainage_cost_lf
+    land_water_main = total_road_lf * water_main_lf
+    land_sewer_main = total_road_lf * sewer_main_lf
+    land_electric_main = total_road_lf * electric_main_lf
+    land_gas_main = total_road_lf * gas_main_lf
+    
+    land_earthwork = st.session_state.get("earthwork_per_lot", 3000.0) * units
+    detention_pond = st.session_state.get("detention_pond", 15000.0)
+    site_amenities = st.session_state.get("site_amenities", 4500.0)
+    
+    total_land_detailed = (land_raw_cost + land_earthwork + land_paving + land_drainage + 
+                           land_water_main + land_sewer_main + land_electric_main + land_gas_main + 
+                           detention_pond + site_amenities)
+                           
     land_basis = total_land_detailed / units if units > 0 else 0
     total_land_default = total_land_detailed
 else:
@@ -371,7 +448,7 @@ comp_storage_sf = st.session_state.get("comp_storage_sf", 0)
 aux_sqft_total = struct_sqft + front_porch_sqft + back_porch_sqft + storage_sqft
 total_under_roof_sqft = sqft + aux_sqft_total
 
-comp_aux_sqft = comp_struct_sf + comp_front_sf + comp_back_sf + comp_storage_sf
+comp_aux_sqft = comp_struct_sf + comp_front_sf + back_porch_sqft + storage_sqft
 comp_total_sf = comp_heated_sf + comp_aux_sqft
 raw_comp_price_sf = comp_price / comp_heated_sf if comp_heated_sf > 0 else 0
 
@@ -509,8 +586,6 @@ fee_basis = total_hard_cost + permits_insurance_cost + temp_facilities_cost
 default_gc_fee = custom_gc_fee if gc_fee_mode == "Consolidated Flat Fee ($ Total)" else fee_basis * gc_fee_pct
 total_indirect_costs = permits_insurance_cost + temp_facilities_cost + default_gc_fee
 
-total_soft_default = 5500 * units
-
 
 # =========================================================================
 # --- ACCURATE CONSTRUCTION SIZING, DSCR CAP & CAPITALIZED INTEREST ---
@@ -539,7 +614,7 @@ carry_int_base = actual_const_loan * avg_draw_pct * const_rate * time_years
 default_buydown_cost = loan_total * (buydown_pts / 100.0) if apply_buydown else 0
 
 total_const = total_hard_cost + total_indirect_costs
-total_project_costs_ex_interest = total_land_default + total_const + total_soft_default + const_closing_fee
+total_project_costs_ex_interest = total_land_default + total_const + total_vertical_soft + const_closing_fee
 
 total_construction_basis = total_project_costs_ex_interest + carry_int_base
 total_project_basis = total_construction_basis + refi_closing_fee + default_buydown_cost
@@ -577,15 +652,15 @@ retained_equity = total_arv - loan_total
 day1_wealth = default_gc_fee + max(0.0, cash_surplus) + retained_equity
 
 btr_finance_closing = carry_int_base + const_closing_fee + refi_closing_fee + default_buydown_cost
-lot_benchmark = total_arv * lot_cost_pct
-developer_margin = total_arv - (lot_benchmark + total_hard_cost + total_indirect_costs + total_soft_default + btr_finance_closing)
+developer_margin = total_arv - (target_total_lot_value + total_hard_cost + total_indirect_costs + total_vertical_soft + btr_finance_closing)
+
 
 # =========================================================================
 # --- SCALING CALCULATIONS (1 VS 3 VS 6) ---
 # =========================================================================
 unit_land = land_basis
 unit_hard = target_direct_hard_cost
-unit_soft = (permits_insurance_cost + total_soft_default) / units
+unit_soft = (permits_insurance_cost + total_vertical_soft) / units
 unit_fin = btr_finance_closing / units
 unit_gc_baseline = (temp_facilities_cost + default_gc_fee) / units
 
@@ -780,17 +855,17 @@ horizontal_summary_text = (
 )
 st.info(horizontal_summary_text.replace("$", r"\$"))
 
-if land_entry_mode == "Detailed Horizontal Buildup (Project Total)":
+if land_entry_mode == "Detailed Horizontal Infrastructure (LF Parametrics)":
     horizontal_data = {
         "Cost Category": [
             "Raw Land Acquisition",
             "Clearing, Grading & Earthwork (Fill Dirt)",
-            "Water Infrastructure",
-            "Sewer Infrastructure",
-            "Electrical Infrastructure",
-            "Gas Infrastructure",
-            "Roadways, Paving & Flatwork",
-            "Stormwater & Detention Ponds",
+            f"Water Main Infrastructure ({total_road_lf:,.0f} LF @ ${water_main_lf:,.0f}/LF)",
+            f"Sewer Main Infrastructure ({total_road_lf:,.0f} LF @ ${sewer_main_lf:,.0f}/LF)",
+            f"Electrical/Comm Trenching ({total_road_lf:,.0f} LF @ ${electric_main_lf:,.0f}/LF)",
+            f"Gas Main Infrastructure ({total_road_lf:,.0f} LF @ ${gas_main_lf:,.0f}/LF)",
+            f"Roadways, Paving & Flatwork ({total_road_lf:,.0f} LF @ ${paving_cost_lf:,.0f}/LF)",
+            f"Stormwater & Drainage ({total_road_lf:,.0f} LF @ ${drainage_cost_lf:,.0f}/LF + Pond)",
             "Site Amenities, Lights & Signage",
             "TOTAL ACTUAL HORIZONTAL BASIS",
             "TARGET FINISHED LOT VALUE (BENCHMARK)",
@@ -799,13 +874,13 @@ if land_entry_mode == "Detailed Horizontal Buildup (Project Total)":
         "Total Project Cost": [
             f"${land_raw_cost:,.0f}",
             f"${land_earthwork:,.0f}",
-            f"${land_water:,.0f}",
-            f"${land_sewer:,.0f}",
-            f"${land_electric:,.0f}",
-            f"${land_gas:,.0f}",
+            f"${land_water_main:,.0f}",
+            f"${land_sewer_main:,.0f}",
+            f"${land_electric_main:,.0f}",
+            f"${land_gas_main:,.0f}",
             f"${land_paving:,.0f}",
-            f"${land_drainage:,.0f}",
-            f"${land_misc_site:,.0f}",
+            f"${land_drainage + detention_pond:,.0f}",
+            f"${site_amenities:,.0f}",
             f"${total_land_default:,.0f}",
             f"${target_total_lot_value:,.0f}",
             f"${land_equity_captured:,.0f}"
@@ -813,13 +888,13 @@ if land_entry_mode == "Detailed Horizontal Buildup (Project Total)":
         "Cost Per Door": [
             f"${land_raw_cost/units:,.0f}" if units > 0 else "$0",
             f"${land_earthwork/units:,.0f}" if units > 0 else "$0",
-            f"${land_water/units:,.0f}" if units > 0 else "$0",
-            f"${land_sewer/units:,.0f}" if units > 0 else "$0",
-            f"${land_electric/units:,.0f}" if units > 0 else "$0",
-            f"${land_gas/units:,.0f}" if units > 0 else "$0",
+            f"${land_water_main/units:,.0f}" if units > 0 else "$0",
+            f"${land_sewer_main/units:,.0f}" if units > 0 else "$0",
+            f"${land_electric_main/units:,.0f}" if units > 0 else "$0",
+            f"${land_gas_main/units:,.0f}" if units > 0 else "$0",
             f"${land_paving/units:,.0f}" if units > 0 else "$0",
-            f"${land_drainage/units:,.0f}" if units > 0 else "$0",
-            f"${land_misc_site/units:,.0f}" if units > 0 else "$0",
+            f"${(land_drainage + detention_pond)/units:,.0f}" if units > 0 else "$0",
+            f"${site_amenities/units:,.0f}" if units > 0 else "$0",
             f"${land_basis:,.0f}",
             f"${target_lot_value_per_door:,.0f}",
             f"${land_equity_captured/units:,.0f}" if units > 0 else "$0"
@@ -1111,7 +1186,7 @@ st.markdown("### 6. Developer Capital & Construction Ledger")
 
 land_eq_text = (
     f"**Land Equity Capture:** The Pro Forma valuation benchmark values the lot at {lot_cost_pct*100:.1f}% "
-    f"(**${lot_benchmark:,.0f}**), while the developer's actual out-of-pocket acquisition cost is "
+    f"(**${lot_benchmark:,.0f}**), while the developer's actual out-of-pocket acquisition/development basis is "
     f"**${total_land_default:,.0f}**. This gap represents immediate land equity."
 )
 st.info(land_eq_text.replace("$", r"\$"))
@@ -1120,8 +1195,8 @@ col1, col2 = st.columns(2)
 with col1:
     st.markdown("#### Pro Forma Valuation Allocation")
     val_alloc_df = pd.DataFrame({
-        "Component": [f"Finished Lot Benchmark ({lot_cost_pct*100:.1f}%)", "Adjusted BTR Hard Costs", "Indirects + GC Fee", "Soft Costs & Permitting", "Finance, Closing & Buydown", "Built-in Developer Margin", "Total Appraised Value (ARV)"],
-        "Amount": [f"${lot_benchmark:,.0f}", f"${total_hard_cost:,.0f}", f"${total_indirect_costs:,.0f}", f"${total_soft_default:,.0f}", f"${btr_finance_closing:,.0f}", f"${developer_margin:,.0f}", f"${total_arv:,.0f}"]
+        "Component": [f"Finished Lot Benchmark ({lot_cost_pct*100:.1f}%)", "Adjusted BTR Hard Costs", "Indirects + GC Fee", "On-Lot Utilities & Soft Costs", "Finance, Closing & Buydown", "Built-in Developer Margin", "Total Appraised Value (ARV)"],
+        "Amount": [f"${lot_benchmark:,.0f}", f"${total_hard_cost:,.0f}", f"${total_indirect_costs:,.0f}", f"${total_vertical_soft:,.0f}", f"${btr_finance_closing:,.0f}", f"${developer_margin:,.0f}", f"${total_arv:,.0f}"]
     })
     st.dataframe(val_alloc_df, hide_index=True, use_container_width=True)
     
@@ -1136,9 +1211,9 @@ with col2:
 
 st.markdown("#### Capital Outlay & Transaction Scope")
 transaction_df = pd.DataFrame({
-    "Phase / Project Cash Event": ["1. Seed Capital Outlay", "2. Total Construction Cost", "3. Soft Costs & Permitting", "4. Construction Financing Costs", "5. Permanent Refinance Takeout", "Total Project Capital Basis"],
-    "Transaction Scope": ["Out-of-pocket finished lot acquisition & development", "Baseline Hard Costs + Indirects + GC Fee", "Architecture, civil engineering, parish permits, builder's risk", f"Lender closing fees (${const_closing_fee:,.0f}) & accrued interest (${carry_int_base:,.0f})", f"Commercial fees (${refi_closing_fee:,.0f}) + {buydown_pts} pt rate buydown (${default_buydown_cost:,.0f})", "All-in total cost to build, finance, close, and stabilize"],
-    "Actual Capital Outlay": [f"-${total_land_default:,.0f}", f"-${total_const:,.0f}", f"-${total_soft_default:,.0f}", f"-${const_closing_fee + carry_int_base:,.0f}", f"-${refi_closing_fee + default_buydown_cost:,.0f}", f"-${total_project_basis:,.0f}"]
+    "Phase / Project Cash Event": ["1. Horizontal Dev & Land", "2. Vertical Construction Cost", "3. Utility Taps & Soft Costs", "4. Construction Financing Costs", "5. Permanent Refinance Takeout", "Total Project Capital Basis"],
+    "Transaction Scope": ["Out-of-pocket acquisition and civil infrastructure", "Baseline Hard Costs + Indirects + GC Fee", "Water/sewer/electric/gas tie-ins, permits, builder's risk", f"Lender closing fees (${const_closing_fee:,.0f}) & accrued interest (${carry_int_base:,.0f})", f"Commercial fees (${refi_closing_fee:,.0f}) + {buydown_pts} pt rate buydown (${default_buydown_cost:,.0f})", "All-in total cost to build, finance, close, and stabilize"],
+    "Actual Capital Outlay": [f"-${total_land_default:,.0f}", f"-${total_const:,.0f}", f"-${total_vertical_soft:,.0f}", f"-${const_closing_fee + carry_int_base:,.0f}", f"-${refi_closing_fee + default_buydown_cost:,.0f}", f"-${total_project_basis:,.0f}"]
 })
 st.dataframe(transaction_df, hide_index=True, use_container_width=True)
 st.divider()
@@ -1235,7 +1310,7 @@ st.divider()
 st.markdown("### 9. Strategy Comparison: Retail Sell vs. Build-to-Rent")
 
 retail_sales_costs = total_arv * 0.08
-retail_total_invested = total_land_default + total_const + total_soft_default + retail_sales_costs
+retail_total_invested = total_land_default + total_const + total_vertical_soft + retail_sales_costs
 retail_net_cash = total_arv - retail_total_invested
 
 btr_cash_text = f"yielding **${cash_surplus:,.0f}** tax-free" if cash_surplus >= 0 else f"leaving **${-cash_surplus:,.0f}** as retained capital"
@@ -1252,7 +1327,7 @@ strategy_data = {
         "Land Basis",
         "Direct Hard Costs",
         "Total Construction Cost (incl. GC & Indirects)",
-        "Soft Costs & Permitting",
+        "On-Lot Utilities & Soft Costs",
         "Sales & Transaction Closing Costs",
         "Total Capital Invested",
         "Gross Revenue / Permanent Loan Proceeds",
@@ -1264,7 +1339,7 @@ strategy_data = {
         f"${total_land_default:,.0f}",
         f"${total_hard_cost:,.0f} (Baseline)",
         f"${total_const:,.0f}",
-        f"${total_soft_default:,.0f}",
+        f"${total_vertical_soft:,.0f}",
         f"${retail_sales_costs:,.0f} (~8% Realtor & concessions)",
         f"${retail_total_invested:,.0f}",
         f"${total_arv:,.0f} (Retail sales price)",
@@ -1276,7 +1351,7 @@ strategy_data = {
         f"${total_land_default:,.0f}",
         f"${total_hard_cost:,.0f}",
         f"${total_const:,.0f}",
-        f"${total_soft_default:,.0f}",
+        f"${total_vertical_soft:,.0f}",
         f"${btr_finance_closing:,.0f} (Const. finance, takeout, buydown)",
         f"${total_project_basis:,.0f}",
         f"${loan_total:,.0f} ({refi_ltv*100:.0f}% LTV DSCR Loan)",
@@ -1316,7 +1391,7 @@ scaling_data = {
         f"Land Basis (${unit_land:,.0f} / lot)",
         f"Adjusted Hard Costs (${unit_hard:,.0f} / house)",
         "Optimized Management Fees (GenCond + GC Fee)",
-        f"Soft Costs & Permitting (${unit_soft:,.0f} / house)",
+        f"On-Lot Utilities & Soft Costs (${unit_soft:,.0f} / house)",
         "Financing, Closing & Buydown",
         "Total Program Capital Invested",
         f"Permanent Commercial Loan Proceeds ({refi_ltv*100:.0f}% LTV)",
@@ -1368,7 +1443,7 @@ scaling_data = {
         "Concurrent lot acquisition.",
         "Direct materials & labor.",
         "$20k per 3-house cluster ($6,667/house).",
-        "Site plans, engineering, parish permits.",
+        "Utility taps, impact fees, builder's risk.",
         f"Const. loans, {build_months}-mo carry interest, takeout pts.",
         "Total capital required for annual program.",
         f"${loan_1:,.0f} takeout loan per door at {net_refi_rate*100:.2f}% ({actual_dscr:.2f}x DSCR).",
@@ -1721,8 +1796,8 @@ def create_pdf(detail_mode):
     pdf.cell(65, 5, "Perm. Takeout Fees:", 0, 0, 'L')
     pdf.cell(30, 5, f"${refi_closing_fee:,.0f}", 0, 1, 'R')
     # Row 4
-    pdf.cell(65, 5, "Soft Costs & Permitting:", 0, 0, 'L')
-    pdf.cell(30, 5, f"${total_soft_default:,.0f}", 0, 0, 'R')
+    pdf.cell(65, 5, "On-Lot Utilities & Soft Costs:", 0, 0, 'L')
+    pdf.cell(30, 5, f"${total_vertical_soft:,.0f}", 0, 0, 'R')
     pdf.cell(65, 5, f"Rate Buydown ({buydown_pts} pts):", 0, 0, 'L')
     pdf.cell(30, 5, f"${default_buydown_cost:,.0f}", 0, 1, 'R')
     # Row 5
@@ -1746,9 +1821,9 @@ def create_pdf(detail_mode):
     
     pdf.set_font("Arial", '', 8)
     transactions = [
-        ("1. Seed Capital Outlay", "Out-of-pocket finished lot acquisition & infrastructure", f"-${total_land_default:,.0f}"),
-        ("2. Total Const. Cost", "Baseline Hard Costs + Indirects + GC Fee", f"-${total_const:,.0f}"),
-        ("3. Soft Costs & Permitting", "Architecture, civil engineering, parish permits", f"-${total_soft_default:,.0f}"),
+        ("1. Horizontal Dev & Land", "Out-of-pocket acquisition and civil infrastructure", f"-${total_land_default:,.0f}"),
+        ("2. Vertical Const. Cost", "Baseline Hard Costs + Indirects + GC Fee", f"-${total_const:,.0f}"),
+        ("3. Taps & Soft Costs", "Water/sewer/electric/gas tie-ins, permits", f"-${total_vertical_soft:,.0f}"),
         ("4. Const. Finance Costs", f"Lender fees (${const_closing_fee:,.0f}) & interest (${carry_int_base:,.0f})", f"-${const_closing_fee + carry_int_base:,.0f}"),
         ("5. Perm. Takeout Fees", f"Comm. fees (${refi_closing_fee:,.0f}) + buydown (${default_buydown_cost:,.0f})", f"-${refi_closing_fee + default_buydown_cost:,.0f}")
     ]
@@ -1824,7 +1899,7 @@ def create_pdf(detail_mode):
     
     # Text summary for PDF
     pdf.set_font("Arial", '', 10)
-    clean_strategy_summary = strategy_comparison_text.replace("**", "").encode('latin-1', 'replace').decode('latin-1')
+    clean_strategy_summary = strategy_comparison_text.replace("**", "").replace(r"\$", "$").encode('latin-1', 'replace').decode('latin-1')
     pdf.multi_cell(0, 6, clean_strategy_summary)
     pdf.ln(3)
 
@@ -1860,7 +1935,7 @@ def create_pdf(detail_mode):
     
     pdf.ln(5)
     pdf.set_font("Arial", 'I', 8)
-    clean_footnote = strategy_footnote_text.replace("*Note: ", "Note: ").replace("*", "").encode('latin-1', 'replace').decode('latin-1')
+    clean_footnote = strategy_footnote_text.replace("*Note: ", "Note: ").replace("*", "").replace(r"\$", "$").encode('latin-1', 'replace').decode('latin-1')
     pdf.multi_cell(0, 5, clean_footnote)
     pdf.ln(5)
     
