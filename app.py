@@ -213,9 +213,20 @@ with st.sidebar.container():
 
 with st.sidebar.container():
     st.subheader("4. Takeout Appraisal Methodology")
-    st.radio("Valuation Mode", ["Sales Comp (Price/SF)", "Income Approach (GRM)"], key="appraisal_mode")
-    if st.session_state.appraisal_mode == "Income Approach (GRM)":
+    st.radio("Valuation Mode", [
+        "Sales Comp (Price/SF)", 
+        "Income Approach (GRM)", 
+        "Income Approach (DSCR Loan Sizing)",
+        "Conservative (Lesser of GRM or DSCR)"
+    ], key="appraisal_mode")
+    
+    if st.session_state.appraisal_mode in ["Income Approach (GRM)", "Conservative (Lesser of GRM or DSCR)"]:
         st.number_input("Gross Rent Multiplier (GRM)", min_value=4.0, max_value=25.0, value=float(GLOBAL_DRIVERS.get("target_grm", 10.0)), step=0.1, key="target_grm")
+        
+    if st.session_state.appraisal_mode == "Income Approach (DSCR Loan Sizing)":
+        st.info("ARV is automatically derived from your Operating (NOI) and Refi Loan terms to exactly meet your Target DSCR and LTV constraints.")
+    elif st.session_state.appraisal_mode == "Conservative (Lesser of GRM or DSCR)":
+        st.info("ARV evaluates both the GRM and the DSCR max loan limit, automatically defaulting to whichever yields the lower valuation.")
 
 with st.sidebar.container():
     st.subheader("5. Cost Target Mode (Reverse Engineer)")
@@ -537,8 +548,31 @@ else:
     isolated_heated_rate = comp_isolated_heated_value / comp_heated_sf if comp_heated_sf > 0 else 0
 
 # 2. Derive Valuation & Hard Cost Target
-if appraisal_mode == "Income Approach (GRM)":
-    arv_per_unit = (gross_monthly_rent * 12) * target_grm
+if appraisal_mode in ["Income Approach (GRM)", "Income Approach (DSCR Loan Sizing)", "Conservative (Lesser of GRM or DSCR)"]:
+    # A. Calculate GRM Value
+    grm_arv = (gross_monthly_rent * 12) * target_grm
+    
+    # B. Calculate DSCR Sized Value
+    unit_gross_annual = gross_monthly_rent * 12.0
+    unit_noi = unit_gross_annual * (1.0 - vacancy_rate) * (1.0 - opex_rate)
+    unit_max_annual_ds = unit_noi / target_dscr_rate
+    
+    refi_monthly_rate = net_refi_rate / 12.0
+    refi_term_months = refi_term_years * 12
+    if refi_monthly_rate > 0:
+        max_unit_loan = (unit_max_annual_ds / 12.0) * ((1.0 - (1.0 + refi_monthly_rate)**-refi_term_months) / refi_monthly_rate)
+    else:
+        max_unit_loan = (unit_max_annual_ds / 12.0) * refi_term_months
+        
+    dscr_arv = max_unit_loan / refi_ltv if refi_ltv > 0 else 0
+    
+    # C. Select Final ARV based on User Mode
+    if appraisal_mode == "Income Approach (GRM)":
+        arv_per_unit = grm_arv
+    elif appraisal_mode == "Income Approach (DSCR Loan Sizing)":
+        arv_per_unit = dscr_arv
+    else: # Conservative (Lesser of GRM or DSCR)
+        arv_per_unit = min(grm_arv, dscr_arv)
 else:
     arv_per_unit = 0 
 
@@ -552,7 +586,7 @@ if aux_cost_mode == "Percentage of Heated Rate (%)":
         target_heated_hard_cost = direct_cost_sf * sqft
         target_direct_hard_cost = target_heated_hard_cost + our_aux_cost_total
         comp_equivalent_arv = (isolated_heated_rate * sqft) + (aux_sqft_total * (isolated_heated_rate * aux_ratio)) + additional_foundation_cost
-        if appraisal_mode != "Income Approach (GRM)":
+        if appraisal_mode == "Sales Comp (Price/SF)":
             arv_per_unit = comp_equivalent_arv
             
         total_construction_budget = target_direct_hard_cost * indirect_multiplier * (1.0 + gc_fee_pct) if gc_fee_mode == "Percentage of Hard Costs (%)" else (target_direct_hard_cost * indirect_multiplier) + custom_gc_fee
@@ -582,14 +616,14 @@ if aux_cost_mode == "Percentage of Heated Rate (%)":
         struct_cost_sf = direct_cost_sf * aux_ratio
         our_aux_cost_total = (aux_sqft_total * struct_cost_sf) + additional_foundation_cost
         target_heated_hard_cost = direct_cost_sf * sqft
-        if appraisal_mode != "Income Approach (GRM)":
+        if appraisal_mode == "Sales Comp (Price/SF)":
             arv_per_unit = comp_equivalent_arv
 
 else: # Fixed Aux Cost Mode
     struct_cost_sf = aux_fixed_cost_sf
     our_aux_cost_total = (aux_sqft_total * struct_cost_sf) + additional_foundation_cost
     
-    if appraisal_mode != "Income Approach (GRM)":
+    if appraisal_mode == "Sales Comp (Price/SF)":
         arv_per_unit = (isolated_heated_rate * sqft) + our_aux_cost_total
 
     if cost_calc_mode == "Manual Set (Heated SF)":
@@ -985,7 +1019,7 @@ with ui_op_metrics:
     
     cf_pass = monthly_cash_flow_per_door >= target_min_cashflow_per_door
     
-    arv_label = "Derived Unit ARV (Price/SF)" if appraisal_mode == "Sales Comp (Price/SF)" else "Derived Unit ARV (GRM)"
+    arv_label = "Derived Unit ARV (Price/SF)" if appraisal_mode == "Sales Comp (Price/SF)" else "Derived Unit ARV"
     op1.metric(arv_label, f"${arv_per_unit:,.0f}", f"${total_arv:,.0f} Total ARV")
     op2.metric("Actual DSCR Rate", f"{actual_dscr:.2f}x", f"Target: {target_dscr_rate:.2f}x", delta_color="normal" if actual_dscr >= target_dscr_rate else "inverse")
     op3.metric("Monthly Cash Flow", f"${monthly_cash_flow:,.0f} /mo", f"${monthly_cash_flow*12:,.0f} Annual", delta_color="normal" if cf_pass else "inverse")
