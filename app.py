@@ -1732,6 +1732,24 @@ strategy_comparison_text = (
 )
 st.info(strategy_comparison_text.replace("$", r"\$"))
 
+# --- NEW STRATEGY COMPARISON CHART ---
+strat_viz_data = pd.DataFrame({
+    "Strategy": ["1. Retail Sell Model", "1. Retail Sell Model", "2. Build-to-Rent Model", "2. Build-to-Rent Model"],
+    "Wealth Component": ["Net Cash Event", "Retained Equity", "Net Cash Event", "Retained Equity"],
+    "Amount ($)": [retail_net_cash, 0, cash_surplus, retained_equity]
+})
+
+fig_strat = px.bar(strat_viz_data, x="Strategy", y="Amount ($)", color="Wealth Component", 
+                   text="Amount ($)", barmode="stack",
+                   title=f"Wealth Creation Comparison (Total ARV: ${total_arv:,.0f})",
+                   color_discrete_map={
+                       "Net Cash Event": "#2ca02c", 
+                       "Retained Equity": "#1f77b4"
+                   })
+fig_strat.update_traces(texttemplate='$%{text:,.0f}', textposition='inside', insidetextanchor='middle')
+fig_strat.update_layout(yaxis_title="Generated Wealth ($)", xaxis_title="", legend_title_text="")
+st.plotly_chart(fig_strat, use_container_width=True)
+
 with st.expander("⚖️ View Financial Strategy Comparison Matrix", expanded=False):
     strategy_data = {
         "Financial Metric": [
