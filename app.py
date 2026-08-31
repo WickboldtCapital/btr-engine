@@ -528,6 +528,46 @@ btr_finance_closing = carry_int_base + const_closing_fee + refi_closing_fee + de
 lot_benchmark = total_arv * lot_cost_pct
 developer_margin = total_arv - (lot_benchmark + total_hard_cost + total_indirect_costs + total_soft_default + btr_finance_closing)
 
+# =========================================================================
+# --- SCALING CALCULATIONS (1 VS 3 VS 6) ---
+# =========================================================================
+unit_land = land_basis
+unit_hard = target_direct_hard_cost
+unit_soft = (permits_insurance_cost + total_soft_default) / units
+unit_fin = btr_finance_closing / units
+unit_gc_baseline = (temp_facilities_cost + default_gc_fee) / units
+
+# 1-Unit Baseline
+cap_1 = unit_land + unit_hard + unit_soft + unit_fin + unit_gc_baseline
+loan_1 = loan_total / units
+surplus_1 = loan_1 - cap_1
+eq_1 = (total_arv / units) - loan_1
+wealth_1 = unit_gc_baseline + max(0, surplus_1) + eq_1
+
+# 3-Unit Phase
+opt_gc_3 = 20000
+savings_per_door = unit_gc_baseline - (opt_gc_3 / 3)
+cap_3 = (unit_land + unit_hard + unit_soft + unit_fin) * 3 + opt_gc_3
+loan_3 = loan_1 * 3
+surplus_3 = loan_3 - cap_3
+eq_3 = eq_1 * 3
+wealth_3 = opt_gc_3 + max(0, surplus_3) + eq_3
+
+# 6-Unit Program
+opt_gc_6 = 40000
+cap_6 = (unit_land + unit_hard + unit_soft + unit_fin) * 6 + opt_gc_6
+loan_6 = loan_1 * 6
+surplus_6 = loan_6 - cap_6
+eq_6 = eq_1 * 6
+wealth_6 = opt_gc_6 + max(0, surplus_6) + eq_6
+
+monthly_cf_6 = monthly_cash_flow_per_door * 6
+annual_cf_6 = monthly_cf_6 * 12
+
+
+def format_surplus(val):
+    return f"+${val:,.0f}" if val >= 0 else f"-${-val:,.0f}"
+
 # ==========================================
 # --- PAGE HEADER ---
 # ==========================================
@@ -1115,10 +1155,108 @@ st.divider()
 
 
 # ==========================================
-# --- 9. REVERSE-ENGINEERING BREAKDOWN ---
+# --- 9. MULTI-UNIT PHASE & ANNUAL PROGRAM ANALYSIS ---
+# ==========================================
+st.markdown("### 9. Multi-Unit Phase & Annual Program Analysis")
+
+scaling_intro = (
+    f"Scaling production unlocks substantial economies of scale on site supervision and management overhead. "
+    f"This section compares a 3-house simultaneous phase against a 6-house annual build program (executed in two rolling phases of 3). "
+    f"By consolidating supervision across each cluster, combined management fees are optimized down to **$20,000 per 3-house phase** "
+    f"(${20000/3:,.0f} per house, saving **${savings_per_door:,.0f}** per home compared to single-unit builds)."
+)
+st.info(scaling_intro.replace("$", r"\$"))
+
+scaling_data = {
+    "Portfolio Metric": [
+        "Total Units Built in Year 1",
+        f"Land Basis (${unit_land:,.0f} / lot)",
+        f"Adjusted Hard Costs (${unit_hard:,.0f} / house)",
+        "Optimized Management Fees (GenCond + GC Fee)",
+        f"Soft Costs & Permitting (${unit_soft:,.0f} / house)",
+        "Financing, Closing & Buydown",
+        "Total Program Capital Invested",
+        f"Permanent Commercial Loan Proceeds ({refi_ltv*100:.0f}% LTV)",
+        "Net Program Cash Surplus at Close",
+        f"Total Retained Asset Equity ({100 - refi_ltv*100:.0f}% ARV)",
+        "Total Day-1 Wealth Created (Program)"
+    ],
+    "Single-House Baseline": [
+        "1 Unit",
+        f"${unit_land:,.0f}",
+        f"${unit_hard:,.0f}",
+        f"${unit_gc_baseline:,.0f}",
+        f"${unit_soft:,.0f}",
+        f"${unit_fin:,.0f}",
+        f"${cap_1:,.0f}",
+        f"${loan_1:,.0f}",
+        format_surplus(surplus_1),
+        f"${eq_1:,.0f}",
+        f"${wealth_1:,.0f}"
+    ],
+    "3-House Simultaneous Phase": [
+        "3 Units",
+        f"${unit_land * 3:,.0f}",
+        f"${unit_hard * 3:,.0f}",
+        f"${opt_gc_3:,.0f}",
+        f"${unit_soft * 3:,.0f}",
+        f"${unit_fin * 3:,.0f}",
+        f"${cap_3:,.0f}",
+        f"${loan_3:,.0f}",
+        format_surplus(surplus_3),
+        f"${eq_3:,.0f}",
+        f"${wealth_3:,.0f}"
+    ],
+    "6-House Annual Build (Year 1)": [
+        "6 Units",
+        f"${unit_land * 6:,.0f}",
+        f"${unit_hard * 6:,.0f}",
+        f"${opt_gc_6:,.0f}",
+        f"${unit_soft * 6:,.0f}",
+        f"${unit_fin * 6:,.0f}",
+        f"${cap_6:,.0f}",
+        f"${loan_6:,.0f}",
+        format_surplus(surplus_6),
+        f"${eq_6:,.0f}",
+        f"${wealth_6:,.0f}"
+    ],
+    "Program Optimization Notes": [
+        "Scaled velocity across fiscal year.",
+        "Concurrent lot acquisition.",
+        "Direct materials & labor.",
+        "$20k per 3-house cluster ($6,667/house).",
+        "Site plans, engineering, parish permits.",
+        f"Const. loans, {build_months}-mo carry interest, takeout pts.",
+        "Total capital required for annual program.",
+        f"${loan_1:,.0f} takeout loan per door at {net_refi_rate*100:.2f}% ({actual_dscr:.2f}x DSCR).",
+        "Tax-free cash distributed above full seed return.",
+        "Unencumbered equity across portfolio doors.",
+        "Combined active GC fees, surplus, & equity."
+    ]
+}
+
+st.dataframe(pd.DataFrame(scaling_data), hide_index=True, use_container_width=True)
+
+trapped_text = f"zero net capital trapped" if surplus_6 >= 0 else f"requiring ${-surplus_6:,.0f} in net capital trapped"
+surplus_extract_text = f"pulls out ${surplus_6:,.0f} in tax-free cash surplus" if surplus_6 >= 0 else f"retains ${-surplus_6:,.0f} as trapped seed capital"
+
+scaling_takeaway = (
+    f"**Annual Build Program Takeaway (6 Houses in Year 1)**\n\n"
+    f"Executing a 6-house annual program in two 3-house concurrent phases maximizes both corporate revenue and portfolio scale. "
+    f"Wickboldt Capital earns **${opt_gc_6:,.0f}** in active GC management fees (saving **${savings_per_door * 6:,.0f}** overall), "
+    f"the holding entity {surplus_extract_text} at refinance close, and the portfolio holds "
+    f"**${eq_6:,.0f}** in unencumbered equity while generating **${monthly_cf_6:,.0f}/month** (**${annual_cf_6:,.0f}/year**) "
+    f"in total net passive cash flow across all 6 doors at {trapped_text}."
+)
+st.success(scaling_takeaway.replace("$", r"\$"))
+st.divider()
+
+
+# ==========================================
+# --- 10. REVERSE-ENGINEERING BREAKDOWN ---
 # ==========================================
 if cost_calc_mode in ["Reverse-Engineer from Appraisal", "Reverse-Engineer from Primary Comp"]:
-    st.markdown("### 9. Retail Comp & Appraisal Reverse-Engineering Breakdown")
+    st.markdown("### 10. Retail Comp & Appraisal Reverse-Engineering Breakdown")
     
     reference_price = arv_per_unit if cost_calc_mode == 'Reverse-Engineer from Appraisal' else comp_equivalent_arv
     ref_price_sf = reference_price / sqft if sqft > 0 else 0
@@ -1178,9 +1316,9 @@ if cost_calc_mode in ["Reverse-Engineer from Appraisal", "Reverse-Engineer from 
 
 
 # ==========================================
-# --- 10. PDF GENERATION ENGINE ---
+# --- 11. PDF GENERATION ENGINE ---
 # ==========================================
-st.markdown("### 🖨️ 10. Export Enterprise PDF Report")
+st.markdown("### 🖨️ 11. Export Enterprise PDF Report")
 pdf_detail_mode = st.radio(
     "Construction Budget Detail Level for PDF:",
     ["Full 36-Component Breakdown", "8 Major NAHB Categories Only", "High-Level Roll-up Only"],
@@ -1357,7 +1495,7 @@ def create_pdf(detail_mode):
         
         pdf.cell(90, 6, "Division / Trade Level", 1, 0, 'C')
         pdf.cell(30, 6, "Live Cost / SF", 1, 0, 'C')
-        pdf.cell(35, 6, "Per Unit ({sqft} SF)", 1, 0, 'C')
+        pdf.cell(35, 6, f"Per Unit ({sqft} SF)", 1, 0, 'C')
         pdf.cell(35, 6, "Project Total", 1, 1, 'C')
         
         for name, live_sf, unit_cost, proj_cost, is_header in pdf_granular_data:
@@ -1566,7 +1704,7 @@ def create_pdf(detail_mode):
     
     # Text summary for PDF
     pdf.set_font("Arial", '', 10)
-    clean_strategy_summary = strategy_comparison_text.encode('latin-1', 'replace').decode('latin-1')
+    clean_strategy_summary = strategy_comparison_text.replace("**", "").encode('latin-1', 'replace').decode('latin-1')
     pdf.multi_cell(0, 6, clean_strategy_summary)
     pdf.ln(3)
 
@@ -1605,6 +1743,43 @@ def create_pdf(detail_mode):
     clean_footnote = strategy_footnote_text.replace("*Note: ", "Note: ").replace("*", "").encode('latin-1', 'replace').decode('latin-1')
     pdf.multi_cell(0, 5, clean_footnote)
     pdf.ln(5)
+    
+    # 10. MULTI-UNIT PHASE & ANNUAL PROGRAM ANALYSIS
+    pdf.set_font("Arial", 'B', 12)
+    pdf.set_fill_color(220, 220, 220)
+    pdf.cell(0, 8, " 10. Multi-Unit Phase & Annual Program Analysis", ln=1, fill=True)
+    
+    pdf.set_font("Arial", '', 10)
+    clean_scaling_intro = scaling_intro.replace("**", "").encode('latin-1', 'replace').decode('latin-1')
+    pdf.multi_cell(0, 6, clean_scaling_intro)
+    pdf.ln(3)
+
+    pdf.set_font("Arial", 'B', 8)
+    pdf.cell(50, 6, "Portfolio Metric", 1, 0, 'C')
+    pdf.cell(40, 6, "1-House Baseline", 1, 0, 'C')
+    pdf.cell(40, 6, "3-House Phase", 1, 0, 'C')
+    pdf.cell(40, 6, "6-House Annual", 1, 1, 'C')
+    
+    pdf.set_font("Arial", '', 7)
+    for i in range(len(scaling_data["Portfolio Metric"])):
+        metric = str(scaling_data["Portfolio Metric"][i])
+        val1 = str(scaling_data["Single-House Baseline"][i])
+        val3 = str(scaling_data["3-House Simultaneous Phase"][i])
+        val6 = str(scaling_data["6-House Annual Build (Year 1)"][i])
+        
+        # Abbreviate for PDF
+        metric = metric.replace("Permanent Commercial Loan Proceeds", "Takeout Loan Proceeds")
+        metric = metric.replace("Total Retained Asset Equity", "Retained Asset Equity")
+        
+        pdf.cell(50, 6, metric[:40], 1, 0, 'L')
+        pdf.cell(40, 6, val1[:30], 1, 0, 'C')
+        pdf.cell(40, 6, val3[:30], 1, 0, 'C')
+        pdf.cell(40, 6, val6[:30], 1, 1, 'C')
+        
+    pdf.ln(4)
+    pdf.set_font("Arial", 'I', 9)
+    clean_scaling_takeaway = scaling_takeaway.replace("**", "").encode('latin-1', 'replace').decode('latin-1')
+    pdf.multi_cell(0, 5, clean_scaling_takeaway)
     
     with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as tmp:
         pdf.output(tmp.name)
