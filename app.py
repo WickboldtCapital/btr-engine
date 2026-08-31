@@ -349,7 +349,7 @@ with st.sidebar.container():
     st.number_input("Refinance Closing Fee ($ total)", min_value=0, step=250, format="%d", key="refi_closing_fee")
     st.checkbox("Apply Interest Rate Buydown Points?", key="apply_buydown")
     if st.session_state.apply_buydown:
-        st.number_input("Discount Points", min_value=0.0, max_value=5.0, value=float(GLOBAL_DRIVERS.get("buydown_pts", 3.0)), step=0.5, key="buydown_pts")
+        st.number_input("Discount Points", min_value=0.0, max_value=10.0, step=0.25, format="%.2f", key="buydown_pts")
         net_rate = max(0.01, (st.session_state.base_refi_rate_pct / 100.0) - (st.session_state.buydown_pts * 0.0025))
         st.markdown(f"📉 **Buydown Net Rate:** `{net_rate*100:.3f}%`")
 
@@ -1331,7 +1331,7 @@ with col1:
 with col2:
     st.markdown("#### Financing Breakdown")
     fin_breakdown_df = pd.DataFrame({
-        "Component": ["Const. Loan Closing Fees", "Carrying Interest", "Perm. Takeout Fees", f"Rate Buydown ({buydown_pts} pts)"],
+        "Component": ["Const. Loan Closing Fees", "Carrying Interest", "Perm. Takeout Fees", f"Rate Buydown ({buydown_pts:.2f} pts)"],
         "Amount": [f"${const_closing_fee:,.0f}", f"${carry_int_base:,.0f}", f"${refi_closing_fee:,.0f}", f"${default_buydown_cost:,.0f}"],
         "Details": [fin_details, f"({build_months} months @ {const_rate*100:.2f}% on S-Curve schedule)", "", ""]
     })
@@ -1340,7 +1340,7 @@ with col2:
 st.markdown("#### Capital Outlay & Transaction Scope")
 transaction_df = pd.DataFrame({
     "Phase / Project Cash Event": ["1. Horizontal Dev & Land", "2. Vertical Construction Cost", "3. Utility Taps & Soft Costs", "4. Construction Financing Costs", "5. Permanent Refinance Takeout", "Total Project Capital Basis"],
-    "Transaction Scope": ["Out-of-pocket acquisition and civil infrastructure", "Baseline Hard Costs + Indirects + GC Fee", "Water/sewer/electric/gas tie-ins, permits, builder's risk", f"Lender closing fees (${const_closing_fee:,.0f}) & accrued interest (${carry_int_base:,.0f})", f"Commercial fees (${refi_closing_fee:,.0f}) + {buydown_pts} pt rate buydown (${default_buydown_cost:,.0f})", "All-in total cost to build, finance, close, and stabilize"],
+    "Transaction Scope": ["Out-of-pocket acquisition and civil infrastructure", "Baseline Hard Costs + Indirects + GC Fee", "Water/sewer/electric/gas tie-ins, permits, builder's risk", f"Lender closing fees (${const_closing_fee:,.0f}) & accrued interest (${carry_int_base:,.0f})", f"Commercial fees (${refi_closing_fee:,.0f}) + {buydown_pts:.2f} pt rate buydown (${default_buydown_cost:,.0f})", "All-in total cost to build, finance, close, and stabilize"],
     "Actual Capital Outlay": [f"-${total_land_default:,.0f}", f"-${total_const:,.0f}", f"-${total_vertical_soft:,.0f}", f"-${const_closing_fee + carry_int_base:,.0f}", f"-${refi_closing_fee + default_buydown_cost:,.0f}", f"-${total_project_basis:,.0f}"]
 })
 st.dataframe(transaction_df, hide_index=True, use_container_width=True)
@@ -1955,7 +1955,7 @@ def create_pdf(detail_mode):
     # Row 4
     pdf.cell(65, 5, "On-Lot Utilities & Soft Costs:", 0, 0, 'L')
     pdf.cell(30, 5, f"${total_vertical_soft:,.0f}", 0, 0, 'R')
-    pdf.cell(65, 5, f"Rate Buydown ({buydown_pts} pts):", 0, 0, 'L')
+    pdf.cell(65, 5, f"Rate Buydown ({buydown_pts:.2f} pts):", 0, 0, 'L')
     pdf.cell(30, 5, f"${default_buydown_cost:,.0f}", 0, 1, 'R')
     # Row 5
     pdf.cell(65, 5, "Finance, Closing & Buydown:", 0, 0, 'L')
