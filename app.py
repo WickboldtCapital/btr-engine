@@ -690,15 +690,19 @@ comp_summary_text = (
 st.info(comp_summary_text.replace("$", r"\$"))
 
 with st.expander("🧮 View Comp Math Audit & Raw API Data", expanded=False):
-    st.markdown("**2.1 Raw Blended Rate (Total Price ÷ Total Under-Roof SF)**")
+    
+    st.markdown("**2.1 Raw Heated Rate (Total Price ÷ Heated SF Only)**")
+    st.code(f"${comp_price:,.0f} ÷ {comp_heated_sf:,.0f} Heated SF = ${raw_comp_price_sf:.2f} / SF")
+
+    st.markdown("**2.2 Raw Blended Rate (Total Price ÷ Total Under-Roof SF)**")
     st.code(f"${comp_price:,.0f} ÷ {comp_under_roof:,.0f} Total SF = ${comp_blended_rate:.2f} / SF (Blended)")
     
     if aux_cost_mode == "Percentage of Heated Rate (%)":
-        st.markdown(f"**2.2 True Isolated Heated Shell Rate (Algebraic Extraction)**")
+        st.markdown(f"**2.3 True Isolated Heated Shell Rate (Algebraic Extraction)**")
         st.caption(f"If we simply halved the blended rate for the aux space, the total price would fall short. To perfectly distribute the ${comp_price:,.0f} across the spaces at a 100% / {aux_ratio*100:.0f}% ratio, we solve for the 'Effective Equivalent' square footage:".replace("$", r"\$"))
         st.code(f"Step 1: Find Equivalent SF\n{comp_heated_sf:,.0f} Heated SF + ({comp_aux_sqft:,.0f} Aux SF × {aux_ratio:.2f}) = {effective_comp_heated_sf:,.1f} Eq. SF\n\nStep 2: Solve for True Heated Rate\n${comp_price:,.0f} ÷ {effective_comp_heated_sf:,.1f} Eq. SF = ${isolated_heated_rate:.2f} / Heated SF\n\nStep 3: Solve for True Aux Rate\n${isolated_heated_rate:.2f} × {aux_ratio:.2f} = ${comp_aux_rate_sf:.2f} / Aux SF")
     else:
-        st.markdown(f"**2.2 True Isolated Heated Shell Rate (Fixed Aux Value: ${aux_fixed_cost_sf:.2f} / SF)**".replace("$", r"\$"))
+        st.markdown(f"**2.3 True Isolated Heated Shell Rate (Fixed Aux Value: ${aux_fixed_cost_sf:.2f} / SF)**".replace("$", r"\$"))
         st.code(f"(${comp_price:,.0f} - ${comp_aux_value:,.0f} Aux Value) ÷ {comp_heated_sf:,.0f} SF = ${isolated_heated_rate:.2f} / SF")
         
     if st.session_state.raw_api_data and st.session_state.get("comp_entry_mode") == "RentCast Live API Fetch":
