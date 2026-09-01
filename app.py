@@ -3048,7 +3048,7 @@ def create_lender_letter_pdf(letter_type):
     else:
         bank = st.session_state.get("refi_bank_name", "National DSCR Lender")
         contact = st.session_state.get("refi_bank_contact", "Takeout Underwriter")
-        subject = f"Permanent DSCR Refinance Takeout - Stabilized BTR Asset at {project_address if project_address else '[Subject Property]'}"
+        subject = f"Permanent Commercial Refinance Takeout - Stabilized Asset at {project_address if project_address else '[Subject Property]'}"
         
         pdf.set_font('Arial', 'B', 11)
         pdf.cell(0, 5, f"To: {contact}", ln=1)
@@ -3063,16 +3063,17 @@ def create_lender_letter_pdf(letter_type):
         pdf.cell(0, 5, f"Dear {contact},", ln=1)
         pdf.ln(6) # Space between dear and paragraph
         
-        p1 = f"{borrower_company} respectfully submits this funding proposal to secure permanent commercial financing for our newly stabilized, {units}-unit Build-to-Rent (BTR) asset located at {project_address if project_address else 'the subject property'}."
+        # Upgraded Enterprise Prose
+        p1 = f"{borrower_company} respectfully submits this permanent financing proposal to secure a commercial Debt Service Coverage Ratio (DSCR) takeout facility for our newly stabilized, purpose-built {units}-unit Build-to-Rent (BTR) asset located at {project_address if project_address else 'the subject property'}."
         pdf.multi_cell(0, 5, p1.encode('latin-1', 'replace').decode('latin-1'))
         pdf.ln(2)
         
-        p2 = f"We are requesting a commercial DSCR facility of ${loan_total:,.0f} to successfully retire our existing construction debt."
+        p2 = f"The objective of this facility is to execute a strategic refinance of the asset's original construction debt, locking in long-term permanent financing at a requested loan amount of ${loan_total:,.0f}. Having successfully navigated the development and stabilization phases, the asset now operates at peak efficiency with a proven, highly favorable cost basis."
         pdf.multi_cell(0, 5, p2.encode('latin-1', 'replace').decode('latin-1'))
         pdf.ln(6) # Space before Operating & Portfolio Highlights
         
         pdf.set_font('Arial', 'B', 11)
-        pdf.cell(0, 5, "Operating & Portfolio Highlights:", ln=1)
+        pdf.cell(0, 5, "Stabilized Asset & Facility Highlights:", ln=1)
         pdf.set_font('Arial', '', 11)
         pdf.cell(5, 5, "")
         pdf.cell(0, 5, f"- Requested Loan Amount: ${loan_total:,.0f}", ln=1)
@@ -3086,11 +3087,11 @@ def create_lender_letter_pdf(letter_type):
         pdf.cell(0, 5, f"- Underwritten DSCR: {actual_dscr:.2f}x", ln=1)
         pdf.ln(4)
         
-        p3 = f"The asset yields exceptional operating metrics, generating ${total_gross_monthly_income:,.0f} in gross monthly revenue and producing ${monthly_cash_flow:,.0f} in net passive cash flow every month after debt service (modeled at {net_refi_rate*100:.3f}%)."
+        p3 = f"This asset delivers institutional-grade operating metrics. Upon stabilization, the property generates ${total_gross_monthly_income:,.0f} in top-line monthly revenue. Operating at a compliant {actual_dscr:.2f}x DSCR against debt service modeled at {net_refi_rate*100:.3f}%, the portfolio yields an exceptionally resilient Net Operating Income (NOI), allowing for strong risk-adjusted coverage and producing ${monthly_cash_flow:,.0f} in unencumbered free cash flow every month."
         pdf.multi_cell(0, 5, p3.encode('latin-1', 'replace').decode('latin-1'))
         pdf.ln(2)
         
-        p4 = f"To support your underwriting process, please find the enclosed comprehensive reporting package, which includes our stabilized operating pro forma, itemized OpEx breakdown, and long-term portfolio wealth projections."
+        p4 = f"To expedite your firm's underwriting and due diligence, we have enclosed a comprehensive pro forma reporting package. This includes our fully stabilized operating ledger, itemized OpEx schedules, and a transparent capitalization audit."
         pdf.multi_cell(0, 5, p4.encode('latin-1', 'replace').decode('latin-1'))
         pdf.ln(3)
 
