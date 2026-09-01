@@ -1403,8 +1403,11 @@ with col_p3:
 with col_p4:
     st.download_button("📊 Download Presentation Deck (PPTX)", data=create_pptx(ui_inputs, calc), file_name=f"{borrower_company}_Deck_{report_date.replace(' ', '_').replace(',', '')}.pptx", mime="application/vnd.openxmlformats-officedocument.presentationml.presentation", use_container_width=True)
 
-st.download_button("📄 Download Slide Deck (PDF Slides)", data=create_slide_pdf(ui_inputs, calc), file_name=f"{borrower_company}_Slide_Deck_{report_date.replace(' ', '_').replace(',', '')}.pdf", mime="application/pdf", use_container_width=True)
-st.download_button("💼 Download Master Business Plan", data=create_business_plan_pdf(ui_inputs, calc), file_name=f"{borrower_company}_Business_Plan_{report_date.replace(' ', '_').replace(',', '')}.pdf", mime="application/pdf", use_container_width=True)
+col_p5, col_p6 = st.columns(2)
+with col_p5:
+    st.download_button("📄 Download Slide Deck (PDF Slides)", data=create_slide_pdf(ui_inputs, calc), file_name=f"{borrower_company}_Slide_Deck_{report_date.replace(' ', '_').replace(',', '')}.pdf", mime="application/pdf", use_container_width=True)
+with col_p6:
+    st.download_button("💼 Download Master Business Plan", data=create_business_plan_pdf(ui_inputs, calc), file_name=f"{borrower_company}_Business_Plan_{report_date.replace(' ', '_').replace(',', '')}.pdf", mime="application/pdf", use_container_width=True)
 
 st.divider()
 
