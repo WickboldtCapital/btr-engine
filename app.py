@@ -667,6 +667,98 @@ with st.expander("📈 View Multi-Unit Scaling Table", expanded=False):
 st.divider()
 
 # ==========================================
+# --- 10.5 THE EXIT & TWO-POCKET STRATEGY ---
+# ==========================================
+st.markdown("### 10.5. The Exit: Refinance & The \"Two-Pocket\" Cash Flow Strategy")
+
+# Extract dynamic 6-unit program variables
+prog_units = 6
+prog_loan = calc['loan_6']
+prog_basis = calc['cap_6']
+prog_land = calc['unit_land'] * prog_units
+prog_surplus = calc['surplus_6']
+prog_gc = calc['opt_gc_6']
+prog_eq = calc['eq_6']
+prog_wealth = calc['wealth_6']
+arv_unit = calc['arv_per_unit']
+ltv_pct = calc['refi_ltv'] * 100
+unencumbered_pct = 100 - ltv_pct
+
+exit_intro = (
+    f"By executing an annual build program of {prog_units} houses across two optimized 3-house phases, you successfully extract active cash during construction while the **{ltv_pct:.0f}% LTV** "
+    f"commercial takeout loans fully recover the holding entity's locked capital with substantial surplus."
+)
+st.info(exit_intro)
+
+col_exit1, col_exit2 = st.columns([1, 1])
+
+with col_exit1:
+    st.markdown(f"#### Takeout Capital Distribution Ledger ({prog_units}-House Annual Program)")
+    st.markdown(f"- **${prog_basis:,.0f} Basis** clears construction, soft costs, financing, and takeout closing fees across all {prog_units} homes.")
+    st.markdown(f"- **${prog_land:,.0f}** is repaid directly to the developer, fully returning 100% of the land seed capital across the portfolio.")
+    
+    if prog_surplus >= 0:
+        st.markdown(f"- **${prog_surplus:,.0f}** is distributed as tax-free cash surplus (${prog_loan:,.0f} total loan proceeds - ${prog_basis:,.0f} total basis).")
+    else:
+        st.markdown(f"- **${-prog_surplus:,.0f}** remains as trapped seed capital (${prog_loan:,.0f} total loan proceeds - ${prog_basis:,.0f} total basis).")
+    
+    st.markdown("#### The \"Effectively Infinite\" Return")
+    if prog_surplus >= 0:
+        st.write(f"In commercial real estate, Cash-on-Cash Return is mathematically defined as: Annual Net Cash Flow divided by Total Developer Capital Trapped in the Asset. Because 100% of the seed capital is returned plus an extra **${prog_surplus:,.0f}** in surplus across the year, the locked capital is $0.00, resulting in an **infinite return**.")
+    else:
+        st.write(f"In commercial real estate, Cash-on-Cash Return is mathematically defined as: Annual Net Cash Flow divided by Total Developer Capital Trapped in the Asset. With **${-prog_surplus:,.0f}** remaining as trapped capital, the portfolio yields a **{(calc['monthly_cf_6']*12) / (-prog_surplus) * 100 :.1f}%** cash-on-cash return.")
+
+with col_exit2:
+    # Dynamic Waterfall Chart for the Pockets of Wealth
+    fig_wealth_pockets = go.Figure(go.Waterfall(
+        name="Wealth Creation",
+        orientation="v",
+        measure=["relative", "relative", "relative", "total"],
+        x=["Pocket 1: GC Fees", "Pocket 2: Cash Surplus", "Pocket 3: Retained Equity", "Total Day-1 Wealth"],
+        textposition="outside",
+        text=[f"${prog_gc:,.0f}", f"${prog_surplus:,.0f}", f"${prog_eq:,.0f}", f"${prog_wealth:,.0f}"],
+        y=[prog_gc, prog_surplus, prog_eq, prog_wealth],
+        connector={"line": {"color": "rgb(63, 63, 63)"}},
+        decreasing={"marker": {"color": "#d62728"}},
+        increasing={"marker": {"color": "#2ca02c"}},
+        totals={"marker": {"color": "#1f77b4"}}
+    ))
+    fig_wealth_pockets.update_layout(
+        title=f"Total Day-1 Wealth Creation ({prog_units}-House Program)", 
+        showlegend=False, 
+        yaxis_title="Amount ($)",
+        margin=dict(t=40, b=20, l=20, r=20)
+    )
+    st.plotly_chart(fig_wealth_pockets, use_container_width=True)
+
+# Detailed Data Table
+wealth_pocket_data = {
+    "Wealth Component": [
+        "Pocket 1: GC Management Fees Earned During Build",
+        "Pocket 2: Tax-Free Cash-Out Surplus at Refinance Close",
+        f"Pocket 3: Retained Asset Equity ({unencumbered_pct:.0f}% unencumbered equity of ${arv_unit:,.0f} ARV)",
+        "Total Day-1 Created Value"
+    ],
+    "Per House": [
+        f"${prog_gc/prog_units:,.0f}",
+        f"${prog_surplus/prog_units:,.0f}",
+        f"${prog_eq/prog_units:,.0f}",
+        f"${prog_wealth/prog_units:,.0f}"
+    ],
+    f"Program Total ({prog_units} Doors)": [
+        f"${prog_gc:,.0f}",
+        f"${prog_surplus:,.0f}",
+        f"${prog_eq:,.0f}",
+        f"${prog_wealth:,.0f}"
+    ]
+}
+
+with st.expander("📊 View Detailed Wealth Creation Matrix", expanded=True):
+    st.dataframe(pd.DataFrame(wealth_pocket_data), hide_index=True, use_container_width=True)
+
+st.divider()
+
+# ==========================================
 # --- 11. S-CURVE DRAW SCHEDULE ---
 # ==========================================
 st.markdown("### 11. Enterprise S-Curve Draw Schedule & Actual Carry Interest")
