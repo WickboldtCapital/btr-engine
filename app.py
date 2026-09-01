@@ -376,24 +376,34 @@ if dscr_pass_safe and cf_pass and cash_pass:
         f"**✅ PROJECT CLEARED FOR EXECUTION:**\n\n"
         f"This build configuration is structurally sound and achieves an infinite return profile. "
         f"The **{safe_dscr:.2f}x DSCR** successfully clears the bank's {calc['target_dscr_rate']:.2f}x minimum, unlocking the full **${calc['loan_total']:,.0f}** permanent takeout loan. "
-        f"Operations generate a healthy **${calc['monthly_cash_flow_per_door']:,.0f} / mo** net cash flow per door. "
+        f"Operations generate a healthy **${calc['monthly_cash_flow_per_door']:,.0f} per month** net cash flow per door. "
         f"Most importantly, the loan proceeds completely pay off the **${calc['total_project_basis']:,.0f}** capital basis, returning 100% of your seed capital and handing you a **${calc['cash_surplus']:,.0f} tax-free cash surplus** at closing."
     )
     st.success(conclusion_text)
 else:
-    # Build dynamic failure reasons
+    # Build dynamic failure reasons with forced standard spacing
     failures = []
     if not dscr_pass_safe:
-        failures.append(f"- **DSCR Failure (Lender Rejection Risk):** The modeled {safe_dscr:.2f}x DSCR falls below the bank's {calc['target_dscr_rate']:.2f}x limit. This suppresses your permanent loan amount and forces you to leave cash in the deal.")
+        failures.append(
+            f"- **DSCR Failure (Lender Rejection Risk):** The modeled {safe_dscr:.2f}x DSCR falls below the bank's {calc['target_dscr_rate']:.2f}x limit. "
+            f"This suppresses your permanent loan amount and forces you to leave cash in the deal."
+        )
     if not cf_pass:
-        failures.append(f"- **Cash Flow Squeeze:** The unit yields only ${calc['monthly_cash_flow_per_door']:,.0f}/mo, which is below your baseline target of ${calc['target_min_cashflow_per_door']:,.0f}/mo.")
+        failures.append(
+            f"- **Cash Flow Squeeze:** The unit yields only ${calc['monthly_cash_flow_per_door']:,.0f} per month, "
+            f"which is below your baseline target of ${calc['target_min_cashflow_per_door']:,.0f} per month."
+        )
     if not cash_pass:
-        failures.append(f"- **Trapped Capital (Loss at Close):** The takeout loan (${calc['loan_total']:,.0f}) is too small to cover the total project basis (${calc['total_project_basis']:,.0f}). This traps **${-calc['cash_surplus']:,.0f}** of seed capital inside the asset as dead equity.")
+        failures.append(
+            f"- **Trapped Capital (Loss at Close):** The takeout loan (${calc['loan_total']:,.0f}) "
+            f"is too small to cover the total project basis (${calc['total_project_basis']:,.0f}). "
+            f"This traps **${-calc['cash_surplus']:,.0f}** of seed capital inside the asset as dead equity."
+        )
         
     conclusion_text = (
         f"**🛑 UNDERWRITING WARNING - OPTIMIZATION REQUIRED:**\n\n"
         f"This configuration fails one or more core investment constraints. To execute an infinite-return BTR strategy, you must adjust your levers (lower direct costs, buy down the interest rate, or increase target rents):\n\n" + 
-        "\n".join(failures)
+        "\n\n".join(failures)
     )
     st.error(conclusion_text)
     
