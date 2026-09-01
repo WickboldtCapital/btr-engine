@@ -71,6 +71,10 @@ HARDCODED_DRIVERS = {
     "apply_buydown": True,
     "buydown_pts": 2.00,
     
+    # Soft Costs & Fees
+    "indirect_permits_pct": 4.5,
+    "indirect_temp_facilities_pct": 3.5,
+    "contingency_pct": 5.0,
     "gc_fee_mode": "Percentage of Hard Costs (%)",
     "gc_fee_pct": 7.0,
     "custom_gc_fee": 20000,
@@ -118,8 +122,6 @@ HARDCODED_DRIVERS = {
     "overhead_pct": 5.7,
     "sales_pct": 3.6,
     "finance_pct": 1.5,
-    "indirect_permits_pct": 4.5,
-    "indirect_temp_facilities_pct": 3.5,
     
     "comp_address": "",
     "comp_price": 195000,
@@ -283,6 +285,7 @@ with st.sidebar.container():
     st.subheader("6. Soft Costs, Permitting & GC Fees")
     st.slider("Permits, Fees, & Insurance (% of Direct)", min_value=0.0, max_value=15.0, step=0.5, key="indirect_permits_pct")
     st.slider("Temporary Site Facilities (% of Direct)", min_value=0.0, max_value=15.0, step=0.5, key="indirect_temp_facilities_pct")
+    st.slider("Construction Contingency (% of Direct)", min_value=0.0, max_value=10.0, step=0.5, key="contingency_pct")
     
     st.markdown("##### On-Lot Utility Hookups & Tap Fees ($ per Door)")
     st.number_input("Water Meter & Tap Fee", min_value=0.0, step=100.0, key="water_tap_fee")
@@ -432,6 +435,10 @@ apply_buydown = st.session_state.get("apply_buydown", True)
 buydown_pts = st.session_state.get("buydown_pts", 2.00)
 net_refi_rate = max(0.01, base_refi_rate - (buydown_pts * 0.0025)) if apply_buydown else base_refi_rate
 
+contingency_pct = st.session_state.get("contingency_pct", 5.0) / 100.0
+indirect_permits_pct = st.session_state.get("indirect_permits_pct", 4.5) / 100.0
+indirect_temp_facilities_pct = st.session_state.get("indirect_temp_facilities_pct", 3.5) / 100.0
+
 gc_fee_mode = st.session_state.get("gc_fee_mode", "Percentage of Hard Costs (%)")
 gc_fee_pct = st.session_state.get("gc_fee_pct", 7.0) / 100.0
 custom_gc_fee = st.session_state.get("custom_gc_fee", 20000)
@@ -517,9 +524,6 @@ overhead_pct = st.session_state.get("overhead_pct", 5.7) / 100.0
 sales_pct = st.session_state.get("sales_pct", 3.6) / 100.0
 finance_pct = st.session_state.get("finance_pct", 1.5) / 100.0
 
-indirect_permits_pct = st.session_state.get("indirect_permits_pct", 4.5) / 100.0
-indirect_temp_facilities_pct = st.session_state.get("indirect_temp_facilities_pct", 3.5) / 100.0
-
 comp_price = st.session_state.get("comp_price", 195000)
 comp_heated_sf = st.session_state.get("comp_heated_sf", 1275)
 comp_struct_sf = st.session_state.get("comp_struct_sf", 213)
@@ -543,7 +547,7 @@ combined_deductions_pct = lot_cost_pct + profit_margin_pct + overhead_pct + sale
 target_const_budget_pct = max(0, 1.0 - combined_deductions_pct)
 
 # Multiplier to extract Direct Hard Cost from Total Construction Budget
-indirect_multiplier = 1.0 + indirect_permits_pct + indirect_temp_facilities_pct
+indirect_multiplier = 1.0 + indirect_permits_pct + indirect_temp_facilities_pct + contingency_pct
 
 # 1. Evaluate Primary Comp and Isolate Heated Shell Rate
 if aux_cost_mode == "Percentage of Heated Rate (%)":
@@ -691,11 +695,12 @@ target_total_lot_value = target_lot_value_per_door * units
 land_equity_captured = target_total_lot_value - total_land_default
 
 # 5.2 Indirects Build Up
+contingency_cost = total_hard_cost * contingency_pct
 permits_insurance_cost = total_hard_cost * indirect_permits_pct
 temp_facilities_cost = total_hard_cost * indirect_temp_facilities_pct
-fee_basis = total_hard_cost + permits_insurance_cost + temp_facilities_cost
+fee_basis = total_hard_cost + permits_insurance_cost + temp_facilities_cost + contingency_cost
 default_gc_fee = custom_gc_fee if gc_fee_mode == "Consolidated Flat Fee ($ Total)" else fee_basis * gc_fee_pct
-total_indirect_costs = permits_insurance_cost + temp_facilities_cost + default_gc_fee
+total_indirect_costs = permits_insurance_cost + temp_facilities_cost + contingency_cost + default_gc_fee
 
 
 # =========================================================================
@@ -827,7 +832,7 @@ developer_margin = total_arv - (lot_benchmark + total_hard_cost + total_indirect
 # =========================================================================
 unit_land = land_basis
 unit_hard = target_direct_hard_cost
-unit_soft = (permits_insurance_cost + total_vertical_soft) / units
+unit_soft = (permits_insurance_cost + contingency_cost + total_vertical_soft) / units
 unit_fin = btr_finance_closing / units
 unit_gc_baseline = (temp_facilities_cost + default_gc_fee) / units
 
@@ -1486,7 +1491,7 @@ else:
     st.info(pdf_grm_info_text.replace("$", r"\$"))
     
     stress_test_data = {
-        "Bank Under underwriting Step": [
+        "Bank Underwriting Step": [
             "1. Gross Potential Rent (Bank Model)",
             "2. Bank Underwriting GRM",
             "3. Bank Implied Asset Value (Value of the House)",
@@ -1550,7 +1555,7 @@ st.info(land_eq_text.replace("$", r"\$"))
 
 # --- NEW DONUT CHART ---
 basis_breakdown = pd.DataFrame({
-    "Category": ["Land & Horizontal", "Vertical Hard Costs", "Indirects & Soft Costs", "Financing & Closing"],
+    "Category": ["Land & Horizontal", "Vertical Hard Costs", "Indirects, Cont. & Soft Costs", "Financing & Closing"],
     "Amount": [total_land_default, total_hard_cost, total_indirect_costs + total_vertical_soft, btr_finance_closing]
 })
 fig_donut = px.pie(basis_breakdown, names="Category", values="Amount", hole=0.45,
@@ -1568,7 +1573,7 @@ with st.expander("💰 View Capital Ledgers & Transaction Scope", expanded=False
     with col1:
         st.markdown("#### Pro Forma Valuation Allocation")
         val_alloc_df = pd.DataFrame({
-            "Component": [f"Finished Lot Benchmark ({lot_cost_pct*100:.1f}%)", "Adjusted BTR Hard Costs", "Indirects + GC Fee", "On-Lot Utilities & Soft Costs", "Finance, Closing & Buydown", "Built-in Developer Margin", "Total Appraised Value (ARV)"],
+            "Component": [f"Finished Lot Benchmark ({lot_cost_pct*100:.1f}%)", "Adjusted BTR Hard Costs", "Indirects, Cont. & GC Fee", "On-Lot Utilities & Soft Costs", "Finance, Closing & Buydown", "Built-in Developer Margin", "Total Appraised Value (ARV)"],
             "Amount": [f"${lot_benchmark:,.0f}", f"${total_hard_cost:,.0f}", f"${total_indirect_costs:,.0f}", f"${total_vertical_soft:,.0f}", f"${btr_finance_closing:,.0f}", f"${developer_margin:,.0f}", f"${total_arv:,.0f}"]
         })
         st.dataframe(val_alloc_df, hide_index=True, use_container_width=True)
@@ -1585,7 +1590,7 @@ with st.expander("💰 View Capital Ledgers & Transaction Scope", expanded=False
     st.markdown("#### Capital Outlay & Transaction Scope")
     transaction_df = pd.DataFrame({
         "Phase / Project Cash Event": ["1. Horizontal Dev & Land", "2. Vertical Construction Cost", "3. Utility Taps & Soft Costs", "4. Construction Financing Costs", "5. Permanent Refinance Takeout", "Total Project Capital Basis"],
-        "Transaction Scope": ["Out-of-pocket acquisition and civil infrastructure", "Baseline Hard Costs + Indirects + GC Fee", "Water/sewer/electric/gas tie-ins, permits, builder's risk", f"Lender closing fees (${const_closing_fee:,.0f}) & accrued interest (${carry_int_base:,.0f})", f"Commercial fees (${refi_closing_fee:,.0f}) + {buydown_pts:.2f} pt rate buydown (${default_buydown_cost:,.0f})", "All-in total cost to build, finance, close, and stabilize"],
+        "Transaction Scope": ["Out-of-pocket acquisition and civil infrastructure", "Baseline Hard Costs + Indirects + Cont. + GC Fee", "Water/sewer/electric/gas tie-ins, permits, builder's risk", f"Lender closing fees (${const_closing_fee:,.0f}) & accrued interest (${carry_int_base:,.0f})", f"Commercial fees (${refi_closing_fee:,.0f}) + {buydown_pts:.2f} pt rate buydown (${default_buydown_cost:,.0f})", "All-in total cost to build, finance, close, and stabilize"],
         "Actual Capital Outlay": [f"-${total_land_default:,.0f}", f"-${total_const:,.0f}", f"-${total_vertical_soft:,.0f}", f"-${const_closing_fee + carry_int_base:,.0f}", f"-${refi_closing_fee + default_buydown_cost:,.0f}", f"-${total_project_basis:,.0f}"]
     })
     st.dataframe(transaction_df, hide_index=True, use_container_width=True)
@@ -2067,7 +2072,7 @@ if cost_calc_mode in ["Reverse-Engineer from Appraisal", "Reverse-Engineer from 
         name="Reverse Engineering",
         orientation="v",
         measure=["relative", "relative", "relative", "relative", "relative", "relative", "total", "relative", "total", "relative", "total"],
-        x=["Target ARV", "Lot Cost", "Profit", "Overhead", "Sales", "Finance", "Const. Budget", "Indirects", "Hard Costs", "Aux/Elev", "Shell Budget"],
+        x=["Target ARV", "Lot Cost", "Profit", "Overhead", "Sales", "Finance", "Const. Budget", "Indirects & Cont.", "Hard Costs", "Aux/Elev", "Shell Budget"],
         textposition="outside",
         text=[
             f"+${reference_price:,.0f}", 
@@ -2101,7 +2106,7 @@ if cost_calc_mode in ["Reverse-Engineer from Appraisal", "Reverse-Engineer from 
                 "(-) Sales & Marketing", 
                 "(-) Financing Costs", 
                 "= Total Construction Budget (Direct + Indirect)", 
-                "(-) Indirects (Permits, Temp Site, GC Fee)",
+                "(-) Indirects (Permits, Temp Site, Contingency, GC Fee)",
                 "= Direct Hard Cost Budget",
                 "(-) Fixed Auxiliary & Elevation Costs", 
                 "= Available Budget for Heated Shell"
@@ -2127,7 +2132,7 @@ if cost_calc_mode in ["Reverse-Engineer from Appraisal", "Reverse-Engineer from 
                 "Sales commissions and marketing costs to close the deal.",
                 "Short-term interest paid on the builder's construction loan.",
                 "Total budget available for all physical construction (Direct + Indirect).",
-                "Permits, site facilities, and GC management fees.",
+                "Permits, site facilities, contingency buffer, and GC management fees.",
                 "Total budget exclusively for physical structure and materials.",
                 "Locked budget required for outdoor footprint and foundation elevation.",
                 f"Yields exactly ${direct_cost_sf:.2f} / SF across {sqft} Heated SF."
@@ -2831,7 +2836,7 @@ def create_pdf(detail_mode):
         pdf.cell(60, 7, f"${total_construction_budget:,.0f}", 0, 1, 'R')
         pdf.set_font("Arial", '', 10)
         
-        pdf.cell(130, 7, "(-) Indirects (Permits, Temp Site, GC Fee):", 0, 0)
+        pdf.cell(130, 7, "(-) Indirects (Permits, Temp Site, Cont, GC Fee):", 0, 0)
         pdf.cell(60, 7, f"-${total_indirect_costs:,.0f}", 0, 1, 'R')
         
         pdf.set_font("Arial", 'B', 10)
