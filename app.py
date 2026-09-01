@@ -2103,10 +2103,52 @@ st.divider()
 
 
 # ==========================================
-# --- 13. REVERSE-ENGINEERING BREAKDOWN ---
+# --- 13. OPERATING EXPENSE (OPEX) SENSITIVITY ---
+# ==========================================
+st.markdown("### 13. Operating Expense (OpEx) Sensitivity")
+
+opex_sens_summary = (
+    f"This stress-test evaluates how fluctuations in operating expenses affect NOI and DSCR "
+    f"against the baseline **${total_gross_monthly_income:,.0f}** gross rent and fixed **${total_monthly_pi:,.0f}** monthly P&I."
+)
+st.info(opex_sens_summary.replace("$", r"\$"))
+
+opex_sensitivity_data = []
+test_rates = [0.25, 0.30, 0.35]
+for rate in test_rates:
+    mo_opex = total_gross_monthly_income * rate
+    mo_vac = total_gross_monthly_income * vacancy_rate
+    mo_noi = total_gross_monthly_income - mo_vac - mo_opex
+    dscr = mo_noi / total_monthly_pi if total_monthly_pi > 0 else 0
+    
+    if dscr >= target_dscr_rate:
+        status = f"Approved (Passes standard guidelines)"
+    elif dscr >= 1.0:
+        status = "Requires Additional Buydown / Lower LTV"
+    else:
+        status = "Fails Underwriting (Breakeven only)"
+        
+    label = "25% (Baseline)" if rate == 0.25 else f"{rate*100:.0f}%"
+
+    opex_sensitivity_data.append({
+        "OpEx Rate": label,
+        "Monthly OpEx": f"-${mo_opex:,.0f}",
+        "NOI": f"${mo_noi:,.0f}",
+        "Monthly P&I": f"-${total_monthly_pi:,.0f}",
+        "Resulting DSCR": f"{dscr:.2f}x",
+        f"Underwriting Status (Target: {target_dscr_rate:.2f}x)": status
+    })
+
+df_opex_sens = pd.DataFrame(opex_sensitivity_data)
+st.dataframe(df_opex_sens, hide_index=True, use_container_width=True)
+st.divider()
+
+
+# ==========================================
+# --- 14. REVERSE-ENGINEERING BREAKDOWN ---
 # ==========================================
 if cost_calc_mode in ["Reverse-Engineer from Appraisal", "Reverse-Engineer from Primary Comp"]:
-    st.markdown("### 13. Retail Comp & Appraisal Reverse-Engineering Breakdown")
+    st.markdown("### 14. Retail Comp & Appraisal Reverse-Engineering Breakdown")
     
     reference_price = arv_per_unit if cost_calc_mode == 'Reverse-Engineer from Appraisal' else comp_equivalent_arv
     ref_price_sf = reference_price / sqft if sqft > 0 else 0
@@ -2201,9 +2243,9 @@ if cost_calc_mode in ["Reverse-Engineer from Appraisal", "Reverse-Engineer from 
     st.divider()
 
 # ==========================================
-# --- 14. LONG-TERM PORTFOLIO WEALTH (IRR & ROI) ---
+# --- 15. LONG-TERM PORTFOLIO WEALTH (IRR & ROI) ---
 # ==========================================
-st.markdown("### 14. Long-Term Portfolio Wealth & Tax Shelter")
+st.markdown("### 15. Long-Term Portfolio Wealth & Tax Shelter")
 
 # --- NEW DEPRECIATION MATH ---
 depreciable_basis = max(0, total_project_basis - total_land_default)
@@ -2348,9 +2390,9 @@ with st.expander("📊 View 5-Year and 10-Year Projected Returns", expanded=Fals
 st.divider()
 
 # ==========================================
-# --- 15. PDF GENERATION ENGINE ---
+# --- 16. PDF GENERATION ENGINE ---
 # ==========================================
-st.markdown("### 🖨️ 15. Export Enterprise PDF Report")
+st.markdown("### 🖨️ 16. Export Enterprise PDF Report")
 pdf_detail_mode = st.radio(
     "Construction Budget Detail Level for PDF:",
     ["Full 36-Component Breakdown", "8 Major NAHB Categories Only", "High-Level Roll-up Only"],
@@ -2869,11 +2911,41 @@ def create_pdf(detail_mode):
         pdf.cell(30, 6, str(row["Total Day-1 Wealth"]), 1, 1, 'R')
     pdf.ln(5)
 
-    # 13. REVERSE-ENGINEERING BREAKDOWN
+    # 13. OPERATING EXPENSE (OPEX) SENSITIVITY
+    pdf.set_font("Arial", 'B', 12)
+    pdf.set_fill_color(220, 220, 220)
+    pdf.cell(0, 8, " 13. Operating Expense (OpEx) Sensitivity", ln=1, fill=True)
+    pdf.set_font("Arial", '', 10)
+    
+    clean_opex_summary = opex_sens_summary.replace("**", "").replace(r"\$", "$").encode('latin-1', 'replace').decode('latin-1')
+    pdf.multi_cell(0, 6, clean_opex_summary)
+    pdf.ln(3)
+    
+    pdf.set_font("Arial", 'B', 8)
+    pdf.cell(25, 6, "OpEx Rate", 1, 0, 'C')
+    pdf.cell(25, 6, "Mo. OpEx", 1, 0, 'C')
+    pdf.cell(25, 6, "NOI", 1, 0, 'C')
+    pdf.cell(25, 6, "Mo. P&I", 1, 0, 'C')
+    pdf.cell(20, 6, "DSCR", 1, 0, 'C')
+    pdf.cell(75, 6, f"Underwriting Status (Target: {target_dscr_rate:.2f}x)", 1, 1, 'C')
+    
+    pdf.set_font("Arial", '', 8)
+    for i, row in df_opex_sens.iterrows():
+        pdf.cell(25, 6, str(row["OpEx Rate"]), 1, 0, 'C')
+        pdf.cell(25, 6, str(row["Monthly OpEx"]), 1, 0, 'C')
+        pdf.cell(25, 6, str(row["NOI"]), 1, 0, 'C')
+        pdf.cell(25, 6, str(row["Monthly P&I"]), 1, 0, 'C')
+        pdf.cell(20, 6, str(row["Resulting DSCR"]), 1, 0, 'C')
+        # Truncate status slightly if needed to prevent text overflow
+        status_clean = str(row[f"Underwriting Status (Target: {target_dscr_rate:.2f}x)"])[:45]
+        pdf.cell(75, 6, status_clean, 1, 1, 'C')
+    pdf.ln(5)
+
+    # 14. REVERSE-ENGINEERING BREAKDOWN
     if cost_calc_mode in ["Reverse-Engineer from Appraisal", "Reverse-Engineer from Primary Comp"]:
         pdf.set_font("Arial", 'B', 12)
         pdf.set_fill_color(220, 220, 220)
-        pdf.cell(0, 8, " 13. Retail Comp & Appraisal Reverse-Engineering", ln=1, fill=True)
+        pdf.cell(0, 8, " 14. Retail Comp & Appraisal Reverse-Engineering", ln=1, fill=True)
         pdf.set_font("Arial", '', 10)
         
         # Add dynamic narrative to PDF
@@ -2920,10 +2992,10 @@ def create_pdf(detail_mode):
         pdf.cell(60, 7, f"${target_heated_hard_cost:,.0f}", 0, 1, 'R')
         pdf.ln(5)
         
-    # 14. LONG-TERM PORTFOLIO WEALTH
+    # 15. LONG-TERM PORTFOLIO WEALTH
     pdf.set_font("Arial", 'B', 12)
     pdf.set_fill_color(220, 220, 220)
-    pdf.cell(0, 8, " 14. Long-Term Portfolio Wealth (IRR & ROI)", ln=1, fill=True)
+    pdf.cell(0, 8, " 15. Long-Term Portfolio Wealth (IRR & ROI)", ln=1, fill=True)
     pdf.set_font("Arial", '', 10)
     
     clean_long_term = long_term_intro.replace("**", "").replace(r"\$", "$").encode('latin-1', 'replace').decode('latin-1')
@@ -2956,9 +3028,9 @@ def create_pdf(detail_mode):
 
 
 # ==========================================
-# --- 16. LENDER PROPOSAL LETTERS ---
+# --- 17. LENDER PROPOSAL LETTERS ---
 # ==========================================
-st.markdown("### ✉️ 16. Generate Lender Proposal Letters")
+st.markdown("### ✉️ 17. Generate Lender Proposal Letters")
 st.info("Download customized, professional funding proposals addressed directly to your selected banks. These letters automatically extract the exact capital requirements, LTV/LTC limits, and stabilized yields calculated in your active pro forma.")
 
 def create_lender_letter_pdf(letter_type):
@@ -3133,9 +3205,9 @@ with letter_col2:
 st.divider()
 
 # ==========================================
-# --- 17. PRESENTATION DECK GENERATION ---
+# --- 18. PRESENTATION DECK GENERATION ---
 # ==========================================
-st.markdown("### 📊 17. Export Presentation Deck (PPTX & PDF)")
+st.markdown("### 📊 18. Export Presentation Deck (PPTX & PDF)")
 st.info("Automatically generates a 4-slide executive summary deck suitable for investor and commercial lender reviews.")
 
 def add_logo_to_slide(slide, left, top, width):
