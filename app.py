@@ -841,6 +841,141 @@ if calc['cost_calc_mode'] in ["Reverse-Engineer from Appraisal", "Reverse-Engine
     st.divider()
 
 # ==========================================
+# --- 15.5 REVERSE-ENGINEERED COST COMPRESSION ---
+# ==========================================
+st.markdown(f"### 15.5 Reverse-Engineered Cost Compression Analysis (Baseline {calc['sqft']:,.0f} SF + {st.session_state.structure_type})")
+
+comp_intro = (
+    f"This section analyzes the direct relationship between construction costs and the developer’s Day-1 wealth creation using our core {calc['sqft']:,.0f} SF + {calc['struct_sqft']:,.0f} SF {st.session_state.structure_type.lower()} model. "
+    f"Here, the target Appraised Value (ARV) remains fixed (${calc['arv_per_unit']:,.0f}). Because the commercial takeout loan is capped at **${calc['loan_total']/calc['units']:,.0f}** "
+    f"({calc['refi_ltv']*100:.0f}% LTV), any reduction in the Total Cost / SF translates dollar-for-dollar into a reduction of the direct build cost, immediately boosting closing cash surplus. "
+    f"This factors in the {calc['build_months']}-month construction timeline carrying interest."
+)
+st.info(comp_intro.replace("$", r"\$"))
+
+compression_data = []
+comp_labels = []
+comp_cfs_plot = []
+comp_colors = []
+
+# Generate 7 dynamic cost-compression steps centered around the active modeled cost
+base_d_cost = calc['direct_cost_sf']
+step_val = max(3.0, base_d_cost * 0.05) # Dynamic ~5% steps
+test_d_costs = [
+    base_d_cost + (step_val * 2),
+    base_d_cost + (step_val * 1),
+    base_d_cost, # Active Model Baseline
+    base_d_cost - (step_val * 1),
+    base_d_cost - (step_val * 2),
+    base_d_cost - (step_val * 3),
+    base_d_cost - (step_val * 4)
+]
+
+for idx, d_cost in enumerate(test_d_costs):
+    if d_cost <= 0: continue
+    
+    # 1. Hard Costs
+    h_hc = d_cost * calc['sqft']
+    if calc['aux_cost_mode'] == "Percentage of Heated Rate (%)":
+        aux_c = (d_cost * calc['aux_ratio'] * calc['aux_sqft_total']) + calc['additional_foundation_cost']
+    else:
+        aux_c = (calc['aux_fixed_cost_sf'] * calc['aux_sqft_total']) + calc['additional_foundation_cost']
+    t_hc = h_hc + aux_c
+    
+    # 2. Indirects
+    c_pct = calc['contingency_pct']
+    p_pct = calc['indirect_permits_pct']
+    t_pct = calc['indirect_temp_facilities_pct']
+    
+    cont = t_hc * c_pct
+    perm = t_hc * p_pct
+    temp = t_hc * t_pct
+    fee_b = t_hc + cont + perm + temp
+    
+    gc = calc['custom_gc_fee']/calc['units'] if calc['gc_fee_mode'] == "Consolidated Flat Fee ($ Total)" else fee_b * calc['gc_fee_pct']
+    t_ind = cont + perm + temp + gc
+    t_const = t_hc + t_ind
+    
+    # 3. Basis & Carry (Single Unit)
+    unit_const_loan = calc['actual_const_loan'] / calc['units']
+    carry = unit_const_loan * 0.5 * calc['const_rate'] * (calc['build_months'] / 12.0)
+    
+    unit_land = calc['total_land_default'] / calc['units']
+    unit_soft = calc['total_vertical_soft'] / calc['units']
+    unit_const_close = calc['const_closing_fee'] / calc['units']
+    unit_refi_close = calc['refi_closing_fee'] / calc['units']
+    unit_buy = calc['default_buydown_cost'] / calc['units']
+    
+    basis_ex_refi = unit_land + t_const + unit_soft + unit_const_close + carry
+    total_basis = basis_ex_refi + unit_refi_close + unit_buy
+    
+    # 4. Returns
+    unit_refi_loan = calc['loan_total'] / calc['units']
+    unit_seed = max(0, basis_ex_refi - unit_const_loan)
+    net_cash_close = unit_refi_loan - unit_const_loan - unit_refi_close - unit_buy
+    surplus = net_cash_close - unit_seed
+    
+    retained_eq = calc['arv_per_unit'] - unit_refi_loan
+    wealth = gc + max(0, surplus) + retained_eq
+    
+    tot_cost_sf = total_basis / calc['sqft']
+    
+    # Labeling
+    if idx == 0:
+        lbl_prefix = "(Over Budget Risk)"
+    elif idx == 2:
+        lbl_prefix = "(Active Model)"
+    elif idx == 6:
+        lbl_prefix = "(Maximum Compression)"
+    else:
+        lbl_prefix = ""
+        
+    compression_data.append({
+        "Target Total Cost / SF Scenario": f"${tot_cost_sf:,.2f} / SF {lbl_prefix}",
+        "Required Direct Build Cost / SF": f"${d_cost:,.2f}",
+        "Total Hard Cost (w/ Aux)": f"${t_hc:,.0f}",
+        "Total Const. Budget (w/ GC)": f"${t_const:,.0f}",
+        "Total Project Capital Basis": f"${total_basis:,.0f}",
+        f"Fixed Refi Takeout ({calc['refi_ltv']*100:.0f}% LTV)": f"${unit_refi_loan:,.0f}",
+        "Day-1 Cash Surplus at Close": f"+${surplus:,.0f}" if surplus >=0 else f"-${-surplus:,.0f}",
+        "Total Day-1 Created Value": f"${wealth:,.0f}"
+    })
+    
+    comp_labels.append(f"${d_cost:.0f}/SF Direct")
+    comp_cfs_plot.append(surplus)
+    comp_colors.append('#2ca02c' if surplus >= 0 else '#d62728')
+
+# --- Dynamic Bar Chart ---
+fig_comp_chart = go.Figure(go.Bar(
+    x=comp_labels, 
+    y=comp_cfs_plot,
+    marker_color=comp_colors,
+    text=[f"+${cf:,.0f}" if cf >= 0 else f"-${-cf:,.0f}" for cf in comp_cfs_plot],
+    textposition='auto',
+))
+fig_comp_chart.add_hline(y=0, line_dash="solid", line_color="black")
+fig_comp_chart.update_layout(
+    title="Day-1 Cash Surplus vs. Direct Build Cost / SF Target",
+    yaxis_title="Net Cash Surplus at Close ($)",
+    xaxis_title="Required Direct Build Cost / SF Scenario",
+    showlegend=False
+)
+st.plotly_chart(fig_comp_chart, use_container_width=True)
+
+with st.expander("📊 View Detailed Cost Compression Matrix", expanded=True):
+    st.dataframe(pd.DataFrame(compression_data), hide_index=True, use_container_width=True)
+
+comp_takeaway = (
+    f"**Direct Cost Compression Takeaway**\n\n"
+    f"Because the commercial takeout loan is strictly capped at **${calc['loan_total']/calc['units']:,.0f}** by the fixed retail ARV, any dollar compressed out of construction flows directly to the developer as "
+    f"liquid, tax-free cash surplus at closing. Factoring in the {calc['build_months']}-month build carry interest, higher cost-per-square-foot tiers severely compress cash surplus, potentially trapping seed capital. "
+    f"However, by aggressively engineering the direct build cost down to the lower benchmark tiers, the project yields an immediate surge in tax-free cash-out surplus while returning 100% of seed capital and "
+    f"securing maximum Total Day-1 wealth creation per door."
+)
+st.success(comp_takeaway.replace("$", r"\$"))
+st.divider()
+
+# ==========================================
 # --- 16. LONG-TERM PORTFOLIO WEALTH ---
 # ==========================================
 st.markdown("### 16. Long-Term Portfolio Wealth & Tax Shelter")
