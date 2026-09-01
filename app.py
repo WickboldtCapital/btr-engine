@@ -2,6 +2,7 @@ import streamlit as st
 import pandas as pd
 from fpdf import FPDF
 from pptx import Presentation
+from pptx.util import Inches
 import plotly.express as px
 import plotly.graph_objects as go
 import tempfile
@@ -2323,12 +2324,18 @@ pdf_detail_mode = st.radio(
 
 class EnterpriseReport(FPDF):
     def header(self):
+        try:
+            self.image("Gemini_Generated_Image_.png", 10, 8, 45)
+        except Exception:
+            pass
+        self.set_y(12)
         self.set_font('Arial', 'B', 16)
-        self.cell(0, 8, 'Wickboldt Capital | BTR Pro Forma Report', border=0, ln=1, align='C')
+        self.cell(0, 8, 'BTR Pro Forma Report', border=0, ln=1, align='R')
         self.set_font('Arial', 'I', 10)
-        self.cell(0, 6, "Today's Foundation. Tomorrow's Legacy.", border=0, ln=1, align='C')
-        self.line(10, 25, 200, 25)
-        self.ln(10)
+        self.cell(0, 6, "Today's Foundation. Tomorrow's Legacy.", border=0, ln=1, align='R')
+        self.set_y(32)
+        self.line(10, 30, 200, 30)
+        self.ln(5)
 
     def footer(self):
         self.set_y(-15)
@@ -2928,12 +2935,21 @@ st.download_button(
 st.markdown("### 📊 16. Export Presentation Deck (PPTX & PDF)")
 st.info("Automatically generates a 4-slide executive summary deck suitable for investor and commercial lender reviews.")
 
+def add_logo_to_slide(slide, left, top, width):
+    try:
+        if os.path.exists("Gemini_Generated_Image_.png"):
+            slide.shapes.add_picture("Gemini_Generated_Image_.png", left, top, width=width)
+    except Exception:
+        pass
+
 def create_pptx():
     prs = Presentation()
     
     # 1. Title Slide
     title_slide_layout = prs.slide_layouts[0]
     slide = prs.slides.add_slide(title_slide_layout)
+    add_logo_to_slide(slide, Inches(3.75), Inches(0.5), Inches(2.5))
+    
     title = slide.shapes.title
     subtitle = slide.placeholders[1]
     title.text = "Wickboldt Capital | BTR Pro Forma Analysis"
@@ -2942,6 +2958,8 @@ def create_pptx():
     # 2. Exec Summary
     bullet_slide_layout = prs.slide_layouts[1]
     slide = prs.slides.add_slide(bullet_slide_layout)
+    add_logo_to_slide(slide, Inches(8.0), Inches(0.2), Inches(1.5))
+    
     shapes = slide.shapes
     title_shape = shapes.title
     body_shape = shapes.placeholders[1]
@@ -2960,6 +2978,8 @@ def create_pptx():
 
     # 3. Operating Metrics
     slide = prs.slides.add_slide(bullet_slide_layout)
+    add_logo_to_slide(slide, Inches(8.0), Inches(0.2), Inches(1.5))
+    
     shapes = slide.shapes
     title_shape = shapes.title
     body_shape = shapes.placeholders[1]
@@ -2978,6 +2998,8 @@ def create_pptx():
 
     # 4. Capital Ledger
     slide = prs.slides.add_slide(bullet_slide_layout)
+    add_logo_to_slide(slide, Inches(8.0), Inches(0.2), Inches(1.5))
+    
     shapes = slide.shapes
     title_shape = shapes.title
     body_shape = shapes.placeholders[1]
@@ -3003,10 +3025,18 @@ def create_slide_pdf():
     # Landscape orientation, millimeters, Letter size
     pdf = FPDF(orientation='L', unit='mm', format='Letter')
     
+    def add_pdf_logo(x, y, w):
+        try:
+            if os.path.exists("Gemini_Generated_Image_.png"):
+                pdf.image("Gemini_Generated_Image_.png", x=x, y=y, w=w)
+        except Exception:
+            pass
+
     # 1. Title Slide
     pdf.add_page()
+    add_pdf_logo(x=105, y=15, w=70)
     pdf.set_font('Arial', 'B', 28)
-    pdf.cell(0, 40, '', ln=1) # Vertical Spacer
+    pdf.cell(0, 60, '', ln=1) # Vertical Spacer to push text below logo
     pdf.cell(0, 15, 'Wickboldt Capital | BTR Pro Forma Analysis', align='C', ln=1)
     pdf.set_font('Arial', 'I', 16)
     pdf.cell(0, 10, f"Project: {project_name if project_name else 'TBD'}", align='C', ln=1)
@@ -3015,6 +3045,7 @@ def create_slide_pdf():
     
     # 2. Exec Summary
     pdf.add_page()
+    add_pdf_logo(x=230, y=5, w=40)
     pdf.set_font('Arial', 'B', 24)
     pdf.cell(0, 20, 'Executive Summary', ln=1)
     pdf.line(10, 30, 270, 30) # Separator line
@@ -3029,6 +3060,7 @@ def create_slide_pdf():
     
     # 3. Operating Metrics
     pdf.add_page()
+    add_pdf_logo(x=230, y=5, w=40)
     pdf.set_font('Arial', 'B', 24)
     pdf.cell(0, 20, 'Operating & DSCR Metrics', ln=1)
     pdf.line(10, 30, 270, 30)
@@ -3042,6 +3074,7 @@ def create_slide_pdf():
     
     # 4. Capital Ledger
     pdf.add_page()
+    add_pdf_logo(x=230, y=5, w=40)
     pdf.set_font('Arial', 'B', 24)
     pdf.cell(0, 20, 'Capital Outlay Breakdown', ln=1)
     pdf.line(10, 30, 270, 30)
