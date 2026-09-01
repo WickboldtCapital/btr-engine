@@ -937,7 +937,9 @@ for scn in stress_scenarios:
         "Build Time": f"{s_months} mos",
         "DSCR Status": dscr_str,
         "Net Cash Surplus / (Trapped)": surplus_str,
-        "Total Day-1 Wealth": f"${s_wealth:,.0f}"
+        "Total Day-1 Wealth": f"${s_wealth:,.0f}",
+        "Raw DSCR": s_dscr,
+        "Raw Surplus": s_surplus
     })
 
 df_stress = pd.DataFrame(stress_results)
@@ -1719,14 +1721,21 @@ st.divider()
 # ==========================================
 st.markdown("### 9. Strategy Comparison: Retail Sell vs. Build-to-Rent")
 
+# --- UPDATED RETAIL MATH TO INCLUDE TAXES & CONST. CARRY ---
+retail_tax_rate = 0.30  # 30% Blended Short-Term Capital Gains / Corporate Rate
 retail_sales_costs = total_arv * 0.08
-retail_total_invested = total_land_default + total_const + total_vertical_soft + retail_sales_costs
-retail_net_cash = total_arv - retail_total_invested
+
+# National Builders still take out construction loans, so we must include the exact same carry costs
+retail_total_invested = total_land_default + total_const + total_vertical_soft + const_closing_fee + carry_int_base + retail_sales_costs
+retail_pre_tax_profit = total_arv - retail_total_invested
+retail_taxes = max(0, retail_pre_tax_profit * retail_tax_rate)
+retail_net_cash = retail_pre_tax_profit - retail_taxes
 
 btr_cash_text = f"yielding **${cash_surplus:,.0f}** tax-free" if cash_surplus >= 0 else f"leaving **${-cash_surplus:,.0f}** as retained capital"
 
 strategy_comparison_text = (
-    f"This comparison models the one-time taxable cash event of the National Builder model (yielding **${retail_net_cash:,.0f}** in taxable cash) "
+    f"This comparison models the taxable cash event of the National Builder model "
+    f"(deducting 30% for corporate/short-term capital gains, yielding **${retail_net_cash:,.0f}** in after-tax cash) "
     f"versus the wealth-creation mechanics of the Build-to-Rent model ({btr_cash_text}, while producing **${monthly_cash_flow_per_door:,.0f}/mo** in net cash flow and capturing **${retained_equity:,.0f}** in retained equity) "
     f"on the exact same project ({units} units, {sqft:,.0f} SF heated with {struct_sqft:,.0f} SF {st.session_state.structure_type.lower()}, ${total_arv:,.0f} ARV)."
 )
@@ -1735,7 +1744,7 @@ st.info(strategy_comparison_text.replace("$", r"\$"))
 # --- NEW STRATEGY COMPARISON CHART ---
 strat_viz_data = pd.DataFrame({
     "Strategy": ["1. Retail Sell Model", "1. Retail Sell Model", "2. Build-to-Rent Model", "2. Build-to-Rent Model"],
-    "Wealth Component": ["Net Cash Event", "Retained Equity", "Net Cash Event", "Retained Equity"],
+    "Wealth Component": ["After-Tax Net Cash", "Retained Equity", "After-Tax Net Cash", "Retained Equity"],
     "Amount ($)": [retail_net_cash, 0, cash_surplus, retained_equity]
 })
 
@@ -1743,7 +1752,7 @@ fig_strat = px.bar(strat_viz_data, x="Strategy", y="Amount ($)", color="Wealth C
                    text="Amount ($)", barmode="stack",
                    title=f"Wealth Creation Comparison (Total ARV: ${total_arv:,.0f})",
                    color_discrete_map={
-                       "Net Cash Event": "#2ca02c", 
+                       "After-Tax Net Cash": "#2ca02c", 
                        "Retained Equity": "#1f77b4"
                    })
 fig_strat.update_traces(texttemplate='$%{text:,.0f}', textposition='inside', insidetextanchor='middle')
@@ -1760,6 +1769,7 @@ with st.expander("⚖️ View Financial Strategy Comparison Matrix", expanded=Fa
             "Sales & Transaction Closing Costs",
             "Total Capital Invested",
             "Gross Revenue / Permanent Loan Proceeds",
+            "Estimated Capital Gains Taxes (30%)",
             "Net Cash Event at Closing",
             "Asset Retained on Balance Sheet?",
             "Ongoing Monthly Cash Flow"
@@ -1772,7 +1782,8 @@ with st.expander("⚖️ View Financial Strategy Comparison Matrix", expanded=Fa
             f"${retail_sales_costs:,.0f} (~8% Realtor & concessions)",
             f"${retail_total_invested:,.0f}",
             f"${total_arv:,.0f} (Retail sales price)",
-            f"+${retail_net_cash:,.0f} (Taxable ordinary income)",
+            f"-${retail_taxes:,.0f} (Taxable Profit)",
+            f"+${retail_net_cash:,.0f} (After-Tax)",
             "No",
             "$0"
         ],
@@ -1784,6 +1795,7 @@ with st.expander("⚖️ View Financial Strategy Comparison Matrix", expanded=Fa
             f"${btr_finance_closing:,.0f} (Const. finance, takeout, buydown)",
             f"${total_project_basis:,.0f}",
             f"${loan_total:,.0f} ({refi_ltv*100:.0f}% LTV DSCR Loan)",
+            "$0 (Tax-Deferred Refinance)",
             f"${cash_surplus:,.0f} (Seed Capital Retained)" if cash_surplus < 0 else f"+${cash_surplus:,.0f} (Tax-Free Cash Out)",
             f"Yes (${total_arv:,.0f} Asset, ${retained_equity:,.0f} Equity)",
             f"+${monthly_cash_flow_per_door:,.0f} / month / door"
@@ -1793,8 +1805,9 @@ with st.expander("⚖️ View Financial Strategy Comparison Matrix", expanded=Fa
     st.dataframe(pd.DataFrame(strategy_data), hide_index=True, use_container_width=True)
 
     strategy_footnote_text = (
-        f"***Note:** The BTR model captures ${default_gc_fee:,.0f} in GC Fees during the build. "
-        f"The {build_months}-month construction timeline incurs carrying costs such that the takeout distribution "
+        f"***Note:** The Retail model assumes a 30% blended corporate/capital gains tax on net profit. "
+        f"The BTR model captures ${default_gc_fee:,.0f} in GC Fees during the build, and the "
+        f"{build_months}-month construction timeline incurs carrying costs such that the takeout distribution "
         f"yields a net cash event of ${cash_surplus:,.0f} at closing. Total Day-1 Created Value equals ${day1_wealth:,.0f}.*"
     )
     st.caption(strategy_footnote_text.replace("$", r"\$"))
@@ -1957,8 +1970,39 @@ stress_test_summary = (
 )
 st.info(stress_test_summary.replace("$", r"\$"))
 
+# --- NEW DUAL STRESS TEST CHARTS ---
+df_stress['DSCR Color'] = df_stress['Raw DSCR'].apply(lambda x: '#2ca02c' if x >= target_dscr_rate else '#d62728')
+df_stress['Surplus Color'] = df_stress['Raw Surplus'].apply(lambda x: '#2ca02c' if x >= 0 else '#d62728')
+df_stress['Short Name'] = df_stress['Stress Scenario'].apply(lambda x: x.split(". ")[1] if ". " in x else x)
+
+fig_stress_dscr = go.Figure()
+fig_stress_dscr.add_trace(go.Bar(
+    x=df_stress['Short Name'], y=df_stress['Raw DSCR'],
+    marker_color=df_stress['DSCR Color'],
+    text=df_stress['Raw DSCR'].apply(lambda x: f"{x:.2f}x"),
+    textposition='auto'
+))
+fig_stress_dscr.add_hline(y=target_dscr_rate, line_dash="dash", line_color="black", annotation_text=f"Min {target_dscr_rate:.2f}x", annotation_position="top right")
+fig_stress_dscr.update_layout(title="DSCR Safety Under Duress", yaxis_title="DSCR Rate", showlegend=False)
+
+fig_stress_surplus = go.Figure()
+fig_stress_surplus.add_trace(go.Bar(
+    x=df_stress['Short Name'], y=df_stress['Raw Surplus'],
+    marker_color=df_stress['Surplus Color'],
+    text=df_stress['Raw Surplus'].apply(lambda x: f"${x:,.0f}"),
+    textposition='auto'
+))
+fig_stress_surplus.add_hline(y=0, line_color="black")
+fig_stress_surplus.update_layout(title="Capital Recovery Under Duress", yaxis_title="Surplus / (Trapped) $", showlegend=False)
+
+stress_col1, stress_col2 = st.columns(2)
+stress_col1.plotly_chart(fig_stress_dscr, use_container_width=True)
+stress_col2.plotly_chart(fig_stress_surplus, use_container_width=True)
+
 with st.expander("🌩️ View Lender Risk Mitigation Matrix", expanded=False):
-    st.dataframe(df_stress, hide_index=True, use_container_width=True)
+    # Drop the raw calculation columns before displaying the clean grid to the user
+    display_df = df_stress.drop(columns=["Raw DSCR", "Raw Surplus", "DSCR Color", "Surplus Color", "Short Name"])
+    st.dataframe(display_df, hide_index=True, use_container_width=True)
 
 st.divider()
 
@@ -2412,8 +2456,12 @@ def create_pdf(detail_mode):
         # Abbreviate for PDF constraints
         if "(~8% Realtor & concessions)" in retail:
             retail = retail.replace("(~8% Realtor & concessions)", "(8% Fees)")
-        if "(Taxable ordinary income)" in retail:
-            retail = retail.replace("(Taxable ordinary income)", "(Taxable)")
+        if "Estimated Capital Gains Taxes" in metric:
+            metric = "Taxes Paid (30%)"
+        if "(Taxable Profit)" in retail:
+            retail = retail.replace(" (Taxable Profit)", "")
+        if "(After-Tax)" in retail:
+            retail = retail.replace(" (After-Tax)", "")
         if "(Const. finance, takeout, buydown)" in btr:
             btr = btr.replace("(Const. finance, takeout, buydown)", "(Financing Fees)")
         if "LTV DSCR Loan" in btr:
@@ -2422,6 +2470,8 @@ def create_pdf(detail_mode):
             btr = btr.replace("(Seed Capital Retained)", "(Retained)")
         if "(Tax-Free Cash Out)" in btr:
             btr = btr.replace("(Tax-Free Cash Out)", "(Cash Out)")
+        if "(Tax-Deferred Refinance)" in btr:
+            btr = btr.replace(" (Tax-Deferred Refinance)", "")
             
         pdf.cell(70, 6, metric[:45], 1, 0, 'L')
         pdf.cell(60, 6, retail[:45], 1, 0, 'C')
