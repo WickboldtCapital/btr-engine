@@ -350,7 +350,7 @@ with st.sidebar.container():
     st.number_input("Min. Acceptable Cash Flow / Door ($)", min_value=0.0, max_value=1000.0, value=float(GLOBAL_DRIVERS.get("target_min_cashflow_per_door", 200.0)), step=25.0, key="target_min_cashflow_per_door")
     st.slider("Vacancy Rate (%)", min_value=0.0, max_value=15.0, step=1.0, key="vacancy_rate_pct")
     
-    st.slider("Property Management Fee (% of Gross)", min_value=0.0, max_value=15.0, step=0.5, value=float(GLOBAL_DRIVERS.get("mgmt_fee_pct", 8.0)), key="mgmt_fee_pct")
+    st.slider("Property Management Fee (% of EGI)", min_value=0.0, max_value=15.0, step=0.5, value=float(GLOBAL_DRIVERS.get("mgmt_fee_pct", 8.0)), key="mgmt_fee_pct")
     
     # --- OPEX TOGGLE LOGIC ---
     st.radio("Other OpEx Entry Mode", ["Percentage of EGI (%)", "Itemized Monthly Costs ($ per door)"], key="opex_entry_mode")
@@ -414,7 +414,7 @@ effective_gross_monthly_income = total_gross_monthly_income - monthly_vacancy_lo
 annual_egi = effective_gross_monthly_income * 12.0
 
 mgmt_fee_pct = st.session_state.get("mgmt_fee_pct", 8.0) / 100.0
-monthly_mgmt_fee = total_gross_monthly_income * mgmt_fee_pct
+monthly_mgmt_fee = effective_gross_monthly_income * mgmt_fee_pct
 annual_mgmt_fee = monthly_mgmt_fee * 12.0
 
 # Extract OpEx early to drive ARV logic
@@ -1631,7 +1631,7 @@ st.info(operating_summary_text.replace("$", r"\$"))
 
 # Dynamic OpEx Breakdown Calculations
 if misc_est > 0:
-    st.markdown(f"**OpEx Breakdown (Estimated):** Mgmt ~${mgmt_est:,.0f}/mo, Taxes ~${tax_est:,.0f}/mo, Insurance ~${ins_est:,.0f}/mo, Flood ~${flood_est:,.0f}/mo, Lawn ~${lawn_est:,.0f}/mo, CapEx ~${capex_est:,.0f}/mo, Misc/HOA ~${misc_est:,.0f}/mo.")
+    st.markdown(f"**OpEx Breakdown (Estimated):** Mgmt ~${mgmt_est:,.0f}/mo, Taxes ~${tax_est:,.0f}/mo, Insurance ~${ins_est:,.0f}/mo, Flood ~${flood_est:,.0f}/mo, Lawn ~${lawn_est:,.0f}/mo, CapEx ~${capex_est:,.0f}/mo, Misc ~${misc_est:,.0f}/mo.")
     op_x = ["Gross Rent", "Vacancy", "Mgmt", "Taxes", "Insurance", "Flood", "Lawn", "CapEx", "Misc/HOA", "NOI", "Debt Service", "Net Cash Flow"]
     op_measure = ["relative", "relative", "relative", "relative", "relative", "relative", "relative", "relative", "relative", "total", "relative", "total"]
     op_text = [
@@ -1673,7 +1673,7 @@ with st.expander("🏢 View Stabilized Operating Pro Forma (DSCR)", expanded=Fal
     dscr_summary_data = {
         "Pro Forma Line Item": [
             "Gross Potential Rent (GPR)", f"(-) Vacancy Loss @ {vacancy_rate*100:.1f}%", "= Effective Gross Income (EGI)", 
-            f"(-) Property Management @ {mgmt_fee_pct*100:.1f}% of GPR",
+            f"(-) Property Management @ {mgmt_fee_pct*100:.1f}% of EGI",
             f"(-) Other Operating Expenses (Taxes, Ins, Maint)", 
             "= Net Operating Income (NOI)", "(-) Total Debt Service (P&I)", "= Net Cash Flow",
             "---", "Actual DSCR Rate", "Target Lender DSCR", "DSCR Variance"
