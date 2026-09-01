@@ -1942,12 +1942,17 @@ scurve_summary = (
 )
 st.info(scurve_summary.replace("$", r"\$"))
 
-with st.expander("📉 View S-Curve Draw Chart & Capitalization Schedule", expanded=False):
-    # Render Chart
-    chart_df = df_schedule.copy()
-    chart_df = chart_df.set_index("Month")
-    st.bar_chart(chart_df[["Monthly Draw ($)"]], height=300)
+# --- NEW S-CURVE CHART ---
+# Render Chart outside expander
+fig_scurve = px.bar(df_schedule, x="Month", y="Monthly Draw ($)",
+                    title="Monthly Construction Drawdown (S-Curve)",
+                    text_auto='.2s', color_discrete_sequence=["#1f77b4"])
+fig_scurve.update_traces(textposition='outside')
+fig_scurve.update_layout(yaxis_title="Draw Amount ($)", xaxis_title="")
+st.plotly_chart(fig_scurve, use_container_width=True)
 
+
+with st.expander("📉 View S-Curve Capitalization Schedule Table", expanded=False):
     # Render Table
     st.dataframe(df_schedule.style.format({
         "Monthly Draw ($)": "${:,.0f}",
