@@ -6,6 +6,7 @@ import requests
 import os
 from datetime import datetime
 from business_plan_engine import create_business_plan_pdf
+from addendums_engine import create_lvp_addendum_pdf
 
 # Import Modular Project Engines
 from config import HARDCODED_DRIVERS, NAHB_HEATED_DIVS, NAHB_STRUCT_DIVS, STRESS_SCENARIOS
@@ -846,3 +847,23 @@ with col_p4:
 
 st.download_button("📄 Download Slide Deck (PDF Slides)", data=create_slide_pdf(ui_inputs, calc), file_name=f"{borrower_company}_Slide_Deck_{report_date.replace(' ', '_').replace(',', '')}.pdf", mime="application/pdf", use_container_width=True)
 st.download_button("💼 Download Master Business Plan", data=create_business_plan_pdf(ui_inputs, calc), file_name=f"{borrower_company}_Business_Plan_{report_date.replace(' ', '_').replace(',', '')}.pdf", mime="application/pdf", use_container_width=True)
+
+# ==========================================
+# --- 18. PROJECT ADDENDUMS ---
+# ==========================================
+st.markdown("### 📎 18. Project Addendums & CapEx Analysis")
+st.info("Download supplemental technical and financial addendums that substantiate long-term material efficiencies and operational cost protections.")
+
+col_add1, col_add2 = st.columns(2)
+with col_add1:
+    st.download_button(
+        label="📄 Download Addendum 1 (LVP Break-Even Analysis)", 
+        data=create_lvp_addendum_pdf(ui_inputs), 
+        file_name=f"{borrower_company}_Addendum1_LVP_{report_date.replace(' ', '_').replace(',', '')}.pdf", 
+        mime="application/pdf", 
+        use_container_width=True
+    )
+with col_add2:
+    st.write("") # Placeholder for future Addendum 2
+
+st.divider()
