@@ -12,7 +12,7 @@ import math
 from datetime import datetime
 
 # Page Configuration
-st.set_page_config(page_title="Wickboldt Capital | BTR Pro Forma Engine", layout="wide")
+st.set_page_config(page_title="Wickboldt Capital | Algorithmic Cost & Yield Optimization Engine", layout="wide")
 
 # ==========================================
 # --- MASTER DEFAULTS DICTIONARY ---
@@ -974,8 +974,11 @@ df_stress = pd.DataFrame(stress_results)
 # ==========================================
 # --- PAGE HEADER ---
 # ==========================================
-st.title("🏗️ BTR Pro Forma Engine")
-st.markdown("### Wickboldt Capital — *Today's Foundation. Tomorrow's Legacy.*")
+try:
+    st.image("Gemini_Generated_Image_.png", width=450)
+except:
+    pass
+st.title("Algorithmic Cost & Yield Optimization Engine")
 st.divider()
 
 # --- PROJECT INFO ---
