@@ -1350,3 +1350,48 @@ with col_tb2:
     )
 
 st.divider()
+
+# ==========================================
+# --- 19. MASTER MODEL DRIVERS & EXECUTIVE CONCLUSION ---
+# ==========================================
+st.markdown("### 🔑 19. Master Model Drivers & Executive Conclusion")
+
+intro_text = (
+    "The financial success of the Wickboldt Capital BTR strategy relies on the precise orchestration of interrelated project variables. "
+    "Rather than a static pro forma, this model is a dynamic engine where specific operational levers directly expand or compress "
+    "profitability, capital recovery, and long-term wealth."
+)
+st.info(intro_text)
+
+st.markdown("#### Primary Profit Drivers & Capital Impacts")
+
+# Layout the drivers in a clean, readable format
+col_d1, col_d2 = st.columns(2)
+
+with col_d1:
+    st.markdown("""
+    - **Direct Build Cost / SF (The Equity Engine):** Because the permanent takeout loan is capped by a fixed market appraisal, every dollar saved in construction costs flows 1:1 into the developer's pocket at closing. Controlling direct hard costs is the primary defense against trapped capital and the sole mechanism for generating Day-1 tax-free cash surplus.
+    - **Market Rental Rate (The Leverage Ceiling):** Gross scheduled rent dictates the Net Operating Income (NOI). A higher rent raises the NOI ceiling, which directly increases the maximum allowable loan amount under commercial DSCR rules, enabling greater capital extraction.
+    - **OpEx & Vacancy Factors (The NOI Defenders):** Commercial lenders strictly underwrite NOI. Allowing OpEx to drift from the modeled 25% to 35% destroys the DSCR ratio. A failed DSCR forces the developer to leave cash in the deal to lower the loan balance, severely damaging the 100% capital recovery strategy.
+    - **Permanent Interest Rate & Buydown Points (The Cash Flow Governor):** This dictates the ongoing monthly P&I burden. Paying upfront points to buy down the rate (e.g., to 6.50%) is mathematically required to clear the 1.20x DSCR hurdle and ensure positive passive income over the 30-year term.
+    """)
+
+with col_d2:
+    st.markdown("""
+    - **Construction Loan Rate & Duration (The Capital Bleed):** Time is money. Extended construction schedules (e.g., 9 months) or elevated short-term interest rates inflate carrying costs. This accrued interest bloats the total project basis, directly consuming the cash surplus available at the permanent refinance.
+    - **Land Investment Cost (The Seed Capital):** Securing finished lots at an out-of-pocket discount ($15,000 actual vs. 18% ARV benchmark) embeds immediate "phantom" equity into the deal, ensuring the takeout loan can easily cover 100% of the initial investment.
+    - **Multi-Unit Phase Scaling (The Overhead Multiplier):** Building in concurrent phases (e.g., 3 to 6 doors) compresses project management and General Conditions overhead. Consolidating field operations directly shrinks the per-unit basis, scaling cash-out surpluses exponentially.
+    - **Annual Appreciation & Rent Escalation (The Long-Term Multiplier):** While Year 1 focuses on capital recovery, compounding a conservative 3% annual growth in both property value and rental rates unlocks massive delayed liquidity. This mechanism enables a Year-5 80% LTV cash-out refinance, pulling hundreds of thousands in secondary tax-free cash from the portfolio.
+    """)
+
+st.markdown("<br>", unsafe_allow_html=True)
+
+conclusion_text = (
+    "**Final Strategic Conclusion**\n\n"
+    "By treating these drivers not as fixed expenses but as engineered levers, the Wickboldt Capital BTR model mitigates traditional real estate risks. "
+    "The dual-pronged approach—generating active GC management revenue during the build phase and retaining stabilized, cash-flowing assets with zero "
+    "remaining equity exposure at stabilization—achieves an effectively infinite cash-on-cash return. Controlling build costs creates the initial equity; "
+    "scaling production compresses the basis; and disciplined DSCR underwriting secures long-term, tax-advantaged portfolio growth."
+)
+st.success(conclusion_text)
+st.divider()
