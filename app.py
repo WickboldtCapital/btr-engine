@@ -800,12 +800,35 @@ st.markdown("### 13. Operating Expense (OpEx) Sensitivity")
 opex_sens_summary = f"Evaluates fluctuations in OpEx against baseline **${calc['total_gross_monthly_income']:,.0f}** gross rent and fixed **${calc['total_monthly_pi']:,.0f}** monthly P&I."
 st.info(opex_sens_summary.replace("$", r"\$"))
 
-fig_opex = go.Figure(go.Bar(x=calc['opex_labels'], y=calc['raw_opex_nois'], marker_color=calc['opex_colors'], text=[f"NOI: ${n:,.0f}<br>{d:.2f}x DSCR" for n, d in zip(calc['raw_opex_nois'], calc['raw_opex_dscrs'])], textposition='auto'))
-fig_opex.add_hline(y=calc['total_monthly_pi'], line_dash="dash", line_color="black", annotation_text=f"Breakeven (P&I): ${calc['total_monthly_pi']:,.0f}", annotation_position="bottom right")
-target_noi = calc['total_monthly_pi'] * calc['target_dscr_rate']
-fig_opex.add_hline(y=target_noi, line_dash="dot", line_color="#1f77b4", annotation_text=f"Bank Target NOI: ${target_noi:,.0f}", annotation_position="top right")
-fig_opex.update_layout(title="Net Operating Income vs. Debt Service Requirements", yaxis_title="Monthly Amount ($)", showlegend=False, yaxis=dict(range=[0, max(max(calc['raw_opex_nois']), target_noi) * 1.15]))
-st.plotly_chart(fig_opex, use_container_width=True)
+# Calculate Net Cash Flow for the charts
+opex_ncfs = [noi - calc['total_monthly_pi'] for noi in calc['raw_opex_nois']]
+
+col_opex1, col_opex2 = st.columns(2)
+
+with col_opex1:
+    fig_opex_dscr = go.Figure(go.Bar(
+        x=calc['opex_labels'], 
+        y=calc['raw_opex_dscrs'], 
+        marker_color=calc['opex_colors'], 
+        text=[f"{d:.2f}x" for d in calc['raw_opex_dscrs']], 
+        textposition='auto'
+    ))
+    fig_opex_dscr.add_hline(y=calc['target_dscr_rate'], line_dash="dash", line_color="black", annotation_text=f"Target: {calc['target_dscr_rate']:.2f}x", annotation_position="top right")
+    fig_opex_dscr.add_hline(y=1.0, line_dash="solid", line_color="#d62728", annotation_text="Breakeven (1.0x)", annotation_position="bottom right")
+    fig_opex_dscr.update_layout(title="DSCR Safety Margin Drop-off", yaxis_title="DSCR Rate", showlegend=False)
+    st.plotly_chart(fig_opex_dscr, use_container_width=True)
+
+with col_opex2:
+    fig_opex_ncf = go.Figure(go.Bar(
+        x=calc['opex_labels'], 
+        y=opex_ncfs, 
+        marker_color=calc['opex_colors'], 
+        text=[f"${cf:,.0f}" for cf in opex_ncfs], 
+        textposition='auto'
+    ))
+    fig_opex_ncf.add_hline(y=0, line_dash="solid", line_color="#d62728", annotation_text="Breakeven ($0)", annotation_position="bottom right")
+    fig_opex_ncf.update_layout(title="Net Monthly Cash Flow Impact", yaxis_title="Net Cash Flow ($)", showlegend=False)
+    st.plotly_chart(fig_opex_ncf, use_container_width=True)
 
 with st.expander("📊 View Detailed OpEx Stress Matrix", expanded=False):
     st.dataframe(calc['df_opex_sens'], hide_index=True, use_container_width=True)
