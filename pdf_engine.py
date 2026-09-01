@@ -100,6 +100,31 @@ def create_pdf(detail_mode, ui, calc, texts, tables):
     our_aux_cost_total = calc.get("our_aux_cost_total", 0)
     target_heated_hard_cost = calc.get("target_heated_hard_cost", 0)
     sqft = calc.get("sqft", 0)
+    
+    # Missing Math Variables
+    total_construction_basis = calc.get("total_construction_basis", 0)
+    cb_gross_annual_rent = calc.get("cb_gross_annual_rent", 0)
+    cb_noi = calc.get("cb_noi", 0)
+    total_gross_monthly_income = calc.get("total_gross_monthly_income", 0)
+    total_monthly_pi = calc.get("total_monthly_pi", 0)
+    monthly_cash_flow = calc.get("monthly_cash_flow", 0)
+    actual_dscr = calc.get("actual_dscr", 0)
+    monthly_vacancy_loss = calc.get("monthly_vacancy_loss", 0)
+    annual_egi = calc.get("annual_egi", 0)
+    monthly_mgmt_fee = calc.get("monthly_mgmt_fee", 0)
+    mo_other_opex = calc.get("mo_other_opex", 0)
+    annual_noi = calc.get("annual_noi", 0)
+    annual_mgmt_fee = calc.get("annual_mgmt_fee", 0)
+    annual_other_opex = calc.get("annual_other_opex", 0)
+    annual_debt_service = calc.get("annual_debt_service", 0)
+    dscr_variance = calc.get("dscr_variance", 0)
+    net_refi_rate = calc.get("net_refi_rate", 0)
+    build_months = calc.get("build_months", 0)
+    retail_sales_costs = calc.get("retail_sales_costs", 0)
+    retail_total_invested = calc.get("retail_total_invested", 0)
+    retail_taxes = calc.get("retail_taxes", 0)
+    retail_net_cash = calc.get("retail_net_cash", 0)
+    default_gc_fee = calc.get("default_gc_fee", 0)
 
     # --- Unpack Texts ---
     executive_summary_text = texts.get("executive_summary_text", "")
@@ -437,6 +462,8 @@ def create_pdf(detail_mode, ui, calc, texts, tables):
     pdf.set_font("Arial", 'B', 12)
     pdf.set_fill_color(220, 220, 220)
     pdf.cell(0, 8, " 9. Strategy Comparison: Retail Sell vs. Build-to-Rent", ln=1, fill=True)
+    pdf.set_font("Arial", '', 9)
+    
     pdf.set_font("Arial", '', 10)
     clean_strategy_summary = strategy_comparison_text.replace("**", "").replace(r"\$", "$").encode('latin-1', 'replace').decode('latin-1')
     pdf.multi_cell(0, 6, clean_strategy_summary)
@@ -486,6 +513,7 @@ def create_pdf(detail_mode, ui, calc, texts, tables):
     pdf.set_font("Arial", 'B', 12)
     pdf.set_fill_color(220, 220, 220)
     pdf.cell(0, 8, " 10. Multi-Unit Phase & Annual Program Analysis", ln=1, fill=True)
+    
     pdf.set_font("Arial", '', 10)
     clean_scaling_intro = scaling_intro.replace("**", "").replace(r"\$", "$").encode('latin-1', 'replace').decode('latin-1')
     pdf.multi_cell(0, 6, clean_scaling_intro)
@@ -523,6 +551,7 @@ def create_pdf(detail_mode, ui, calc, texts, tables):
     pdf.set_fill_color(220, 220, 220)
     pdf.cell(0, 8, " 11. Enterprise S-Curve Draw Schedule", ln=1, fill=True)
     pdf.set_font("Arial", '', 10)
+    
     clean_scurve_summary = scurve_summary.replace("**", "").replace(r"\$", "$").encode('latin-1', 'replace').decode('latin-1')
     pdf.multi_cell(0, 6, clean_scurve_summary)
     pdf.ln(3)
@@ -548,6 +577,7 @@ def create_pdf(detail_mode, ui, calc, texts, tables):
     pdf.set_fill_color(220, 220, 220)
     pdf.cell(0, 8, " 12. Sensitivity Analysis (Stress Testing)", ln=1, fill=True)
     pdf.set_font("Arial", '', 10)
+    
     clean_stress_summary = stress_test_summary.replace("**", "").replace(r"\$", "$").encode('latin-1', 'replace').decode('latin-1')
     pdf.multi_cell(0, 6, clean_stress_summary)
     pdf.ln(3)
@@ -564,6 +594,7 @@ def create_pdf(detail_mode, ui, calc, texts, tables):
     for i, row in df_stress.iterrows():
         dscr_clean = str(row["DSCR Status"]).replace("🟢 ", "").replace("🔴 ", "")
         surplus_clean = str(row["Net Cash Surplus / (Trapped)"]).replace("🟢 ", "").replace("🔴 ", "")
+        
         pdf.cell(60, 6, str(row["Stress Scenario"])[:35], 1, 0, 'L')
         pdf.cell(25, 6, str(row["Final ARV"]), 1, 0, 'C')
         pdf.cell(20, 6, str(row["Refi Rate"]), 1, 0, 'C')
@@ -577,6 +608,7 @@ def create_pdf(detail_mode, ui, calc, texts, tables):
     pdf.set_fill_color(220, 220, 220)
     pdf.cell(0, 8, " 13. Operating Expense (OpEx) Sensitivity", ln=1, fill=True)
     pdf.set_font("Arial", '', 10)
+    
     clean_opex_summary = opex_sens_summary.replace("**", "").replace(r"\$", "$").encode('latin-1', 'replace').decode('latin-1')
     pdf.multi_cell(0, 6, clean_opex_summary)
     pdf.ln(3)
@@ -587,7 +619,7 @@ def create_pdf(detail_mode, ui, calc, texts, tables):
     pdf.cell(25, 6, "NOI", 1, 0, 'C')
     pdf.cell(25, 6, "Mo. P&I", 1, 0, 'C')
     pdf.cell(20, 6, "DSCR", 1, 0, 'C')
-    pdf.cell(75, 6, f"Underwriting Status", 1, 1, 'C')
+    pdf.cell(75, 6, f"Underwriting Status (Target: {target_dscr_rate:.2f}x)", 1, 1, 'C')
     
     pdf.set_font("Arial", '', 8)
     for i, row in df_opex_sens.iterrows():
@@ -605,6 +637,7 @@ def create_pdf(detail_mode, ui, calc, texts, tables):
     pdf.set_fill_color(220, 220, 220)
     pdf.cell(0, 8, " 14. Gross Rent Sensitivity Matrix", ln=1, fill=True)
     pdf.set_font("Arial", '', 10)
+    
     clean_rent_summary = rent_sens_summary.replace("**", "").replace(r"\$", "$").encode('latin-1', 'replace').decode('latin-1')
     pdf.multi_cell(0, 6, clean_rent_summary)
     pdf.ln(3)
@@ -621,6 +654,7 @@ def create_pdf(detail_mode, ui, calc, texts, tables):
     for i, row in df_rent_sens.iterrows():
         rent_clean = str(row["Gross Rent"]).replace(" (Target)", "")
         vac_col = [c for c in df_rent_sens.columns if "Vacancy" in c][0]
+        
         pdf.cell(25, 6, rent_clean, 1, 0, 'C')
         pdf.cell(25, 6, str(row[vac_col]), 1, 0, 'C')
         pdf.cell(25, 6, str(row["OpEx"]), 1, 0, 'C')
@@ -635,6 +669,7 @@ def create_pdf(detail_mode, ui, calc, texts, tables):
         pdf.set_fill_color(220, 220, 220)
         pdf.cell(0, 8, " 15. Retail Comp & Appraisal Reverse-Engineering", ln=1, fill=True)
         pdf.set_font("Arial", '', 10)
+        
         rev_eng_summary_pdf = (
             f"Based on the comp's isolated rates, your specific {sqft} SF project has an estimated ARV "
             f"of ${reference_price:,.0f}. We are reverse-engineering this value to isolate the pure direct "
@@ -683,6 +718,7 @@ def create_pdf(detail_mode, ui, calc, texts, tables):
     pdf.set_fill_color(220, 220, 220)
     pdf.cell(0, 8, " 16. Long-Term Portfolio Wealth (IRR & ROI)", ln=1, fill=True)
     pdf.set_font("Arial", '', 10)
+    
     clean_long_term = long_term_intro.replace("**", "").replace(r"\$", "$").encode('latin-1', 'replace').decode('latin-1')
     pdf.multi_cell(0, 6, clean_long_term)
     pdf.ln(3)
