@@ -2989,70 +2989,106 @@ def create_lender_letter_pdf(letter_type):
     if letter_type == "Construction":
         bank = st.session_state.get("const_bank_name", "Local Regional Bank")
         contact = st.session_state.get("const_bank_contact", "Commercial Loan Officer")
-        subject = f"Funding Proposal: Construction Facility for {project_name if project_name else 'BTR Development'}"
+        subject = f"Construction Financing Proposal - Build-to-Rent (BTR) Development at {project_address if project_address else '[Subject Property]'}"
+        
+        pdf.set_font('Arial', 'B', 11)
+        pdf.cell(0, 6, f"To: {contact}", ln=1)
+        pdf.cell(0, 6, f"Company: {bank}", ln=1)
+        pdf.ln(5)
+        
+        pdf.cell(0, 6, f"RE: {subject}", ln=1)
+        pdf.line(10, pdf.get_y(), 200, pdf.get_y())
+        pdf.ln(5)
+        
+        pdf.set_font('Arial', '', 11)
+        pdf.cell(0, 6, f"Dear {contact},", ln=1)
+        pdf.ln(3)
+        
+        p1 = f"{borrower_company} respectfully submits this funding proposal for the vertical and horizontal development of a purpose-built, {units}-unit Build-to-Rent (BTR) asset located at {project_address if project_address else 'the subject property'}."
+        pdf.multi_cell(0, 6, p1.encode('latin-1', 'replace').decode('latin-1'))
+        pdf.ln(3)
+        
+        p2 = f"To execute this project, we are requesting a construction debt facility of ${actual_const_loan:,.0f}. The project is underwritten with a highly favorable cost basis, allowing us to fully collateralize the facility and meet all lender reserve requirements with ${seed_capital:,.0f} in Day-1 cash equity required at closing."
+        pdf.multi_cell(0, 6, p2.encode('latin-1', 'replace').decode('latin-1'))
+        pdf.ln(3)
+        
+        pdf.set_font('Arial', 'B', 11)
+        pdf.cell(0, 6, "Project & Facility Highlights:", ln=1)
+        pdf.set_font('Arial', '', 11)
+        pdf.cell(5, 6, "")
+        pdf.cell(0, 6, f"- Requested Loan Amount: ${actual_const_loan:,.0f}", ln=1)
+        pdf.cell(5, 6, "")
+        pdf.cell(0, 6, f"- Total Capital Basis: ${total_project_basis:,.0f}", ln=1)
+        pdf.cell(5, 6, "")
+        pdf.cell(0, 6, f"- Projected As-Repaired Value (ARV): ${total_arv:,.0f}", ln=1)
+        pdf.cell(5, 6, "")
+        pdf.cell(0, 6, f"- Target Leverage: {const_ltv*100:.1f}% Loan-to-Cost (LTC)", ln=1)
+        pdf.cell(5, 6, "")
+        pdf.cell(0, 6, f"- Construction Lifecycle: {build_months} Months", ln=1)
+        pdf.ln(3)
+        
+        pdf.set_font('Arial', 'B', 11)
+        pdf.cell(0, 6, "Exit Strategy:", ln=1)
+        pdf.set_font('Arial', '', 11)
+        p3 = f"Upon issuance of the Certificate of Occupancy and subsequent tenant placement, our defined exit strategy is to execute a commercial Debt Service Coverage Ratio (DSCR) takeout refinance. This will return the construction facility's principal while allowing {borrower_company} to retain and manage the stabilized asset long-term within our corporate portfolio."
+        pdf.multi_cell(0, 6, p3.encode('latin-1', 'replace').decode('latin-1'))
+        pdf.ln(3)
+        
+        p4 = f"To support your underwriting process, please find the enclosed comprehensive reporting package, which includes our algorithmic pro forma model, a granular direct hard-cost breakdown, and the projected S-Curve capital drawdown schedule."
+        pdf.multi_cell(0, 6, p4.encode('latin-1', 'replace').decode('latin-1'))
+        pdf.ln(3)
+
     else:
         bank = st.session_state.get("refi_bank_name", "National DSCR Lender")
         contact = st.session_state.get("refi_bank_contact", "Takeout Underwriter")
-        subject = f"Refinance Takeout: Permanent DSCR Loan for {project_name if project_name else 'BTR Portfolio'}"
+        subject = f"Permanent DSCR Refinance Takeout - Stabilized BTR Asset at {project_address if project_address else '[Subject Property]'}"
         
-    pdf.set_font('Arial', 'B', 11)
-    pdf.cell(0, 6, f"To: {contact}", ln=1)
-    pdf.cell(0, 6, f"Company: {bank}", ln=1)
-    pdf.ln(5)
-    
-    pdf.cell(0, 6, f"RE: {subject}", ln=1)
-    pdf.line(10, pdf.get_y(), 200, pdf.get_y())
-    pdf.ln(5)
-    
-    pdf.set_font('Arial', '', 11)
-    pdf.cell(0, 6, f"Dear {contact},", ln=1)
-    pdf.ln(3)
-    
-    if letter_type == "Construction":
-        body = (
-            f"{borrower_company} is pleased to present this funding proposal for the development of "
-            f"{project_name if project_name else 'our upcoming project'}, a {units}-unit Build-to-Rent (BTR) "
-            f"asset located at {project_address if project_address else 'the subject property'}.\n\n"
-            
-            f"We are requesting a construction loan facility of ${actual_const_loan:,.0f} to fund the vertical "
-            f"and horizontal development. The total estimated project capital basis is ${total_project_basis:,.0f}. "
-            f"As the sponsor, {borrower_company} is prepared to inject ${seed_capital:,.0f} in Day-1 equity to "
-            f"close the facility and fulfill all reserve requirements.\n\n"
-            
-            f"Upon completion of the {build_months}-month build cycle, the asset holds a projected As-Repaired "
-            f"Value (ARV) of ${total_arv:,.0f}. This represents a conservative Loan-to-Cost (LTC) ratio of "
-            f"{const_ltv*100:.1f}%.\n\n"
-            
-            f"Our exit strategy for this facility is to stabilize the property and execute a commercial DSCR "
-            f"takeout refinance, retaining the asset long-term within our portfolio.\n\n"
-            
-            f"Attached to this letter, please find our comprehensive algorithmic pro forma, granular direct "
-            f"cost breakdowns, and the S-Curve capital draw schedule for your underwriting review.\n\n"
-        )
-    else:
-        body = (
-            f"{borrower_company} is seeking permanent commercial financing to take out our existing construction "
-            f"facility on {project_name if project_name else 'our newly developed property'}, a stabilized "
-            f"{units}-unit Build-to-Rent (BTR) asset located at {project_address if project_address else 'the subject property'}.\n\n"
-            
-            f"We are requesting a commercial DSCR loan in the amount of ${loan_total:,.0f}. This represents an "
-            f"{refi_ltv*100:.1f}% Loan-to-Value (LTV) against the asset's projected ARV of ${total_arv:,.0f}.\n\n"
-            
-            f"The asset yields exceptional operating metrics, generating ${total_gross_monthly_income:,.0f} in gross "
-            f"monthly revenue and ${monthly_noi:,.0f} in monthly Net Operating Income (NOI). Based on a target "
-            f"interest rate of {net_refi_rate*100:.3f}% over a {refi_term_years}-year amortization, the property "
-            f"easily clears commercial underwriting with an actual DSCR of {actual_dscr:.2f}x. This robust performance "
-            f"produces ${monthly_cash_flow:,.0f} in net passive cash flow every month.\n\n"
-            
-            f"Attached to this letter, please find our stabilized operating pro forma, OpEx breakdown, and "
-            f"long-term portfolio wealth projections for your underwriting review.\n\n"
-        )
+        pdf.set_font('Arial', 'B', 11)
+        pdf.cell(0, 6, f"To: {contact}", ln=1)
+        pdf.cell(0, 6, f"Company: {bank}", ln=1)
+        pdf.ln(5)
         
-    clean_body = body.replace(r"\$", "$").encode('latin-1', 'replace').decode('latin-1')
-    pdf.multi_cell(0, 6, clean_body)
+        pdf.cell(0, 6, f"RE: {subject}", ln=1)
+        pdf.line(10, pdf.get_y(), 200, pdf.get_y())
+        pdf.ln(5)
+        
+        pdf.set_font('Arial', '', 11)
+        pdf.cell(0, 6, f"Dear {contact},", ln=1)
+        pdf.ln(3)
+        
+        p1 = f"{borrower_company} respectfully submits this funding proposal to secure permanent commercial financing for our newly stabilized, {units}-unit Build-to-Rent (BTR) asset located at {project_address if project_address else 'the subject property'}."
+        pdf.multi_cell(0, 6, p1.encode('latin-1', 'replace').decode('latin-1'))
+        pdf.ln(3)
+        
+        p2 = f"We are requesting a commercial DSCR facility of ${loan_total:,.0f} to successfully retire our existing construction debt."
+        pdf.multi_cell(0, 6, p2.encode('latin-1', 'replace').decode('latin-1'))
+        pdf.ln(3)
+        
+        pdf.set_font('Arial', 'B', 11)
+        pdf.cell(0, 6, "Operating & Portfolio Highlights:", ln=1)
+        pdf.set_font('Arial', '', 11)
+        pdf.cell(5, 6, "")
+        pdf.cell(0, 6, f"- Requested Loan Amount: ${loan_total:,.0f}", ln=1)
+        pdf.cell(5, 6, "")
+        pdf.cell(0, 6, f"- Stabilized Appraised Value (ARV): ${total_arv:,.0f}", ln=1)
+        pdf.cell(5, 6, "")
+        pdf.cell(0, 6, f"- Target Leverage: {refi_ltv*100:.1f}% Loan-to-Value (LTV)", ln=1)
+        pdf.cell(5, 6, "")
+        pdf.cell(0, 6, f"- Net Operating Income (NOI): ${annual_noi:,.0f} / year", ln=1)
+        pdf.cell(5, 6, "")
+        pdf.cell(0, 6, f"- Underwritten DSCR: {actual_dscr:.2f}x", ln=1)
+        pdf.ln(3)
+        
+        p3 = f"The asset yields exceptional operating metrics, generating ${total_gross_monthly_income:,.0f} in gross monthly revenue and producing ${monthly_cash_flow:,.0f} in net passive cash flow every month after debt service (modeled at {net_refi_rate*100:.3f}%)."
+        pdf.multi_cell(0, 6, p3.encode('latin-1', 'replace').decode('latin-1'))
+        pdf.ln(3)
+        
+        p4 = f"To support your underwriting process, please find the enclosed comprehensive reporting package, which includes our stabilized operating pro forma, itemized OpEx breakdown, and long-term portfolio wealth projections."
+        pdf.multi_cell(0, 6, p4.encode('latin-1', 'replace').decode('latin-1'))
+        pdf.ln(3)
+
+    pdf.multi_cell(0, 6, "Thank you for your time, review, and continued partnership. We look forward to discussing this facility with your committee in further detail.")
     
-    pdf.ln(5)
-    pdf.cell(0, 6, "Thank you for your time and partnership.", ln=1)
     pdf.ln(5)
     pdf.cell(0, 6, "Sincerely,", ln=1)
     pdf.ln(10)
