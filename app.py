@@ -5,14 +5,14 @@ import plotly.graph_objects as go
 import requests
 import os
 from datetime import datetime
-from business_plan_engine import create_business_plan_pdf
-from technical_briefs_engine import create_tb1_lvp_pdf, create_tb2_shower_pdf
 
 # Import Modular Project Engines
 from config import HARDCODED_DRIVERS, NAHB_HEATED_DIVS, NAHB_STRUCT_DIVS, STRESS_SCENARIOS
 from calculations import run_underwriting_engine
 from pdf_engine import create_pdf, create_lender_letter_pdf
 from presentation_engine import create_pptx, create_slide_pdf
+from business_plan_engine import create_business_plan_pdf
+from technical_briefs_engine import create_tb1_lvp_pdf, create_tb2_shower_pdf
 
 # Page Configuration
 st.set_page_config(page_title="Wickboldt Capital | Algorithmic Cost & Yield Optimization Engine", layout="wide")
@@ -341,6 +341,25 @@ refi_vs_basis = calc['loan_total'] - calc['total_project_basis']
 col1.metric("Takeout Loan Proceeds", f"${calc['loan_total']:,.0f}", f"{refi_vs_basis:+,.0f} vs Project Basis", delta_color="normal")
 col2.metric("Day-1 Seed Capital", f"${calc['seed_capital']:,.0f}" if calc['seed_capital'] > 0 else "$0", "-Requires Cash Reserves" if calc['seed_capital'] > 0 else "Fully Funded", delta_color="normal")
 col3.metric("Under-Roof Blended Cost", f"${calc['blended_cost_per_sf']:.2f} / SF", f"{calc['total_under_roof_sqft']:,} Total SF Under Roof")
+col4.metric("Tax-Free Cash Surplus" if calc['cash_surplus'] >= 0 else "Trapped Seed Capital", f"${calc['cash_surplus']:,.0f}", "Capital Recovered" if calc['cash_surplus'] >= 0 else "Loss at Closing", delta_color="normal" if calc['cash_surplus'] >= 0 else "inverse")
+
+st.markdown("### 🏢 Operating & DSCR Metrics")
+op1, op2, op3, op4 = st.columns(4)
+arv_label = "Derived Unit ARV (Price/SF)" if calc['appraisal_mode'] == "Sales Comp (Price/SF)" else "Derived Unit ARV"
+op1.metric(arv_label, f"${calc['arv_per_unit']:,.0f}", f"${calc['total_arv']:,.0f} Total ARV")
+op2.metric("Actual DSCR Rate", f"{calc['actual_dscr']:.2f}x", f"Target: {calc['target_dscr_rate']:.2f}x", delta_color="normal" if calc['actual_dscr'] >= calc['target_dscr_rate'] else "inverse")
+op3.metric("Monthly Cash Flow", f"${calc['monthly_cash_flow']:,.0f} /mo", f"${calc['monthly_cash_flow']*12:,.0f} Annual", delta_color="normal" if calc['monthly_cash_flow_per_door'] >= calc['target_min_cashflow_per_door'] else "inverse")
+op4.metric("Monthly P&I Payment", f"${calc['total_monthly_pi']:,.0f} /mo", f"{calc['refi_term_years']}Yr @ {calc['net_refi_rate']*100:.3f}%")
+
+st.markdown("### 🚦 Go/No-Go Investment Decision Dashboard")
+dscr_pass = calc['actual_dscr'] >= calc['target_dscr_rate']
+cash_pass = calc['cash_surplus'] >= 0
+cf_pass = calc['monthly_cash_flow_per_door'] >= calc['target_min_cashflow_per_door']
+
+dash_col1, dash_col2, dash_col3, dash_col4 = st.columns(4)
+dash_col1.metric("DSCR Underwriting Status", "🟢 GREEN LIGHT" if dscr_pass else "🔴 RED LIGHT", f"Actual: {calc['actual_dscr']:.2f}x (Target: {calc['target_dscr_rate']:.2f}x)", delta_color="normal" if dscr_pass else "inverse")
+dash_col2.metric("Cash Flow Status", "🟢 GREEN LIGHT" if cf_pass else "🔴 RED LIGHT", f"Actual: ${calc['monthly_cash_flow_per_door']:,.0f}/door (Target: ${calc['target_min_cashflow_per_door']:,.0f})", delta_color="normal" if cf_pass else "inverse")
+dash_col3.metric("Capital Recovery Status", "🟢 GREEN LIGHT" if cash_pass else "🔴 RED LIGHT", f"${calc['cash_surplus']:,.0f} at Refi Close", delta_color="normal" if cash_pass else "inverse")
 dash_col4.metric("Day-1 Wealth Creation", f"${calc['day1_wealth']:,.0f}", f"${calc['day1_wealth']/calc['units']:,.0f} per door", delta_color="normal")
 
 st.markdown("<br>", unsafe_allow_html=True)
@@ -800,12 +819,34 @@ st.info(stress_test_summary.replace("$", r"\$"))
 
 df_stress_plot = calc['df_stress'].copy()
 df_stress_plot['DSCR Color'] = df_stress_plot['Raw DSCR'].apply(lambda x: '#2ca02c' if x >= calc['target_dscr_rate'] else '#d62728')
+df_stress_plot['Surplus Color'] = df_stress_plot['Raw Surplus'].apply(lambda x: '#2ca02c' if x >= 0 else '#d62728')
 df_stress_plot['Short Name'] = df_stress_plot['Stress Scenario'].apply(lambda x: x.split(". ")[1] if ". " in x else x)
 
-fig_stress_dscr = go.Figure(go.Bar(x=df_stress_plot['Short Name'], y=df_stress_plot['Raw DSCR'], marker_color=df_stress_plot['DSCR Color'], text=df_stress_plot['Raw DSCR'].apply(lambda x: f"{x:.2f}x"), textposition='auto'))
-fig_stress_dscr.add_hline(y=calc['target_dscr_rate'], line_dash="dash", line_color="black", annotation_text=f"Min {calc['target_dscr_rate']:.2f}x")
-fig_stress_dscr.update_layout(title="DSCR Safety Under Duress", yaxis_title="DSCR Rate", showlegend=False)
-st.plotly_chart(fig_stress_dscr, use_container_width=True)
+stress_col1, stress_col2 = st.columns(2)
+
+with stress_col1:
+    fig_stress_dscr = go.Figure(go.Bar(
+        x=df_stress_plot['Short Name'], 
+        y=df_stress_plot['Raw DSCR'], 
+        marker_color=df_stress_plot['DSCR Color'], 
+        text=df_stress_plot['Raw DSCR'].apply(lambda x: f"{x:.2f}x"), 
+        textposition='auto'
+    ))
+    fig_stress_dscr.add_hline(y=calc['target_dscr_rate'], line_dash="dash", line_color="black", annotation_text=f"Min {calc['target_dscr_rate']:.2f}x", annotation_position="top right")
+    fig_stress_dscr.update_layout(title="DSCR Safety Under Duress", yaxis_title="DSCR Rate", showlegend=False)
+    st.plotly_chart(fig_stress_dscr, use_container_width=True)
+
+with stress_col2:
+    fig_stress_surplus = go.Figure(go.Bar(
+        x=df_stress_plot['Short Name'], 
+        y=df_stress_plot['Raw Surplus'], 
+        marker_color=df_stress_plot['Surplus Color'], 
+        text=df_stress_plot['Raw Surplus'].apply(lambda x: f"${x:,.0f}"), 
+        textposition='auto'
+    ))
+    fig_stress_surplus.add_hline(y=0, line_color="black")
+    fig_stress_surplus.update_layout(title="Capital Recovery Under Duress", yaxis_title="Surplus / (Trapped) $", showlegend=False)
+    st.plotly_chart(fig_stress_surplus, use_container_width=True)
 
 with st.expander("🌩️ View Lender Risk Mitigation Matrix", expanded=False):
     st.dataframe(calc['df_stress'].drop(columns=["Raw DSCR", "Raw Surplus"]), hide_index=True, use_container_width=True)
@@ -818,7 +859,6 @@ st.markdown("### 13. Operating Expense (OpEx) Sensitivity")
 opex_sens_summary = f"Evaluates fluctuations in OpEx against baseline **${calc['total_gross_monthly_income']:,.0f}** gross rent and fixed **${calc['total_monthly_pi']:,.0f}** monthly P&I."
 st.info(opex_sens_summary.replace("$", r"\$"))
 
-# Calculate Net Cash Flow for the charts
 opex_ncfs = [noi - calc['total_monthly_pi'] for noi in calc['raw_opex_nois']]
 
 col_opex1, col_opex2 = st.columns(2)
@@ -1366,6 +1406,8 @@ with col_p4:
 st.download_button("📄 Download Slide Deck (PDF Slides)", data=create_slide_pdf(ui_inputs, calc), file_name=f"{borrower_company}_Slide_Deck_{report_date.replace(' ', '_').replace(',', '')}.pdf", mime="application/pdf", use_container_width=True)
 st.download_button("💼 Download Master Business Plan", data=create_business_plan_pdf(ui_inputs, calc), file_name=f"{borrower_company}_Business_Plan_{report_date.replace(' ', '_').replace(',', '')}.pdf", mime="application/pdf", use_container_width=True)
 
+st.divider()
+
 # ==========================================
 # --- 18. TECHNICAL BRIEFS & CAPEX ---
 # ==========================================
@@ -1406,7 +1448,6 @@ st.info(intro_text)
 
 st.markdown("#### Primary Profit Drivers & Capital Impacts")
 
-# Layout the drivers in a clean, readable format
 col_d1, col_d2 = st.columns(2)
 
 with col_d1:
