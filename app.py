@@ -353,7 +353,7 @@ with st.sidebar.container():
     st.radio("Bank Valuation Method", ["Gross Rent Multiplier (GRM)", "DSCR Stress Test"], key="const_bank_val_mode")
     
     if st.session_state.const_bank_val_mode == "Gross Rent Multiplier (GRM)":
-        st.number_input("Bank Underwriting GRM", min_value=4.0, max_value=25.0, value=float(GLOBAL_DRIVERS.get("const_bank_grm", 10.0)), step=0.1, key="const_bank_grm")
+        st.number_input("Bank Under underwriting GRM", min_value=4.0, max_value=25.0, value=float(GLOBAL_DRIVERS.get("const_bank_grm", 10.0)), step=0.1, key="const_bank_grm")
     else:
         st.slider("Bank Underwriting Vacancy (%)", min_value=0.0, max_value=15.0, step=1.0, key="const_bank_vac_pct")
         st.slider("Bank Underwriting OpEx (%)", min_value=15.0, max_value=50.0, step=1.0, key="const_bank_opex_pct")
@@ -2114,22 +2114,38 @@ opex_sens_summary = (
 st.info(opex_sens_summary.replace("$", r"\$"))
 
 opex_sensitivity_data = []
+raw_nois = []
+raw_dscrs = []
+labels = []
+colors = []
 test_rates = [0.25, 0.30, 0.35]
+
 for rate in test_rates:
     mo_opex = total_gross_monthly_income * rate
     mo_vac = total_gross_monthly_income * vacancy_rate
     mo_noi = total_gross_monthly_income - mo_vac - mo_opex
     dscr = mo_noi / total_monthly_pi if total_monthly_pi > 0 else 0
     
+    # Determine Status and Bar Color based on DSCR
     if dscr >= target_dscr_rate:
-        status = f"Approved (Passes standard guidelines)"
+        status = "Approved (Passes standard guidelines)"
+        color = '#2ca02c'  # Green
     elif dscr >= 1.0:
         status = "Requires Additional Buydown / Lower LTV"
+        color = '#ff7f0e'  # Orange
     else:
         status = "Fails Underwriting (Breakeven only)"
+        color = '#d62728'  # Red
         
     label = "25% (Baseline)" if rate == 0.25 else f"{rate*100:.0f}%"
 
+    # Store raw values for the chart
+    raw_nois.append(mo_noi)
+    raw_dscrs.append(dscr)
+    labels.append(label)
+    colors.append(color)
+
+    # Store formatted strings for the dataframe
     opex_sensitivity_data.append({
         "OpEx Rate": label,
         "Monthly OpEx": f"-${mo_opex:,.0f}",
@@ -2139,8 +2155,55 @@ for rate in test_rates:
         f"Underwriting Status (Target: {target_dscr_rate:.2f}x)": status
     })
 
+# --- DYNAMIC OPEX CHART ---
+fig_opex = go.Figure()
+
+# Bar Chart for NOI
+fig_opex.add_trace(go.Bar(
+    x=labels, 
+    y=raw_nois,
+    marker_color=colors,
+    text=[f"NOI: ${n:,.0f}<br>{d:.2f}x DSCR" for n, d in zip(raw_nois, raw_dscrs)],
+    textposition='auto',
+))
+
+# Threshold Line 1: Breakeven P&I
+fig_opex.add_hline(
+    y=total_monthly_pi, 
+    line_dash="dash", 
+    line_color="black", 
+    annotation_text=f"Breakeven (P&I): ${total_monthly_pi:,.0f}", 
+    annotation_position="bottom right"
+)
+
+# Threshold Line 2: Bank Required Target NOI
+target_noi = total_monthly_pi * target_dscr_rate
+fig_opex.add_hline(
+    y=target_noi, 
+    line_dash="dot", 
+    line_color="#1f77b4", 
+    annotation_text=f"Bank Target NOI: ${target_noi:,.0f}", 
+    annotation_position="top right"
+)
+
+# Chart Formatting
+# Ensure the y-axis scales high enough so the top annotation isn't cut off
+max_y_val = max(raw_nois) if raw_nois else target_noi
+fig_opex.update_layout(
+    title="Net Operating Income vs. Fixed Debt Service Requirements",
+    yaxis_title="Monthly Amount ($)",
+    xaxis_title="Operating Expense (OpEx) Scenario",
+    showlegend=False,
+    yaxis=dict(range=[0, max(max_y_val, target_noi) * 1.15]) 
+)
+
+st.plotly_chart(fig_opex, use_container_width=True)
+
+# Dataframe tucked in an expander
 df_opex_sens = pd.DataFrame(opex_sensitivity_data)
-st.dataframe(df_opex_sens, hide_index=True, use_container_width=True)
+with st.expander("📊 View Detailed OpEx Stress Matrix", expanded=False):
+    st.dataframe(df_opex_sens, hide_index=True, use_container_width=True)
+
 st.divider()
 
 
@@ -2607,7 +2670,7 @@ def create_pdf(detail_mode):
         pdf.cell(90, 7, f"${bank_stressed_value:,.0f}", 0, 1, 'R')
     else:
         pdf_grm_info_text = (
-            f"Construction Loan Underwriting: The bank determines the implied asset value based on a "
+            f"Construction Loan Under underwriting: The bank determines the implied asset value based on a "
             f"{const_bank_grm:.1f}x Gross Rent Multiplier (yielding ${bank_stressed_value:,.0f}). "
             f"They apply their {const_bank_ltv*100:.1f}% LTV limit to offer a maximum loan of ${actual_const_loan:,.0f}, "
             f"and subtract that from your Total Basis (${total_construction_basis:,.0f}) to determine your required Day-1 Seed Capital of ${seed_capital:,.0f}."
