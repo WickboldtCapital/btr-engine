@@ -57,6 +57,13 @@ HARDCODED_DRIVERS = {
     "refi_bank_name": "National DSCR Lender",
     "refi_bank_contact": "Takeout Underwriter",
     
+    # Borrower Details
+    "borrower_name": "Stephen Wickboldt Jr.",
+    "borrower_company": "Wickboldt Capital",
+    "borrower_address": "Prairieville, LA",
+    "borrower_phone": "(555) 555-5555",
+    "borrower_email": "stephen@wickboldtcapital.com",
+    
     # Construction Loan Closing Fees
     "const_closing_mode": "Flat Lump Sum",
     "const_closing_fee": 6000,
@@ -997,16 +1004,29 @@ except:
 st.title("Algorithmic Cost & Yield Optimization Engine")
 st.divider()
 
-# --- PROJECT INFO ---
-st.markdown("### 📋 Project Information")
-top_col1, top_col2, top_col3 = st.columns([2, 2, 1])
-project_name = top_col1.text_input("Project Title", placeholder="e.g. Phase 1 - 24-Lot Build-to-Rent")
-project_address = top_col2.text_input("Project Address", placeholder="e.g. Rogers Moore Parkway, Hammond, LA")
-report_date = datetime.now().strftime("%B %d, %Y")
+# --- PROJECT & BORROWER INFO ---
+st.markdown("### 📋 Project & Borrower Information")
 
-sub_col1, sub_col2, sub_col3 = st.columns([1, 1, 2])
-project_beds = sub_col1.number_input("Beds per Unit", min_value=1, value=3, step=1)
-project_baths = sub_col2.number_input("Baths per Unit", min_value=1.0, value=2.0, step=0.5)
+with st.expander("📍 Project Details", expanded=True):
+    top_col1, top_col2, top_col3 = st.columns([2, 2, 1])
+    project_name = top_col1.text_input("Project Title", placeholder="e.g. Phase 1 - 24-Lot Build-to-Rent")
+    project_address = top_col2.text_input("Project Address", placeholder="e.g. Rogers Moore Parkway, Hammond, LA")
+    report_date = datetime.now().strftime("%B %d, %Y")
+
+    sub_col1, sub_col2, sub_col3 = st.columns([1, 1, 2])
+    project_beds = sub_col1.number_input("Beds per Unit", min_value=1, value=3, step=1)
+    project_baths = sub_col2.number_input("Baths per Unit", min_value=1.0, value=2.0, step=0.5)
+
+with st.expander("👤 Borrower Details", expanded=True):
+    b_col1, b_col2 = st.columns(2)
+    borrower_name = b_col1.text_input("Borrower Name", value=st.session_state.get("borrower_name", "Stephen Wickboldt Jr."))
+    borrower_company = b_col2.text_input("Company/Entity", value=st.session_state.get("borrower_company", "Wickboldt Capital"))
+    
+    b_col3, b_col4, b_col5 = st.columns(3)
+    borrower_address = b_col3.text_input("Mailing Address", value=st.session_state.get("borrower_address", "Prairieville, LA"))
+    borrower_phone = b_col4.text_input("Phone Number", value=st.session_state.get("borrower_phone", "(555) 555-5555"))
+    borrower_email = b_col5.text_input("Email Address", value=st.session_state.get("borrower_email", "stephen@wickboldtcapital.com"))
+
 
 # --- DYNAMIC EXECUTIVE SUMMARY ---
 address_display = project_address if project_address else "[Project Address]"
@@ -1018,7 +1038,7 @@ executive_summary_text = (
     f"single-family residential project located at {address_display}. Utilizing a {sqft:,.0f} SF heated footprint "
     f"with a {struct_sqft:,.0f} SF integrated {st.session_state.structure_type.lower()}, the model reverse-engineers "
     f"national production builder economics to establish a target appraisal value (ARV) of ${arv_per_unit:,.0f} per home. "
-    f"By deploying Wickboldt Capital as the managing general contractor, the project successfully captures active "
+    f"By deploying {borrower_company} as the managing general contractor, the project successfully captures active "
     f"construction management revenue while executing a commercial takeout refinance.\n\n"
     f"With a {build_months}-month construction timeline factored into carrying costs, this structure achieves "
     f"{capital_recovery_text}, a compliant {actual_dscr:.2f}x DSCR generating ${monthly_cash_flow_per_door:,.0f}/month "
@@ -2355,7 +2375,7 @@ class EnterpriseReport(FPDF):
     def footer(self):
         self.set_y(-15)
         self.set_font('Arial', 'I', 8)
-        self.cell(0, 10, f'Page {self.page_no()} | Prepared by: Stephen Wickboldt Jr. - Wickboldt Capital', 0, 0, 'C')
+        self.cell(0, 10, f'Page {self.page_no()} | Prepared by: {borrower_name} - {borrower_company}', 0, 0, 'C')
 
 def create_pdf(detail_mode):
     pdf = EnterpriseReport()
@@ -2934,15 +2954,6 @@ def create_pdf(detail_mode):
         with open(tmp.name, "rb") as f:
             return f.read()
 
-# Render PDF Download Button
-st.download_button(
-    label="📄 Download Enterprise Report (PDF)",
-    data=create_pdf(pdf_detail_mode),
-    file_name=f"Wickboldt_Capital_ProForma_{report_date.replace(' ', '_').replace(',', '')}.pdf",
-    mime="application/pdf",
-    type="primary",
-    use_container_width=True
-)
 
 # ==========================================
 # --- 16. LENDER PROPOSAL LETTERS ---
@@ -2963,10 +2974,12 @@ def create_lender_letter_pdf(letter_type):
     
     pdf.set_y(35)
     pdf.set_font('Arial', 'B', 12)
-    pdf.cell(0, 6, "WICKBOLDT CAPITAL", ln=1)
+    pdf.cell(0, 6, borrower_company.upper(), ln=1)
     pdf.set_font('Arial', '', 10)
-    pdf.cell(0, 5, "General Contractor & Real Estate Development", ln=1)
-    pdf.cell(0, 5, "Prairieville, Louisiana", ln=1)
+    pdf.cell(0, 5, borrower_address, ln=1)
+    if borrower_phone or borrower_email:
+        contact_str = f"{borrower_phone} | {borrower_email}".strip(" | ")
+        pdf.cell(0, 5, contact_str, ln=1)
     pdf.ln(10)
     
     pdf.set_font('Arial', '', 11)
@@ -2997,13 +3010,13 @@ def create_lender_letter_pdf(letter_type):
     
     if letter_type == "Construction":
         body = (
-            f"Wickboldt Capital is pleased to present this funding proposal for the development of "
+            f"{borrower_company} is pleased to present this funding proposal for the development of "
             f"{project_name if project_name else 'our upcoming project'}, a {units}-unit Build-to-Rent (BTR) "
             f"asset located at {project_address if project_address else 'the subject property'}.\n\n"
             
             f"We are requesting a construction loan facility of ${actual_const_loan:,.0f} to fund the vertical "
             f"and horizontal development. The total estimated project capital basis is ${total_project_basis:,.0f}. "
-            f"As the sponsor, Wickboldt Capital is prepared to inject ${seed_capital:,.0f} in Day-1 equity to "
+            f"As the sponsor, {borrower_company} is prepared to inject ${seed_capital:,.0f} in Day-1 equity to "
             f"close the facility and fulfill all reserve requirements.\n\n"
             
             f"Upon completion of the {build_months}-month build cycle, the asset holds a projected As-Repaired "
@@ -3018,7 +3031,7 @@ def create_lender_letter_pdf(letter_type):
         )
     else:
         body = (
-            f"Wickboldt Capital is seeking permanent commercial financing to take out our existing construction "
+            f"{borrower_company} is seeking permanent commercial financing to take out our existing construction "
             f"facility on {project_name if project_name else 'our newly developed property'}, a stabilized "
             f"{units}-unit Build-to-Rent (BTR) asset located at {project_address if project_address else 'the subject property'}.\n\n"
             
@@ -3044,10 +3057,9 @@ def create_lender_letter_pdf(letter_type):
     pdf.cell(0, 6, "Sincerely,", ln=1)
     pdf.ln(10)
     pdf.set_font('Arial', 'B', 11)
-    pdf.cell(0, 6, "Stephen Wickboldt Jr.", ln=1)
+    pdf.cell(0, 6, borrower_name, ln=1)
     pdf.set_font('Arial', '', 11)
-    pdf.cell(0, 6, "Principal, Wickboldt Capital", ln=1)
-    pdf.cell(0, 6, "Licensed General Contractor, Louisiana", ln=1)
+    pdf.cell(0, 6, f"Principal, {borrower_company}", ln=1)
 
     with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as tmp:
         pdf.output(tmp.name)
@@ -3059,7 +3071,7 @@ with letter_col1:
     st.download_button(
         label="📄 Download Construction Lender Proposal Letter",
         data=create_lender_letter_pdf("Construction"),
-        file_name=f"Wickboldt_Capital_Const_Proposal_{report_date.replace(' ', '_').replace(',', '')}.pdf",
+        file_name=f"{borrower_company.replace(' ', '_')}_Const_Proposal_{report_date.replace(' ', '_').replace(',', '')}.pdf",
         mime="application/pdf",
         type="secondary",
         use_container_width=True
@@ -3068,11 +3080,13 @@ with letter_col2:
     st.download_button(
         label="📄 Download Refinance Takeout Letter",
         data=create_lender_letter_pdf("Refinance"),
-        file_name=f"Wickboldt_Capital_Refi_Proposal_{report_date.replace(' ', '_').replace(',', '')}.pdf",
+        file_name=f"{borrower_company.replace(' ', '_')}_Refi_Proposal_{report_date.replace(' ', '_').replace(',', '')}.pdf",
         mime="application/pdf",
         type="secondary",
         use_container_width=True
     )
+
+st.divider()
 
 # ==========================================
 # --- 17. PRESENTATION DECK GENERATION ---
@@ -3097,7 +3111,7 @@ def create_pptx():
     
     title = slide.shapes.title
     subtitle = slide.placeholders[1]
-    title.text = "Wickboldt Capital | BTR Pro Forma Analysis"
+    title.text = f"{borrower_company} | BTR Pro Forma Analysis"
     subtitle.text = f"Project: {project_name if project_name else 'TBD'}\nAddress: {project_address if project_address else 'TBD'}\nPrepared: {report_date}"
 
     # 2. Exec Summary
@@ -3182,7 +3196,7 @@ def create_slide_pdf():
     add_pdf_logo(x=105, y=15, w=70)
     pdf.set_font('Arial', 'B', 28)
     pdf.cell(0, 60, '', ln=1) # Vertical Spacer to push text below logo
-    pdf.cell(0, 15, 'Wickboldt Capital | BTR Pro Forma Analysis', align='C', ln=1)
+    pdf.cell(0, 15, f"{borrower_company} | BTR Pro Forma Analysis", align='C', ln=1)
     pdf.set_font('Arial', 'I', 16)
     pdf.cell(0, 10, f"Project: {project_name if project_name else 'TBD'}", align='C', ln=1)
     pdf.cell(0, 10, f"Address: {project_address if project_address else 'TBD'}", align='C', ln=1)
@@ -3242,7 +3256,7 @@ with col1:
     st.download_button(
         label="📊 Download Presentation (PowerPoint)",
         data=create_pptx(),
-        file_name=f"Wickboldt_Capital_Deck_{report_date.replace(' ', '_').replace(',', '')}.pptx",
+        file_name=f"{borrower_company.replace(' ', '_')}_Deck_{report_date.replace(' ', '_').replace(',', '')}.pptx",
         mime="application/vnd.openxmlformats-officedocument.presentationml.presentation",
         type="secondary",
         use_container_width=True
@@ -3252,7 +3266,7 @@ with col2:
     st.download_button(
         label="📄 Download Presentation (PDF Slides)",
         data=create_slide_pdf(),
-        file_name=f"Wickboldt_Capital_Slide_Deck_{report_date.replace(' ', '_').replace(',', '')}.pdf",
+        file_name=f"{borrower_company.replace(' ', '_')}_Slide_Deck_{report_date.replace(' ', '_').replace(',', '')}.pdf",
         mime="application/pdf",
         type="secondary",
         use_container_width=True
