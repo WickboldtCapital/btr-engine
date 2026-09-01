@@ -583,117 +583,76 @@ if aux_cost_mode == "Percentage of Heated Rate (%)":
     isolated_heated_rate = comp_price / effective_comp_heated_sf if effective_comp_heated_sf > 0 else 0
     comp_aux_rate_sf = isolated_heated_rate * aux_ratio
     comp_aux_value = comp_aux_sqft * comp_aux_rate_sf
+    comp_equivalent_arv = (isolated_heated_rate * sqft) + (aux_sqft_total * comp_aux_rate_sf) + additional_foundation_cost
 else:
     comp_aux_rate_sf = aux_fixed_cost_sf
     comp_aux_value = comp_aux_sqft * comp_aux_rate_sf
     comp_isolated_heated_value = max(0, comp_price - comp_aux_value)
     isolated_heated_rate = comp_isolated_heated_value / comp_heated_sf if comp_heated_sf > 0 else 0
+    comp_equivalent_arv = (isolated_heated_rate * sqft) + (aux_sqft_total * comp_aux_rate_sf) + additional_foundation_cost
 
-# 2. Derive Valuation & Hard Cost Target
-if appraisal_mode in ["Income Approach (GRM)", "Income Approach (DSCR Loan Sizing)", "Conservative (Lesser of GRM or DSCR)"]:
-    # A. Calculate GRM Value
-    grm_arv = (gross_monthly_rent * 12) * target_grm
-    
-    # B. Calculate DSCR Sized Value
-    unit_gross_annual = gross_monthly_rent * 12.0
-    unit_noi = unit_gross_annual * (1.0 - vacancy_rate) * (1.0 - opex_rate)
-    unit_max_annual_ds = unit_noi / target_dscr_rate
-    
-    refi_monthly_rate = net_refi_rate / 12.0
-    refi_term_months = refi_term_years * 12
-    if refi_monthly_rate > 0:
-        max_unit_loan = (unit_max_annual_ds / 12.0) * ((1.0 - (1.0 + refi_monthly_rate)**-refi_term_months) / refi_monthly_rate)
-    else:
-        max_unit_loan = (unit_max_annual_ds / 12.0) * refi_term_months
-        
-    dscr_arv = max_unit_loan / refi_ltv if refi_ltv > 0 else 0
-    
-    # C. Select Final ARV based on User Mode
-    if appraisal_mode == "Income Approach (GRM)":
-        arv_per_unit = grm_arv
-    elif appraisal_mode == "Income Approach (DSCR Loan Sizing)":
-        arv_per_unit = dscr_arv
-    else: # Conservative (Lesser of GRM or DSCR)
-        arv_per_unit = min(grm_arv, dscr_arv)
+# 2. Derive Valuation Targets (Appraisals)
+grm_arv = (gross_monthly_rent * 12) * target_grm
+unit_gross_annual = gross_monthly_rent * 12.0
+unit_noi = unit_gross_annual * (1.0 - vacancy_rate) * (1.0 - opex_rate)
+unit_max_annual_ds = unit_noi / target_dscr_rate
+refi_monthly_rate = net_refi_rate / 12.0
+refi_term_months = refi_term_years * 12
+if refi_monthly_rate > 0:
+    max_unit_loan = (unit_max_annual_ds / 12.0) * ((1.0 - (1.0 + refi_monthly_rate)**-refi_term_months) / refi_monthly_rate)
 else:
-    arv_per_unit = 0 
+    max_unit_loan = (unit_max_annual_ds / 12.0) * refi_term_months
+dscr_arv = max_unit_loan / refi_ltv if refi_ltv > 0 else 0
 
-if aux_cost_mode == "Percentage of Heated Rate (%)":
-    effective_project_heated_sf = sqft + (aux_sqft_total * aux_ratio)
-    
-    if cost_calc_mode == "Manual Set (Heated SF)":
-        direct_cost_sf = base_direct_cost_sf_input
-        struct_cost_sf = direct_cost_sf * aux_ratio
-        our_aux_cost_total = (aux_sqft_total * struct_cost_sf) + additional_foundation_cost
-        target_heated_hard_cost = direct_cost_sf * sqft
-        target_direct_hard_cost = target_heated_hard_cost + our_aux_cost_total
-        comp_equivalent_arv = (isolated_heated_rate * sqft) + (aux_sqft_total * (isolated_heated_rate * aux_ratio)) + additional_foundation_cost
-        if appraisal_mode == "Sales Comp (Price/SF)":
-            arv_per_unit = comp_equivalent_arv
-            
-        total_construction_budget = target_direct_hard_cost * indirect_multiplier * (1.0 + gc_fee_pct) if gc_fee_mode == "Percentage of Hard Costs (%)" else (target_direct_hard_cost * indirect_multiplier) + custom_gc_fee
-            
-    elif cost_calc_mode == "Reverse-Engineer from Appraisal":
-        total_construction_budget = arv_per_unit * target_const_budget_pct
-        if gc_fee_mode == "Percentage of Hard Costs (%)":
-            target_direct_hard_cost = total_construction_budget / (indirect_multiplier * (1.0 + gc_fee_pct))
-        else:
-            target_direct_hard_cost = (total_construction_budget - custom_gc_fee) / indirect_multiplier
-            
-        direct_cost_sf = max(0, (target_direct_hard_cost - additional_foundation_cost) / effective_project_heated_sf) if effective_project_heated_sf > 0 else 0
-        struct_cost_sf = direct_cost_sf * aux_ratio
-        our_aux_cost_total = (aux_sqft_total * struct_cost_sf) + additional_foundation_cost
-        target_heated_hard_cost = direct_cost_sf * sqft
-        comp_equivalent_arv = arv_per_unit
-        
-    else: # Reverse-Engineer from Primary Comp
-        comp_equivalent_arv = (isolated_heated_rate * sqft) + (aux_sqft_total * (isolated_heated_rate * aux_ratio)) + additional_foundation_cost
-        total_construction_budget = comp_equivalent_arv * target_const_budget_pct
-        if gc_fee_mode == "Percentage of Hard Costs (%)":
-            target_direct_hard_cost = total_construction_budget / (indirect_multiplier * (1.0 + gc_fee_pct))
-        else:
-            target_direct_hard_cost = (total_construction_budget - custom_gc_fee) / indirect_multiplier
-            
-        direct_cost_sf = max(0, (target_direct_hard_cost - additional_foundation_cost) / effective_project_heated_sf) if effective_project_heated_sf > 0 else 0
-        struct_cost_sf = direct_cost_sf * aux_ratio
-        our_aux_cost_total = (aux_sqft_total * struct_cost_sf) + additional_foundation_cost
-        target_heated_hard_cost = direct_cost_sf * sqft
-        if appraisal_mode == "Sales Comp (Price/SF)":
-            arv_per_unit = comp_equivalent_arv
+# 3. SET FINAL ARV BASED ON VALUATION MODE
+if appraisal_mode == "Sales Comp (Price/SF)":
+    arv_per_unit = comp_equivalent_arv
+elif appraisal_mode == "Income Approach (GRM)":
+    arv_per_unit = grm_arv
+elif appraisal_mode == "Income Approach (DSCR Loan Sizing)":
+    arv_per_unit = dscr_arv
+else: # Conservative
+    arv_per_unit = min(grm_arv, dscr_arv)
 
-else: # Fixed Aux Cost Mode
-    struct_cost_sf = aux_fixed_cost_sf
+# 4. NOW DETERMINE CONSTRUCTION COST TARGET
+if cost_calc_mode == "Manual Set (Heated SF)":
+    direct_cost_sf = base_direct_cost_sf_input
+    struct_cost_sf = direct_cost_sf * aux_ratio if aux_cost_mode == "Percentage of Heated Rate (%)" else aux_fixed_cost_sf
     our_aux_cost_total = (aux_sqft_total * struct_cost_sf) + additional_foundation_cost
+    target_heated_hard_cost = direct_cost_sf * sqft
+    target_direct_hard_cost = target_heated_hard_cost + our_aux_cost_total
     
-    if appraisal_mode == "Sales Comp (Price/SF)":
-        arv_per_unit = (isolated_heated_rate * sqft) + our_aux_cost_total
-
-    if cost_calc_mode == "Manual Set (Heated SF)":
-        direct_cost_sf = base_direct_cost_sf_input
-        target_heated_hard_cost = direct_cost_sf * sqft
-        target_direct_hard_cost = target_heated_hard_cost + our_aux_cost_total
-        comp_equivalent_arv = 0 
-        total_construction_budget = target_direct_hard_cost * indirect_multiplier * (1.0 + gc_fee_pct) if gc_fee_mode == "Percentage of Hard Costs (%)" else (target_direct_hard_cost * indirect_multiplier) + custom_gc_fee
-
-    elif cost_calc_mode == "Reverse-Engineer from Appraisal":
-        total_construction_budget = arv_per_unit * target_const_budget_pct
-        if gc_fee_mode == "Percentage of Hard Costs (%)":
-            target_direct_hard_cost = total_construction_budget / (indirect_multiplier * (1.0 + gc_fee_pct))
-        else:
-            target_direct_hard_cost = (total_construction_budget - custom_gc_fee) / indirect_multiplier
-        target_heated_hard_cost = max(0, target_direct_hard_cost - our_aux_cost_total)
-        direct_cost_sf = target_heated_hard_cost / sqft if sqft > 0 else 0
-        comp_equivalent_arv = arv_per_unit
+    if gc_fee_mode == "Percentage of Hard Costs (%)":
+        total_construction_budget = target_direct_hard_cost * indirect_multiplier * (1.0 + gc_fee_pct)
+    else:
+        total_construction_budget = (target_direct_hard_cost * indirect_multiplier) + custom_gc_fee
         
+    reference_price = arv_per_unit
+    
+else:
+    if cost_calc_mode == "Reverse-Engineer from Appraisal":
+        reference_price = arv_per_unit
     else: # Reverse from Comp
-        comp_equivalent_arv = (isolated_heated_rate * sqft) + our_aux_cost_total
-        total_construction_budget = comp_equivalent_arv * target_const_budget_pct
-        if gc_fee_mode == "Percentage of Hard Costs (%)":
-            target_direct_hard_cost = total_construction_budget / (indirect_multiplier * (1.0 + gc_fee_pct))
-        else:
-            target_direct_hard_cost = (total_construction_budget - custom_gc_fee) / indirect_multiplier
+        reference_price = comp_equivalent_arv
+        
+    total_construction_budget = reference_price * target_const_budget_pct
+    if gc_fee_mode == "Percentage of Hard Costs (%)":
+        target_direct_hard_cost = total_construction_budget / (indirect_multiplier * (1.0 + gc_fee_pct))
+    else:
+        target_direct_hard_cost = (total_construction_budget - custom_gc_fee) / indirect_multiplier
+        
+    if aux_cost_mode == "Percentage of Heated Rate (%)":
+        effective_project_heated_sf = sqft + (aux_sqft_total * aux_ratio)
+        direct_cost_sf = max(0, (target_direct_hard_cost - additional_foundation_cost) / effective_project_heated_sf) if effective_project_heated_sf > 0 else 0
+        struct_cost_sf = direct_cost_sf * aux_ratio
+        our_aux_cost_total = (aux_sqft_total * struct_cost_sf) + additional_foundation_cost
+        target_heated_hard_cost = direct_cost_sf * sqft
+    else:
+        struct_cost_sf = aux_fixed_cost_sf
+        our_aux_cost_total = (aux_sqft_total * struct_cost_sf) + additional_foundation_cost
         target_heated_hard_cost = max(0, target_direct_hard_cost - our_aux_cost_total)
         direct_cost_sf = target_heated_hard_cost / sqft if sqft > 0 else 0
+
 
 # Unified component rates across UI display
 front_porch_cost_sf = struct_cost_sf
@@ -717,7 +676,6 @@ loan_total = total_arv * refi_ltv
 default_buydown_cost = loan_total * (buydown_pts / 100.0) if apply_buydown else 0
 
 # Target Lot Benchmarks
-reference_price = arv_per_unit if cost_calc_mode == 'Reverse-Engineer from Appraisal' else comp_equivalent_arv
 target_lot_value_per_door = reference_price * lot_cost_pct
 target_total_lot_value = target_lot_value_per_door * units
 land_equity_captured = target_total_lot_value - total_land_default
@@ -2626,7 +2584,7 @@ def create_pdf(detail_mode):
     pdf.set_font("Arial", '', 8)
     transactions = [
         ("1. Horizontal Dev & Land", "Out-of-pocket acquisition and civil infrastructure", f"-${total_land_default:,.0f}"),
-        ("2. Vertical Const. Cost", "Baseline Hard Costs + Indirects + GC Fee", f"-${total_const:,.0f}"),
+        ("2. Vertical Const. Cost", "Baseline Hard Costs + Indirects + Cont. + GC Fee", f"-${total_const:,.0f}"),
         ("3. Taps & Soft Costs", "Water/sewer/electric/gas tie-ins, permits", f"-${total_vertical_soft:,.0f}"),
         ("4. Const. Finance Costs", f"Lender fees (${const_closing_fee:,.0f}) & interest (${carry_int_base:,.0f})", f"-${const_closing_fee + carry_int_base:,.0f}"),
         ("5. Perm. Takeout Fees", f"Comm. fees (${refi_closing_fee:,.0f}) + buydown (${default_buydown_cost:,.0f})", f"-${refi_closing_fee + default_buydown_cost:,.0f}")
