@@ -446,6 +446,9 @@ mo_opex = annual_opex / 12.0
 mgmt_est = monthly_mgmt_fee
 opex_rate = annual_opex / annual_egi if annual_egi > 0 else 0
 
+annual_noi = annual_egi - annual_opex
+monthly_noi = annual_noi / 12.0
+
 
 # Core Auxiliary logic 
 aux_cost_mode = st.session_state.get("aux_cost_mode", "Percentage of Heated Rate (%)")
@@ -1064,7 +1067,7 @@ with ui_decision_dashboard:
     cash_light = "🟢 GREEN LIGHT" if cash_pass else "🔴 RED LIGHT"
 
     dash_col1, dash_col2, dash_col3, dash_col4 = st.columns(4)
-    dash_col1.metric("DSCR Under underwriting Status", dscr_light, f"Actual: {actual_dscr:.2f}x (Target: {target_dscr_rate:.2f}x)", delta_color="normal" if dscr_pass else "inverse")
+    dash_col1.metric("DSCR Underwriting Status", dscr_light, f"Actual: {actual_dscr:.2f}x (Target: {target_dscr_rate:.2f}x)", delta_color="normal" if dscr_pass else "inverse")
     dash_col2.metric("Cash Flow Status", cf_light, f"Actual: ${monthly_cash_flow_per_door:,.0f}/door (Target: ${target_min_cashflow_per_door:,.0f})", delta_color="normal" if cf_pass else "inverse")
     dash_col3.metric("Capital Recovery Status", cash_light, f"${cash_surplus:,.0f} at Refi Close", delta_color="normal" if cash_pass else "inverse")
     dash_col4.metric("Day-1 Wealth Creation", f"${day1_wealth:,.0f}", f"${day1_wealth/units:,.0f} per door", delta_color="normal")
