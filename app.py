@@ -2969,29 +2969,29 @@ def create_lender_letter_pdf(letter_type):
     pdf.set_auto_page_break(auto=True, margin=12.7)
     pdf.add_page()
     
-    # 2. Move Logo to the Top Right to save vertical space
+    # 2. Move Logo to the Left
     try:
         if os.path.exists("Gemini_Generated_Image_.png"):
-            pdf.image("Gemini_Generated_Image_.png", x=155, y=10, w=45)
+            pdf.image("Gemini_Generated_Image_.png", x=12.7, y=10, w=40)
     except Exception:
         pass
     
-    # 3. Adjust Title Area - Start higher at the top left
+    # 3. Move Title Area to the Right
     pdf.set_y(12)
     pdf.set_font('Arial', 'B', 12)
-    pdf.cell(0, 5, borrower_company.upper(), ln=1)
+    pdf.cell(0, 5, borrower_company.upper(), ln=1, align='R')
     pdf.set_font('Arial', '', 10)
-    pdf.cell(0, 5, borrower_address, ln=1)
+    pdf.cell(0, 5, borrower_address, ln=1, align='R')
     if borrower_phone or borrower_email:
         contact_str = f"{borrower_phone} | {borrower_email}".strip(" | ")
-        pdf.cell(0, 5, contact_str, ln=1)
+        pdf.cell(0, 5, contact_str, ln=1, align='R')
     
-    # 4. Condense vertical spacing (ln) and line heights (5 instead of 6) throughout
-    pdf.ln(6) 
+    # Space below header
+    pdf.ln(15) 
     
     pdf.set_font('Arial', '', 11)
     pdf.cell(0, 5, f"Date: {report_date}", ln=1)
-    pdf.ln(4) 
+    pdf.ln(6) 
     
     if letter_type == "Construction":
         bank = st.session_state.get("const_bank_name", "Local Regional Bank")
@@ -3004,12 +3004,12 @@ def create_lender_letter_pdf(letter_type):
         pdf.ln(4)
         
         pdf.cell(0, 5, f"RE: {subject}", ln=1)
-        pdf.line(12.7, pdf.get_y(), 203.3, pdf.get_y()) # Adjusted line length for new margins
-        pdf.ln(4)
+        pdf.line(12.7, pdf.get_y(), 203.3, pdf.get_y())
+        pdf.ln(8)  # Space between subject line and dear
         
         pdf.set_font('Arial', '', 11)
         pdf.cell(0, 5, f"Dear {contact},", ln=1)
-        pdf.ln(2)
+        pdf.ln(6)  # Space between dear and paragraph
         
         p1 = f"{borrower_company} respectfully submits this funding proposal for the vertical and horizontal development of a purpose-built, {units}-unit Build-to-Rent (BTR) asset located at {project_address if project_address else 'the subject property'}."
         pdf.multi_cell(0, 5, p1.encode('latin-1', 'replace').decode('latin-1'))
@@ -3017,7 +3017,7 @@ def create_lender_letter_pdf(letter_type):
         
         p2 = f"To execute this project, we are requesting a construction debt facility of ${actual_const_loan:,.0f}. The project is underwritten with a highly favorable cost basis, allowing us to fully collateralize the facility and meet all lender reserve requirements with ${seed_capital:,.0f} in Day-1 cash equity required at closing."
         pdf.multi_cell(0, 5, p2.encode('latin-1', 'replace').decode('latin-1'))
-        pdf.ln(3)
+        pdf.ln(6)  # Space before Project & Facility Highlights
         
         pdf.set_font('Arial', 'B', 11)
         pdf.cell(0, 5, "Project & Facility Highlights:", ln=1)
@@ -3032,7 +3032,7 @@ def create_lender_letter_pdf(letter_type):
         pdf.cell(0, 5, f"- Target Leverage: {const_ltv*100:.1f}% Loan-to-Cost (LTC)", ln=1)
         pdf.cell(5, 5, "")
         pdf.cell(0, 5, f"- Construction Lifecycle: {build_months} Months", ln=1)
-        pdf.ln(3)
+        pdf.ln(6)  # Space before Exit Strategy
         
         pdf.set_font('Arial', 'B', 11)
         pdf.cell(0, 5, "Exit Strategy:", ln=1)
@@ -3057,11 +3057,11 @@ def create_lender_letter_pdf(letter_type):
         
         pdf.cell(0, 5, f"RE: {subject}", ln=1)
         pdf.line(12.7, pdf.get_y(), 203.3, pdf.get_y())
-        pdf.ln(4)
+        pdf.ln(8) # Space between subject line and dear
         
         pdf.set_font('Arial', '', 11)
         pdf.cell(0, 5, f"Dear {contact},", ln=1)
-        pdf.ln(2)
+        pdf.ln(6) # Space between dear and paragraph
         
         p1 = f"{borrower_company} respectfully submits this funding proposal to secure permanent commercial financing for our newly stabilized, {units}-unit Build-to-Rent (BTR) asset located at {project_address if project_address else 'the subject property'}."
         pdf.multi_cell(0, 5, p1.encode('latin-1', 'replace').decode('latin-1'))
@@ -3069,7 +3069,7 @@ def create_lender_letter_pdf(letter_type):
         
         p2 = f"We are requesting a commercial DSCR facility of ${loan_total:,.0f} to successfully retire our existing construction debt."
         pdf.multi_cell(0, 5, p2.encode('latin-1', 'replace').decode('latin-1'))
-        pdf.ln(3)
+        pdf.ln(6) # Space before Operating & Portfolio Highlights
         
         pdf.set_font('Arial', 'B', 11)
         pdf.cell(0, 5, "Operating & Portfolio Highlights:", ln=1)
@@ -3084,7 +3084,7 @@ def create_lender_letter_pdf(letter_type):
         pdf.cell(0, 5, f"- Net Operating Income (NOI): ${annual_noi:,.0f} / year", ln=1)
         pdf.cell(5, 5, "")
         pdf.cell(0, 5, f"- Underwritten DSCR: {actual_dscr:.2f}x", ln=1)
-        pdf.ln(3)
+        pdf.ln(4)
         
         p3 = f"The asset yields exceptional operating metrics, generating ${total_gross_monthly_income:,.0f} in gross monthly revenue and producing ${monthly_cash_flow:,.0f} in net passive cash flow every month after debt service (modeled at {net_refi_rate*100:.3f}%)."
         pdf.multi_cell(0, 5, p3.encode('latin-1', 'replace').decode('latin-1'))
@@ -3096,9 +3096,9 @@ def create_lender_letter_pdf(letter_type):
 
     pdf.multi_cell(0, 5, "Thank you for your time, review, and continued partnership. We look forward to discussing this facility with your committee in further detail.")
     
-    pdf.ln(4)
-    pdf.cell(0, 5, "Sincerely,", ln=1)
     pdf.ln(6)
+    pdf.cell(0, 5, "Sincerely,", ln=1)
+    pdf.ln(8)
     pdf.set_font('Arial', 'B', 11)
     pdf.cell(0, 5, borrower_name, ln=1)
     pdf.set_font('Arial', '', 11)
