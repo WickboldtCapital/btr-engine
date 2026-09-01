@@ -348,12 +348,12 @@ with st.sidebar.container():
 with st.sidebar.container():
     st.subheader("8. Const. Lender Limits")
     st.number_input("Bank Underwriting Rent ($)", min_value=0, step=50, format="%d", key="const_bank_rent")
-    st.slider("Bank Underwriting LTV (%)", min_value=50.0, max_value=100.0, step=5.0, key="const_bank_ltv_pct")
+    st.slider("Bank Under underwriting LTV (%)", min_value=50.0, max_value=100.0, step=5.0, key="const_bank_ltv_pct")
     
     st.radio("Bank Valuation Method", ["Gross Rent Multiplier (GRM)", "DSCR Stress Test"], key="const_bank_val_mode")
     
     if st.session_state.const_bank_val_mode == "Gross Rent Multiplier (GRM)":
-        st.number_input("Bank Under underwriting GRM", min_value=4.0, max_value=25.0, value=float(GLOBAL_DRIVERS.get("const_bank_grm", 10.0)), step=0.1, key="const_bank_grm")
+        st.number_input("Bank Underwriting GRM", min_value=4.0, max_value=25.0, value=float(GLOBAL_DRIVERS.get("const_bank_grm", 10.0)), step=0.1, key="const_bank_grm")
     else:
         st.slider("Bank Underwriting Vacancy (%)", min_value=0.0, max_value=15.0, step=1.0, key="const_bank_vac_pct")
         st.slider("Bank Underwriting OpEx (%)", min_value=15.0, max_value=50.0, step=1.0, key="const_bank_opex_pct")
@@ -2114,10 +2114,10 @@ opex_sens_summary = (
 st.info(opex_sens_summary.replace("$", r"\$"))
 
 opex_sensitivity_data = []
-raw_nois = []
-raw_dscrs = []
-labels = []
-colors = []
+raw_opex_nois = []
+raw_opex_dscrs = []
+opex_labels = []
+opex_colors = []
 test_rates = [0.25, 0.30, 0.35]
 
 for rate in test_rates:
@@ -2140,10 +2140,10 @@ for rate in test_rates:
     label = "25% (Baseline)" if rate == 0.25 else f"{rate*100:.0f}%"
 
     # Store raw values for the chart
-    raw_nois.append(mo_noi)
-    raw_dscrs.append(dscr)
-    labels.append(label)
-    colors.append(color)
+    raw_opex_nois.append(mo_noi)
+    raw_opex_dscrs.append(dscr)
+    opex_labels.append(label)
+    opex_colors.append(color)
 
     # Store formatted strings for the dataframe
     opex_sensitivity_data.append({
@@ -2160,10 +2160,10 @@ fig_opex = go.Figure()
 
 # Bar Chart for NOI
 fig_opex.add_trace(go.Bar(
-    x=labels, 
-    y=raw_nois,
-    marker_color=colors,
-    text=[f"NOI: ${n:,.0f}<br>{d:.2f}x DSCR" for n, d in zip(raw_nois, raw_dscrs)],
+    x=opex_labels, 
+    y=raw_opex_nois,
+    marker_color=opex_colors,
+    text=[f"NOI: ${n:,.0f}<br>{d:.2f}x DSCR" for n, d in zip(raw_opex_nois, raw_opex_dscrs)],
     textposition='auto',
 ))
 
@@ -2187,8 +2187,7 @@ fig_opex.add_hline(
 )
 
 # Chart Formatting
-# Ensure the y-axis scales high enough so the top annotation isn't cut off
-max_y_val = max(raw_nois) if raw_nois else target_noi
+max_y_val = max(raw_opex_nois) if raw_opex_nois else target_noi
 fig_opex.update_layout(
     title="Net Operating Income vs. Fixed Debt Service Requirements",
     yaxis_title="Monthly Amount ($)",
@@ -2199,7 +2198,6 @@ fig_opex.update_layout(
 
 st.plotly_chart(fig_opex, use_container_width=True)
 
-# Dataframe tucked in an expander
 df_opex_sens = pd.DataFrame(opex_sensitivity_data)
 with st.expander("📊 View Detailed OpEx Stress Matrix", expanded=False):
     st.dataframe(df_opex_sens, hide_index=True, use_container_width=True)
@@ -2208,10 +2206,110 @@ st.divider()
 
 
 # ==========================================
-# --- 14. REVERSE-ENGINEERING BREAKDOWN ---
+# --- 14. GROSS RENT SENSITIVITY MATRIX ---
+# ==========================================
+st.markdown("### 14. Gross Rent Sensitivity Matrix")
+
+rent_sens_summary = (
+    f"This matrix models project cash flows and loan coverage across market rents from "
+    f"**${gross_monthly_rent - 100:,.0f}** to **${gross_monthly_rent + 200:,.0f}**, applying the dynamically linked "
+    f"**{vacancy_rate*100:.1f}%** Vacancy and operational deductions with fixed **${monthly_pi_per_unit:,.0f}/mo** debt service per door."
+)
+st.info(rent_sens_summary.replace("$", r"\$"))
+
+rent_sensitivity_data = []
+raw_rents = []
+raw_rent_cfs = []
+raw_rent_dscrs = []
+rent_colors = []
+
+# Generate rent scenarios from (Target - $100) to (Target + $200) in $50 increments
+test_rents = [gross_monthly_rent + offset for offset in range(-100, 201, 50)]
+
+for r in test_rents:
+    mo_vac = r * vacancy_rate
+    
+    # Calculate OpEx dynamically based on user's entry mode
+    if opex_entry_mode == "Percentage of EGI (%)":
+        mo_egi = r - mo_vac
+        mo_mgmt = mo_egi * mgmt_fee_pct
+        mo_other = mo_egi * other_opex_rate
+        total_mo_opex = mo_mgmt + mo_other
+    else:
+        mo_egi = r - mo_vac
+        mo_mgmt = mo_egi * mgmt_fee_pct
+        # User defined fixed itemized dollars per door, so it doesn't change with rent
+        mo_other = mo_other_opex / units if units > 0 else 0
+        total_mo_opex = mo_mgmt + mo_other
+
+    mo_noi = r - mo_vac - total_mo_opex
+    dscr = mo_noi / monthly_pi_per_unit if monthly_pi_per_unit > 0 else 0
+    net_cf = mo_noi - monthly_pi_per_unit
+    
+    raw_rents.append(f"${r:,.0f}")
+    raw_rent_cfs.append(net_cf)
+    raw_rent_dscrs.append(dscr)
+    
+    # Target cash flow logic for bar coloring
+    if net_cf >= target_min_cashflow_per_door:
+        color = '#2ca02c' # Green
+    elif net_cf >= 0:
+        color = '#ff7f0e' # Orange
+    else:
+        color = '#d62728' # Red
+    rent_colors.append(color)
+
+    rent_sensitivity_data.append({
+        "Gross Rent": f"${r:,.0f}" + (" (Target)" if r == gross_monthly_rent else ""),
+        f"Vacancy ({vacancy_rate*100:.1f}%)": f"-${mo_vac:,.0f}",
+        "OpEx": f"-${total_mo_opex:,.0f}",
+        "Monthly NOI": f"${mo_noi:,.0f}",
+        "Commercial DSCR": f"{dscr:.2f}x",
+        "Net Monthly Cash Flow": f"${net_cf:,.0f} / mo"
+    })
+
+# --- DYNAMIC RENT SENSITIVITY CHART ---
+fig_rent = go.Figure()
+
+# Bar Chart for Net Cash Flow
+fig_rent.add_trace(go.Bar(
+    x=raw_rents, 
+    y=raw_rent_cfs,
+    marker_color=rent_colors,
+    text=[f"CF: ${cf:,.0f}<br>{d:.2f}x DSCR" for cf, d in zip(raw_rent_cfs, raw_rent_dscrs)],
+    textposition='auto',
+))
+
+# Target Line for Cash Flow
+fig_rent.add_hline(
+    y=target_min_cashflow_per_door, 
+    line_dash="dash", 
+    line_color="black", 
+    annotation_text=f"Target Min CF: ${target_min_cashflow_per_door:,.0f}", 
+    annotation_position="bottom right"
+)
+
+fig_rent.update_layout(
+    title="Net Monthly Cash Flow & DSCR Across Rent Scenarios",
+    yaxis_title="Net Cash Flow per Door ($)",
+    xaxis_title="Gross Monthly Rent Scenario",
+    showlegend=False
+)
+
+st.plotly_chart(fig_rent, use_container_width=True)
+
+df_rent_sens = pd.DataFrame(rent_sensitivity_data)
+with st.expander("📊 View Detailed Rent Sensitivity Matrix", expanded=False):
+    st.dataframe(df_rent_sens, hide_index=True, use_container_width=True)
+
+st.divider()
+
+
+# ==========================================
+# --- 15. REVERSE-ENGINEERING BREAKDOWN ---
 # ==========================================
 if cost_calc_mode in ["Reverse-Engineer from Appraisal", "Reverse-Engineer from Primary Comp"]:
-    st.markdown("### 14. Retail Comp & Appraisal Reverse-Engineering Breakdown")
+    st.markdown("### 15. Retail Comp & Appraisal Reverse-Engineering Breakdown")
     
     reference_price = arv_per_unit if cost_calc_mode == 'Reverse-Engineer from Appraisal' else comp_equivalent_arv
     ref_price_sf = reference_price / sqft if sqft > 0 else 0
@@ -2305,10 +2403,11 @@ if cost_calc_mode in ["Reverse-Engineer from Appraisal", "Reverse-Engineer from 
         st.dataframe(pd.DataFrame(breakdown_data), hide_index=True, use_container_width=True)
     st.divider()
 
+
 # ==========================================
-# --- 15. LONG-TERM PORTFOLIO WEALTH (IRR & ROI) ---
+# --- 16. LONG-TERM PORTFOLIO WEALTH (IRR & ROI) ---
 # ==========================================
-st.markdown("### 15. Long-Term Portfolio Wealth & Tax Shelter")
+st.markdown("### 16. Long-Term Portfolio Wealth & Tax Shelter")
 
 # --- NEW DEPRECIATION MATH ---
 depreciable_basis = max(0, total_project_basis - total_land_default)
@@ -2453,9 +2552,9 @@ with st.expander("📊 View 5-Year and 10-Year Projected Returns", expanded=Fals
 st.divider()
 
 # ==========================================
-# --- 16. PDF GENERATION ENGINE ---
+# --- 17. PDF GENERATION ENGINE ---
 # ==========================================
-st.markdown("### 🖨️ 16. Export Enterprise PDF Report")
+st.markdown("### 🖨️ 17. Export Enterprise PDF Report")
 pdf_detail_mode = st.radio(
     "Construction Budget Detail Level for PDF:",
     ["Full 36-Component Breakdown", "8 Major NAHB Categories Only", "High-Level Roll-up Only"],
@@ -2670,7 +2769,7 @@ def create_pdf(detail_mode):
         pdf.cell(90, 7, f"${bank_stressed_value:,.0f}", 0, 1, 'R')
     else:
         pdf_grm_info_text = (
-            f"Construction Loan Under underwriting: The bank determines the implied asset value based on a "
+            f"Construction Loan Underwriting: The bank determines the implied asset value based on a "
             f"{const_bank_grm:.1f}x Gross Rent Multiplier (yielding ${bank_stressed_value:,.0f}). "
             f"They apply their {const_bank_ltv*100:.1f}% LTV limit to offer a maximum loan of ${actual_const_loan:,.0f}, "
             f"and subtract that from your Total Basis (${total_construction_basis:,.0f}) to determine your required Day-1 Seed Capital of ${seed_capital:,.0f}."
@@ -3004,11 +3103,43 @@ def create_pdf(detail_mode):
         pdf.cell(75, 6, status_clean, 1, 1, 'C')
     pdf.ln(5)
 
-    # 14. REVERSE-ENGINEERING BREAKDOWN
+    # 14. GROSS RENT SENSITIVITY MATRIX
+    pdf.set_font("Arial", 'B', 12)
+    pdf.set_fill_color(220, 220, 220)
+    pdf.cell(0, 8, " 14. Gross Rent Sensitivity Matrix", ln=1, fill=True)
+    pdf.set_font("Arial", '', 10)
+    
+    clean_rent_summary = rent_sens_summary.replace("**", "").replace(r"\$", "$").encode('latin-1', 'replace').decode('latin-1')
+    pdf.multi_cell(0, 6, clean_rent_summary)
+    pdf.ln(3)
+    
+    pdf.set_font("Arial", 'B', 8)
+    pdf.cell(25, 6, "Gross Rent", 1, 0, 'C')
+    pdf.cell(25, 6, "Vacancy", 1, 0, 'C')
+    pdf.cell(25, 6, "OpEx", 1, 0, 'C')
+    pdf.cell(25, 6, "Mo. NOI", 1, 0, 'C')
+    pdf.cell(25, 6, "DSCR", 1, 0, 'C')
+    pdf.cell(40, 6, "Net Mo. Cash Flow", 1, 1, 'C')
+    
+    pdf.set_font("Arial", '', 8)
+    for i, row in df_rent_sens.iterrows():
+        # Clean target marker for PDF
+        rent_clean = str(row["Gross Rent"]).replace(" (Target)", "")
+        vac_col = [c for c in df_rent_sens.columns if "Vacancy" in c][0]
+        
+        pdf.cell(25, 6, rent_clean, 1, 0, 'C')
+        pdf.cell(25, 6, str(row[vac_col]), 1, 0, 'C')
+        pdf.cell(25, 6, str(row["OpEx"]), 1, 0, 'C')
+        pdf.cell(25, 6, str(row["Monthly NOI"]), 1, 0, 'C')
+        pdf.cell(25, 6, str(row["Commercial DSCR"]), 1, 0, 'C')
+        pdf.cell(40, 6, str(row["Net Monthly Cash Flow"]), 1, 1, 'C')
+    pdf.ln(5)
+
+    # 15. REVERSE-ENGINEERING BREAKDOWN
     if cost_calc_mode in ["Reverse-Engineer from Appraisal", "Reverse-Engineer from Primary Comp"]:
         pdf.set_font("Arial", 'B', 12)
         pdf.set_fill_color(220, 220, 220)
-        pdf.cell(0, 8, " 14. Retail Comp & Appraisal Reverse-Engineering", ln=1, fill=True)
+        pdf.cell(0, 8, " 15. Retail Comp & Appraisal Reverse-Engineering", ln=1, fill=True)
         pdf.set_font("Arial", '', 10)
         
         # Add dynamic narrative to PDF
@@ -3055,10 +3186,10 @@ def create_pdf(detail_mode):
         pdf.cell(60, 7, f"${target_heated_hard_cost:,.0f}", 0, 1, 'R')
         pdf.ln(5)
         
-    # 15. LONG-TERM PORTFOLIO WEALTH
+    # 16. LONG-TERM PORTFOLIO WEALTH
     pdf.set_font("Arial", 'B', 12)
     pdf.set_fill_color(220, 220, 220)
-    pdf.cell(0, 8, " 15. Long-Term Portfolio Wealth (IRR & ROI)", ln=1, fill=True)
+    pdf.cell(0, 8, " 16. Long-Term Portfolio Wealth (IRR & ROI)", ln=1, fill=True)
     pdf.set_font("Arial", '', 10)
     
     clean_long_term = long_term_intro.replace("**", "").replace(r"\$", "$").encode('latin-1', 'replace').decode('latin-1')
@@ -3323,130 +3454,4 @@ def create_pptx():
     body_shape = shapes.placeholders[1]
     title_shape.text = "Operating & DSCR Metrics"
     tf = body_shape.text_frame
-    tf.text = f"Gross Monthly Income: ${total_gross_monthly_income:,.0f}"
-    
-    p = tf.add_paragraph()
-    p.text = f"Net Operating Income (NOI): ${annual_noi/12:,.0f} / mo"
-    p = tf.add_paragraph()
-    p.text = f"Permanent Debt Service (P&I): ${total_monthly_pi:,.0f} / mo"
-    p = tf.add_paragraph()
-    p.text = f"Monthly Net Cash Flow: ${monthly_cash_flow:,.0f} (${monthly_cash_flow_per_door:,.0f} per door)"
-    p = tf.add_paragraph()
-    p.text = f"Actual DSCR: {actual_dscr:.2f}x (Target: {target_dscr_rate:.2f}x)"
-
-    # 4. Capital Ledger
-    slide = prs.slides.add_slide(bullet_slide_layout)
-    add_logo_to_slide(slide, Inches(8.0), Inches(0.2), Inches(1.5))
-    
-    shapes = slide.shapes
-    title_shape = shapes.title
-    body_shape = shapes.placeholders[1]
-    title_shape.text = "Capital Outlay Breakdown"
-    tf = body_shape.text_frame
-    tf.text = f"Horizontal Land Basis: ${total_land_default:,.0f}"
-    p = tf.add_paragraph()
-    p.text = f"Vertical Direct Hard Costs: ${total_hard_cost:,.0f} (${blended_cost_per_sf:.2f} / SF)"
-    p = tf.add_paragraph()
-    p.text = f"Indirects & GC Fee: ${total_indirect_costs:,.0f}"
-    p = tf.add_paragraph()
-    p.text = f"Soft Costs & Utilities: ${total_vertical_soft:,.0f}"
-    p = tf.add_paragraph()
-    p.text = f"Financing & Closing Costs: ${btr_finance_closing:,.0f}"
-
-    # Save
-    with tempfile.NamedTemporaryFile(delete=False, suffix=".pptx") as tmp:
-        prs.save(tmp.name)
-        with open(tmp.name, "rb") as f:
-            return f.read()
-
-def create_slide_pdf():
-    # Landscape orientation, millimeters, Letter size
-    pdf = FPDF(orientation='L', unit='mm', format='Letter')
-    
-    def add_pdf_logo(x, y, w):
-        try:
-            if os.path.exists("Gemini_Generated_Image_.png"):
-                pdf.image("Gemini_Generated_Image_.png", x=x, y=y, w=w)
-        except Exception:
-            pass
-
-    # 1. Title Slide
-    pdf.add_page()
-    add_pdf_logo(x=105, y=15, w=70)
-    pdf.set_font('Arial', 'B', 28)
-    pdf.cell(0, 60, '', ln=1) # Vertical Spacer to push text below logo
-    pdf.cell(0, 15, f"{borrower_company} | BTR Pro Forma Analysis", align='C', ln=1)
-    pdf.set_font('Arial', 'I', 16)
-    pdf.cell(0, 10, f"Project: {project_name if project_name else 'TBD'}", align='C', ln=1)
-    pdf.cell(0, 10, f"Address: {project_address if project_address else 'TBD'}", align='C', ln=1)
-    pdf.cell(0, 10, f"Prepared: {report_date}", align='C', ln=1)
-    
-    # 2. Exec Summary
-    pdf.add_page()
-    add_pdf_logo(x=230, y=5, w=40)
-    pdf.set_font('Arial', 'B', 24)
-    pdf.cell(0, 20, 'Executive Summary', ln=1)
-    pdf.line(10, 30, 270, 30) # Separator line
-    pdf.set_font('Arial', '', 18)
-    pdf.ln(10)
-    pdf.cell(0, 12, f"- Project Scale: {units} Unit(s)", ln=1)
-    pdf.cell(0, 12, f"- Total Appraised Value (ARV): ${total_arv:,.0f}", ln=1)
-    pdf.cell(0, 12, f"- Total Project Basis: ${total_project_basis:,.0f}", ln=1)
-    pdf.cell(0, 12, f"- Built-in Developer Margin: ${developer_margin:,.0f}", ln=1)
-    cash_text = f"- Net Cash Surplus at Refi: ${cash_surplus:,.0f}" if cash_surplus >= 0 else f"- Retained Seed Capital: ${-cash_surplus:,.0f}"
-    pdf.cell(0, 12, cash_text, ln=1)
-    
-    # 3. Operating Metrics
-    pdf.add_page()
-    add_pdf_logo(x=230, y=5, w=40)
-    pdf.set_font('Arial', 'B', 24)
-    pdf.cell(0, 20, 'Operating & DSCR Metrics', ln=1)
-    pdf.line(10, 30, 270, 30)
-    pdf.set_font('Arial', '', 18)
-    pdf.ln(10)
-    pdf.cell(0, 12, f"- Gross Monthly Income: ${total_gross_monthly_income:,.0f}", ln=1)
-    pdf.cell(0, 12, f"- Net Operating Income (NOI): ${annual_noi/12:,.0f} / mo", ln=1)
-    pdf.cell(0, 12, f"- Permanent Debt Service (P&I): ${total_monthly_pi:,.0f} / mo", ln=1)
-    pdf.cell(0, 12, f"- Monthly Net Cash Flow: ${monthly_cash_flow:,.0f} (${monthly_cash_flow_per_door:,.0f} per door)", ln=1)
-    pdf.cell(0, 12, f"- Actual DSCR: {actual_dscr:.2f}x (Target: {target_dscr_rate:.2f}x)", ln=1)
-    
-    # 4. Capital Ledger
-    pdf.add_page()
-    add_pdf_logo(x=230, y=5, w=40)
-    pdf.set_font('Arial', 'B', 24)
-    pdf.cell(0, 20, 'Capital Outlay Breakdown', ln=1)
-    pdf.line(10, 30, 270, 30)
-    pdf.set_font('Arial', '', 18)
-    pdf.ln(10)
-    pdf.cell(0, 12, f"- Horizontal Land Basis: ${total_land_default:,.0f}", ln=1)
-    pdf.cell(0, 12, f"- Vertical Direct Hard Costs: ${total_hard_cost:,.0f} (${blended_cost_per_sf:.2f} / SF)", ln=1)
-    pdf.cell(0, 12, f"- Indirects & GC Fee: ${total_indirect_costs:,.0f}", ln=1)
-    pdf.cell(0, 12, f"- Soft Costs & Utilities: ${total_vertical_soft:,.0f}", ln=1)
-    pdf.cell(0, 12, f"- Financing & Closing Costs: ${btr_finance_closing:,.0f}", ln=1)
-    
-    with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as tmp:
-        pdf.output(tmp.name)
-        with open(tmp.name, "rb") as f:
-            return f.read()
-
-col1, col2 = st.columns(2)
-
-with col1:
-    st.download_button(
-        label="📊 Download Presentation (PowerPoint)",
-        data=create_pptx(),
-        file_name=f"{borrower_company.replace(' ', '_')}_Deck_{report_date.replace(' ', '_').replace(',', '')}.pptx",
-        mime="application/vnd.openxmlformats-officedocument.presentationml.presentation",
-        type="secondary",
-        use_container_width=True
-    )
-
-with col2:
-    st.download_button(
-        label="📄 Download Presentation (PDF Slides)",
-        data=create_slide_pdf(),
-        file_name=f"{borrower_company.replace(' ', '_')}_Slide_Deck_{report_date.replace(' ', '_').replace(',', '')}.pdf",
-        mime="application/pdf",
-        type="secondary",
-        use_container_width=True
-    )
+Sorry, something went wrong. Please try your request again.
