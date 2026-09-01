@@ -2010,7 +2010,83 @@ stress_test_summary = (
 )
 st.info(stress_test_summary.replace("$", r"\$"))
 
-# --- NEW DUAL STRESS TEST CHARTS ---
+stress_results = []
+
+for scn in STRESS_SCENARIOS:
+    # Adjust ARV and Takeout Loan
+    s_arv = total_arv * (1 + scn["ARV_Shift"])
+    s_loan_total = s_arv * refi_ltv
+    s_buydown = s_loan_total * (buydown_pts / 100.0) if apply_buydown else 0
+    s_months = build_months + scn["Delay"]
+    
+    # Recalculate S-Curve Carry Interest
+    s_carry = actual_const_loan * 0.5 * const_rate * (s_months / 12.0)
+    for _ in range(3):
+        s_basis_ex_refi = total_project_costs_ex_interest + s_carry
+        s_seed = max(0, s_basis_ex_refi - actual_const_loan)
+        
+        eq_rem = s_seed
+        if eq_rem >= day_1_costs:
+            eq_rem -= day_1_costs
+            d_bal = 0.0
+        else:
+            d_bal = day_1_costs - eq_rem
+            eq_rem = 0.0
+        
+        s_int = 0.0
+        cp = 0.0
+        for m in range(1, s_months + 1):
+            pp = cp
+            cp = math.pow(math.sin((math.pi / 2.0) * (m / s_months)), 2)
+            m_drw = total_draw_budget * (cp - pp)
+            m_i = d_bal * (const_rate / 12.0)
+            s_int += m_i
+            
+            if eq_rem >= m_drw:
+                eq_rem -= m_drw
+                f_loan = 0.0
+            else:
+                f_loan = m_drw - eq_rem
+                eq_rem = 0.0
+            d_bal += f_loan + m_i
+        s_carry = s_int
+        
+    s_seed_final = max(0, total_project_costs_ex_interest + s_carry - actual_const_loan)
+    s_net_cash = s_loan_total - actual_const_loan - refi_closing_fee - s_buydown
+    s_surplus = s_net_cash - s_seed_final
+    s_retained_eq = s_arv - s_loan_total
+    s_wealth = default_gc_fee + max(0.0, s_surplus) + s_retained_eq
+    
+    # Recalculate DSCR
+    s_net_rate = net_refi_rate + scn["Rate_Shift"]
+    s_m_rate = s_net_rate / 12.0
+    if s_m_rate > 0:
+        s_pi = (s_loan_total / units) * (s_m_rate * (1 + s_m_rate)**total_payments) / ((1 + s_m_rate)**total_payments - 1)
+    else:
+        s_pi = (s_loan_total / units) / total_payments if total_payments > 0 else 0
+        
+    s_ds = s_pi * units * 12.0
+    s_dscr = annual_noi / s_ds if s_ds > 0 else 0
+    
+    # Emoticon formatting
+    dscr_str = f"🟢 {s_dscr:.2f}x" if s_dscr >= target_dscr_rate else f"🔴 {s_dscr:.2f}x"
+    surplus_str = f"🟢 +${s_surplus:,.0f}" if s_surplus >= 0 else f"🔴 -${abs(s_surplus):,.0f}"
+    
+    stress_results.append({
+        "Stress Scenario": scn["Name"],
+        "Final ARV": f"${s_arv:,.0f}",
+        "Refi Rate": f"{s_net_rate*100:.2f}%",
+        "Build Time": f"{s_months} mos",
+        "DSCR Status": dscr_str,
+        "Net Cash Surplus / (Trapped)": surplus_str,
+        "Total Day-1 Wealth": f"${s_wealth:,.0f}",
+        "Raw DSCR": s_dscr,
+        "Raw Surplus": s_surplus
+    })
+
+df_stress = pd.DataFrame(stress_results)
+
+# --- DUAL STRESS TEST CHARTS ---
 df_stress['DSCR Color'] = df_stress['Raw DSCR'].apply(lambda x: '#2ca02c' if x >= target_dscr_rate else '#d62728')
 df_stress['Surplus Color'] = df_stress['Raw Surplus'].apply(lambda x: '#2ca02c' if x >= 0 else '#d62728')
 df_stress['Short Name'] = df_stress['Stress Scenario'].apply(lambda x: x.split(". ")[1] if ". " in x else x)
