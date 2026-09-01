@@ -34,8 +34,15 @@ HARDCODED_DRIVERS = {
     "target_dscr_rate": 1.20,
     "target_min_cashflow_per_door": 200.0,
     "vacancy_rate_pct": 5.0,
+    "mgmt_fee_pct": 8.0,
     "opex_entry_mode": "Percentage of EGI (%)",
-    "opex_rate_pct": 25.0,
+    "opex_rate_pct": 17.0,
+    "opex_taxes_mo": 150.0,
+    "opex_ins_mo": 115.0,
+    "opex_flood_mo": 30.0,
+    "opex_lawn_mo": 50.0,
+    "opex_maint_mo": 40.0,
+    "opex_misc_mo": 0.0,
     "income_tax_rate_pct": 30.0,
     "appreciation_rate_pct": 3.0,
     
@@ -343,17 +350,20 @@ with st.sidebar.container():
     st.number_input("Min. Acceptable Cash Flow / Door ($)", min_value=0.0, max_value=1000.0, value=float(GLOBAL_DRIVERS.get("target_min_cashflow_per_door", 200.0)), step=25.0, key="target_min_cashflow_per_door")
     st.slider("Vacancy Rate (%)", min_value=0.0, max_value=15.0, step=1.0, key="vacancy_rate_pct")
     
+    st.slider("Property Management Fee (% of Gross)", min_value=0.0, max_value=15.0, step=0.5, value=float(GLOBAL_DRIVERS.get("mgmt_fee_pct", 8.0)), key="mgmt_fee_pct")
+    
     # --- OPEX TOGGLE LOGIC ---
-    st.radio("OpEx Entry Mode", ["Percentage of EGI (%)", "Itemized Monthly Costs ($ per door)"], key="opex_entry_mode")
+    st.radio("Other OpEx Entry Mode", ["Percentage of EGI (%)", "Itemized Monthly Costs ($ per door)"], key="opex_entry_mode")
     if st.session_state.opex_entry_mode == "Percentage of EGI (%)":
-        st.slider("Operating Expenses (OpEx) Rate of EGI (%)", min_value=15.0, max_value=50.0, step=1.0, key="opex_rate_pct")
+        st.slider("Other Operating Expenses (OpEx) Rate of EGI (%)", min_value=5.0, max_value=50.0, step=1.0, value=float(GLOBAL_DRIVERS.get("opex_rate_pct", 17.0)), key="opex_rate_pct")
     else:
-        with st.expander("📝 Itemized OpEx (Per Door / Month)", expanded=True):
-            st.number_input("Property Taxes ($/mo)", min_value=0.0, step=10.0, value=150.0, key="opex_taxes_mo")
-            st.number_input("Hazard/Wind Insurance ($/mo)", min_value=0.0, step=10.0, value=115.0, key="opex_ins_mo")
-            st.number_input("Property Management ($/mo)", min_value=0.0, step=10.0, value=95.0, key="opex_mgmt_mo")
-            st.number_input("Turnover & Maintenance ($/mo)", min_value=0.0, step=10.0, value=40.0, key="opex_maint_mo")
-            st.number_input("HOA / Misc ($/mo)", min_value=0.0, step=10.0, value=0.0, key="opex_misc_mo")
+        with st.expander("📝 Itemized Other OpEx (Per Door / Month)", expanded=True):
+            st.number_input("Property Taxes ($/mo)", min_value=0.0, step=10.0, value=float(GLOBAL_DRIVERS.get("opex_taxes_mo", 150.0)), key="opex_taxes_mo")
+            st.number_input("Hazard/Wind Insurance ($/mo)", min_value=0.0, step=10.0, value=float(GLOBAL_DRIVERS.get("opex_ins_mo", 115.0)), key="opex_ins_mo")
+            st.number_input("Flood Insurance ($/mo)", min_value=0.0, step=10.0, value=float(GLOBAL_DRIVERS.get("opex_flood_mo", 30.0)), key="opex_flood_mo")
+            st.number_input("Lawn Maintenance ($/mo)", min_value=0.0, step=10.0, value=float(GLOBAL_DRIVERS.get("opex_lawn_mo", 50.0)), key="opex_lawn_mo")
+            st.number_input("Turnover & Maintenance ($/mo)", min_value=0.0, step=10.0, value=float(GLOBAL_DRIVERS.get("opex_maint_mo", 40.0)), key="opex_maint_mo")
+            st.number_input("HOA / Misc ($/mo)", min_value=0.0, step=10.0, value=float(GLOBAL_DRIVERS.get("opex_misc_mo", 0.0)), key="opex_misc_mo")
             
     st.slider("Marginal Tax Rate (%) for Depreciation Benefit", min_value=10.0, max_value=50.0, step=1.0, value=float(GLOBAL_DRIVERS.get("income_tax_rate_pct", 30.0)), key="income_tax_rate_pct", help="Used to calculate the real-dollar value of the 27.5-year depreciation tax shelter.")
     st.slider("Annual Asset Appreciation (%)", min_value=0.0, max_value=10.0, step=0.5, value=float(GLOBAL_DRIVERS.get("appreciation_rate_pct", 3.0)), key="appreciation_rate_pct")
@@ -397,20 +407,45 @@ sqft = st.session_state.get("sqft", 1173)
 gross_monthly_rent = st.session_state.get("gross_monthly_rent", 1600)
 vacancy_rate = st.session_state.get("vacancy_rate_pct", 5.0) / 100.0
 
+total_gross_monthly_income = gross_monthly_rent * units
+monthly_vacancy_loss = total_gross_monthly_income * vacancy_rate
+annual_vacancy_loss = monthly_vacancy_loss * 12.0
+effective_gross_monthly_income = total_gross_monthly_income - monthly_vacancy_loss
+annual_egi = effective_gross_monthly_income * 12.0
+
+mgmt_fee_pct = st.session_state.get("mgmt_fee_pct", 8.0) / 100.0
+monthly_mgmt_fee = total_gross_monthly_income * mgmt_fee_pct
+annual_mgmt_fee = monthly_mgmt_fee * 12.0
+
 # Extract OpEx early to drive ARV logic
 opex_entry_mode = st.session_state.get("opex_entry_mode", "Percentage of EGI (%)")
 if opex_entry_mode == "Percentage of EGI (%)":
-    opex_rate = st.session_state.get("opex_rate_pct", 25.0) / 100.0
-else:
-    t_mo = st.session_state.get("opex_taxes_mo", 150.0)
-    i_mo = st.session_state.get("opex_ins_mo", 115.0)
-    m_mo = st.session_state.get("opex_mgmt_mo", 95.0)
-    c_mo = st.session_state.get("opex_maint_mo", 40.0)
-    misc_mo = st.session_state.get("opex_misc_mo", 0.0)
+    other_opex_rate = st.session_state.get("opex_rate_pct", 17.0) / 100.0
+    annual_other_opex = annual_egi * other_opex_rate
     
-    mo_opex_per_door = t_mo + i_mo + m_mo + c_mo + misc_mo
-    unit_egi_mo = gross_monthly_rent * (1.0 - vacancy_rate)
-    opex_rate = mo_opex_per_door / unit_egi_mo if unit_egi_mo > 0 else 0
+    mo_other_opex = annual_other_opex / 12.0
+    tax_est = mo_other_opex * 0.40
+    ins_est = mo_other_opex * 0.30
+    flood_est = mo_other_opex * 0.05
+    lawn_est = mo_other_opex * 0.10
+    capex_est = mo_other_opex * 0.15
+    misc_est = 0.0
+else:
+    tax_est = st.session_state.get("opex_taxes_mo", 150.0) * units
+    ins_est = st.session_state.get("opex_ins_mo", 115.0) * units
+    flood_est = st.session_state.get("opex_flood_mo", 30.0) * units
+    lawn_est = st.session_state.get("opex_lawn_mo", 50.0) * units
+    capex_est = st.session_state.get("opex_maint_mo", 40.0) * units
+    misc_est = st.session_state.get("opex_misc_mo", 0.0) * units
+    
+    mo_other_opex = tax_est + ins_est + flood_est + lawn_est + capex_est + misc_est
+    annual_other_opex = mo_other_opex * 12.0
+
+annual_opex = annual_other_opex + annual_mgmt_fee
+mo_opex = annual_opex / 12.0
+mgmt_est = monthly_mgmt_fee
+opex_rate = annual_opex / annual_egi if annual_egi > 0 else 0
+
 
 # Core Auxiliary logic 
 aux_cost_mode = st.session_state.get("aux_cost_mode", "Percentage of Heated Rate (%)")
@@ -789,33 +824,6 @@ else:
     monthly_pi_per_unit = (loan_total / units) / total_payments if total_payments > 0 else 0
 
 total_monthly_pi = monthly_pi_per_unit * units
-total_gross_monthly_income = gross_monthly_rent * units
-monthly_vacancy_loss = total_gross_monthly_income * vacancy_rate
-annual_vacancy_loss = monthly_vacancy_loss * 12.0
-effective_gross_monthly_income = total_gross_monthly_income - monthly_vacancy_loss
-annual_egi = effective_gross_monthly_income * 12.0
-
-if opex_entry_mode == "Percentage of EGI (%)":
-    annual_opex = annual_egi * opex_rate
-    mo_opex = annual_opex / 12.0
-    tax_est = mo_opex * 0.375
-    ins_est = mo_opex * 0.2875
-    mgmt_est = mo_opex * 0.2375
-    capex_est = mo_opex * 0.10
-    misc_est = 0.0
-else:
-    tax_est = st.session_state.get("opex_taxes_mo", 150.0) * units
-    ins_est = st.session_state.get("opex_ins_mo", 115.0) * units
-    mgmt_est = st.session_state.get("opex_mgmt_mo", 95.0) * units
-    capex_est = st.session_state.get("opex_maint_mo", 40.0) * units
-    misc_est = st.session_state.get("opex_misc_mo", 0.0) * units
-    
-    mo_opex = tax_est + ins_est + mgmt_est + capex_est + misc_est
-    annual_opex = mo_opex * 12.0
-
-annual_noi = annual_egi - annual_opex
-monthly_noi = annual_noi / 12.0
-
 annual_debt_service = total_monthly_pi * 12.0
 actual_dscr = annual_noi / annual_debt_service if annual_debt_service > 0 else 0
 dscr_variance = actual_dscr - target_dscr_rate
@@ -1056,7 +1064,7 @@ with ui_decision_dashboard:
     cash_light = "🟢 GREEN LIGHT" if cash_pass else "🔴 RED LIGHT"
 
     dash_col1, dash_col2, dash_col3, dash_col4 = st.columns(4)
-    dash_col1.metric("DSCR Underwriting Status", dscr_light, f"Actual: {actual_dscr:.2f}x (Target: {target_dscr_rate:.2f}x)", delta_color="normal" if dscr_pass else "inverse")
+    dash_col1.metric("DSCR Under underwriting Status", dscr_light, f"Actual: {actual_dscr:.2f}x (Target: {target_dscr_rate:.2f}x)", delta_color="normal" if dscr_pass else "inverse")
     dash_col2.metric("Cash Flow Status", cf_light, f"Actual: ${monthly_cash_flow_per_door:,.0f}/door (Target: ${target_min_cashflow_per_door:,.0f})", delta_color="normal" if cf_pass else "inverse")
     dash_col3.metric("Capital Recovery Status", cash_light, f"${cash_surplus:,.0f} at Refi Close", delta_color="normal" if cash_pass else "inverse")
     dash_col4.metric("Day-1 Wealth Creation", f"${day1_wealth:,.0f}", f"${day1_wealth/units:,.0f} per door", delta_color="normal")
@@ -1612,7 +1620,7 @@ operating_summary_text = (
     f"**Commercial Underwriting:** Lenders typically require a minimum **{target_dscr_rate:.2f}x** Debt Service Coverage Ratio (DSCR) calculated strictly from Net Operating Income (NOI). "
     f"To hit this ratio on the **${loan_total:,.0f}** permanent loan ({refi_ltv*100:.0f}% LTV){buydown_narrative}\n\n"
     f"**Stabilized Yield Analysis:** Upon stabilization, the {units}-unit portfolio generates **${total_gross_monthly_income:,.0f}** in gross monthly rent. "
-    f"After applying a **{vacancy_rate*100:.1f}%** vacancy allowance and a **{opex_rate*100:.1f}%** operating expense ratio, "
+    f"After applying a **{vacancy_rate*100:.1f}%** vacancy allowance and a **{opex_rate*100:.1f}%** operating expense ratio (including management), "
     f"the property yields **${monthly_noi:,.0f}** in monthly NOI. Against the debt service of **${total_monthly_pi:,.0f}**, "
     f"the asset operates at a **{actual_dscr:.2f}x DSCR**, producing **${monthly_cash_flow_per_door:,.0f}** in net passive cash flow per door every month."
 )
@@ -1620,25 +1628,25 @@ st.info(operating_summary_text.replace("$", r"\$"))
 
 # Dynamic OpEx Breakdown Calculations
 if misc_est > 0:
-    st.markdown(f"**OpEx Breakdown (Estimated):** Taxes ~${tax_est:,.0f}/mo, Hazard/Wind Insurance ~${ins_est:,.0f}/mo, Mgmt ~${mgmt_est:,.0f}/mo, Turnover/CapEx ~${capex_est:,.0f}/mo, Misc/HOA ~${misc_est:,.0f}/mo.")
-    op_x = ["Gross Rent", "Vacancy", "Taxes", "Insurance", "Mgmt", "CapEx", "Misc/HOA", "NOI", "Debt Service", "Net Cash Flow"]
-    op_measure = ["relative", "relative", "relative", "relative", "relative", "relative", "relative", "total", "relative", "total"]
+    st.markdown(f"**OpEx Breakdown (Estimated):** Mgmt ~${mgmt_est:,.0f}/mo, Taxes ~${tax_est:,.0f}/mo, Insurance ~${ins_est:,.0f}/mo, Flood ~${flood_est:,.0f}/mo, Lawn ~${lawn_est:,.0f}/mo, CapEx ~${capex_est:,.0f}/mo, Misc/HOA ~${misc_est:,.0f}/mo.")
+    op_x = ["Gross Rent", "Vacancy", "Mgmt", "Taxes", "Insurance", "Flood", "Lawn", "CapEx", "Misc/HOA", "NOI", "Debt Service", "Net Cash Flow"]
+    op_measure = ["relative", "relative", "relative", "relative", "relative", "relative", "relative", "relative", "relative", "total", "relative", "total"]
     op_text = [
-        f"+${total_gross_monthly_income:,.0f}", f"-${monthly_vacancy_loss:,.0f}", f"-${tax_est:,.0f}", 
-        f"-${ins_est:,.0f}", f"-${mgmt_est:,.0f}", f"-${capex_est:,.0f}", f"-${misc_est:,.0f}",
+        f"+${total_gross_monthly_income:,.0f}", f"-${monthly_vacancy_loss:,.0f}", f"-${mgmt_est:,.0f}", f"-${tax_est:,.0f}", 
+        f"-${ins_est:,.0f}", f"-${flood_est:,.0f}", f"-${lawn_est:,.0f}", f"-${capex_est:,.0f}", f"-${misc_est:,.0f}",
         f"${monthly_noi:,.0f}", f"-${total_monthly_pi:,.0f}", f"${monthly_cash_flow:,.0f}"
     ]
-    op_y = [total_gross_monthly_income, -monthly_vacancy_loss, -tax_est, -ins_est, -mgmt_est, -capex_est, -misc_est, monthly_noi, -total_monthly_pi, monthly_cash_flow]
+    op_y = [total_gross_monthly_income, -monthly_vacancy_loss, -mgmt_est, -tax_est, -ins_est, -flood_est, -lawn_est, -capex_est, -misc_est, monthly_noi, -total_monthly_pi, monthly_cash_flow]
 else:
-    st.markdown(f"**OpEx Breakdown (Estimated):** Taxes ~${tax_est:,.0f}/mo, Hazard/Wind Insurance ~${ins_est:,.0f}/mo, Mgmt ~${mgmt_est:,.0f}/mo, Turnover/CapEx ~${capex_est:,.0f}/mo.")
-    op_x = ["Gross Rent", "Vacancy", "Taxes", "Insurance", "Mgmt", "CapEx", "NOI", "Debt Service", "Net Cash Flow"]
-    op_measure = ["relative", "relative", "relative", "relative", "relative", "relative", "total", "relative", "total"]
+    st.markdown(f"**OpEx Breakdown (Estimated):** Mgmt ~${mgmt_est:,.0f}/mo, Taxes ~${tax_est:,.0f}/mo, Insurance ~${ins_est:,.0f}/mo, Flood ~${flood_est:,.0f}/mo, Lawn ~${lawn_est:,.0f}/mo, CapEx ~${capex_est:,.0f}/mo.")
+    op_x = ["Gross Rent", "Vacancy", "Mgmt", "Taxes", "Insurance", "Flood", "Lawn", "CapEx", "NOI", "Debt Service", "Net Cash Flow"]
+    op_measure = ["relative", "relative", "relative", "relative", "relative", "relative", "relative", "relative", "total", "relative", "total"]
     op_text = [
-        f"+${total_gross_monthly_income:,.0f}", f"-${monthly_vacancy_loss:,.0f}", f"-${tax_est:,.0f}", 
-        f"-${ins_est:,.0f}", f"-${mgmt_est:,.0f}", f"-${capex_est:,.0f}", 
+        f"+${total_gross_monthly_income:,.0f}", f"-${monthly_vacancy_loss:,.0f}", f"-${mgmt_est:,.0f}", f"-${tax_est:,.0f}", 
+        f"-${ins_est:,.0f}", f"-${flood_est:,.0f}", f"-${lawn_est:,.0f}", f"-${capex_est:,.0f}", 
         f"${monthly_noi:,.0f}", f"-${total_monthly_pi:,.0f}", f"${monthly_cash_flow:,.0f}"
     ]
-    op_y = [total_gross_monthly_income, -monthly_vacancy_loss, -tax_est, -ins_est, -mgmt_est, -capex_est, monthly_noi, -total_monthly_pi, monthly_cash_flow]
+    op_y = [total_gross_monthly_income, -monthly_vacancy_loss, -mgmt_est, -tax_est, -ins_est, -flood_est, -lawn_est, -capex_est, monthly_noi, -total_monthly_pi, monthly_cash_flow]
 
 # --- NEW DETAILED OPERATING WATERFALL CHART ---
 fig_op = go.Figure(go.Waterfall(
@@ -1662,17 +1670,19 @@ with st.expander("🏢 View Stabilized Operating Pro Forma (DSCR)", expanded=Fal
     dscr_summary_data = {
         "Pro Forma Line Item": [
             "Gross Potential Rent (GPR)", f"(-) Vacancy Loss @ {vacancy_rate*100:.1f}%", "= Effective Gross Income (EGI)", 
-            f"(-) Operating Expenses (OpEx) @ {opex_rate*100:.1f}%", "= Net Operating Income (NOI)", "(-) Total Debt Service (P&I)", "= Net Cash Flow",
+            f"(-) Property Management @ {mgmt_fee_pct*100:.1f}% of GPR",
+            f"(-) Other Operating Expenses (Taxes, Ins, Maint)", 
+            "= Net Operating Income (NOI)", "(-) Total Debt Service (P&I)", "= Net Cash Flow",
             "---", "Actual DSCR Rate", "Target Lender DSCR", "DSCR Variance"
         ],
         "Monthly": [
             f"${total_gross_monthly_income:,.2f}", f"-${monthly_vacancy_loss:,.2f}", f"${annual_egi / 12:,.2f}", 
-            f"-${annual_opex / 12:,.2f}", f"${monthly_noi:,.2f}", f"-${total_monthly_pi:,.2f}", f"${monthly_cash_flow:,.2f}",
+            f"-${monthly_mgmt_fee:,.2f}", f"-${mo_other_opex:,.2f}", f"${monthly_noi:,.2f}", f"-${total_monthly_pi:,.2f}", f"${monthly_cash_flow:,.2f}",
             "---", f"{actual_dscr:.2f}x", f"{target_dscr_rate:.2f}x", f"{dscr_variance:+.2f}x"
         ],
         "Annual": [
             f"${total_gross_monthly_income * 12:,.2f}", f"-${annual_vacancy_loss:,.2f}", f"${annual_egi:,.2f}", 
-            f"-${annual_opex / 12:,.2f}", f"${annual_noi:,.2f}", f"${annual_debt_service:,.2f}", f"${monthly_cash_flow * 12:,.2f}",
+            f"-${annual_mgmt_fee:,.2f}", f"-${annual_other_opex:,.2f}", f"${annual_noi:,.2f}", f"${annual_debt_service:,.2f}", f"${monthly_cash_flow * 12:,.2f}",
             "---", f"{actual_dscr:.2f}x", f"{target_dscr_rate:.2f}x", f"{dscr_variance:+.2f}x"
         ]
     }
@@ -2611,9 +2621,9 @@ def create_pdf(detail_mode):
 
     pdf.set_font("Arial", 'I', 9)
     if misc_est > 0:
-        opex_breakdown_str = f"OpEx Breakdown (Estimated): Taxes ~${tax_est:,.0f}/mo, Insurance ~${ins_est:,.0f}/mo, Mgmt ~${mgmt_est:,.0f}/mo, CapEx ~${capex_est:,.0f}/mo, Misc ~${misc_est:,.0f}/mo."
+        opex_breakdown_str = f"OpEx Breakdown (Estimated): Mgmt ~${mgmt_est:,.0f}/mo, Taxes ~${tax_est:,.0f}/mo, Insurance ~${ins_est:,.0f}/mo, Flood ~${flood_est:,.0f}/mo, Lawn ~${lawn_est:,.0f}/mo, CapEx ~${capex_est:,.0f}/mo, Misc ~${misc_est:,.0f}/mo."
     else:
-        opex_breakdown_str = f"OpEx Breakdown (Estimated): Taxes ~${tax_est:,.0f}/mo, Insurance ~${ins_est:,.0f}/mo, Mgmt ~${mgmt_est:,.0f}/mo, CapEx ~${capex_est:,.0f}/mo."
+        opex_breakdown_str = f"OpEx Breakdown (Estimated): Mgmt ~${mgmt_est:,.0f}/mo, Taxes ~${tax_est:,.0f}/mo, Insurance ~${ins_est:,.0f}/mo, Flood ~${flood_est:,.0f}/mo, Lawn ~${lawn_est:,.0f}/mo, CapEx ~${capex_est:,.0f}/mo."
     pdf.multi_cell(0, 6, opex_breakdown_str)
     pdf.ln(3)
 
