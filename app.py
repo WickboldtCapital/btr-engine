@@ -35,6 +35,7 @@ HARDCODED_DRIVERS = {
     "target_min_cashflow_per_door": 200.0,
     "vacancy_rate_pct": 5.0,
     "opex_rate_pct": 20.0,
+    "appreciation_rate_pct": 3.0,
     
     "const_ltv_pct": 80.0,
     "build_months": 7,
@@ -337,6 +338,7 @@ with st.sidebar.container():
     st.number_input("Min. Acceptable Cash Flow / Door ($)", min_value=0.0, max_value=1000.0, value=float(GLOBAL_DRIVERS.get("target_min_cashflow_per_door", 200.0)), step=25.0, key="target_min_cashflow_per_door")
     st.slider("Vacancy Rate (%)", min_value=0.0, max_value=15.0, step=1.0, key="vacancy_rate_pct")
     st.slider("Operating Expenses (OpEx) Rate of EGI (%)", min_value=15.0, max_value=50.0, step=1.0, key="opex_rate_pct")
+    st.slider("Annual Asset Appreciation (%)", min_value=0.0, max_value=10.0, step=0.5, value=float(GLOBAL_DRIVERS.get("appreciation_rate_pct", 3.0)), key="appreciation_rate_pct")
 
 with st.sidebar.container():
     st.subheader("10. Takeout Appraisal Methodology")
@@ -390,6 +392,8 @@ target_dscr_rate = st.session_state.get("target_dscr_rate", 1.20)
 target_min_cashflow_per_door = st.session_state.get("target_min_cashflow_per_door", 200.0)
 vacancy_rate = st.session_state.get("vacancy_rate_pct", 5.0) / 100.0
 opex_rate = st.session_state.get("opex_rate_pct", 20.0) / 100.0
+appreciation_rate = st.session_state.get("appreciation_rate_pct", 3.0) / 100.0
+
 const_ltv = st.session_state.get("const_ltv_pct", 80.0) / 100.0
 build_months = st.session_state.get("build_months", 7)
 const_rate = st.session_state.get("const_rate_pct", 7.50) / 100.0
@@ -2112,9 +2116,120 @@ if cost_calc_mode in ["Reverse-Engineer from Appraisal", "Reverse-Engineer from 
 
 
 # ==========================================
-# --- 14. PDF GENERATION ENGINE ---
+# --- 14. LONG-TERM PORTFOLIO WEALTH (IRR & ROI) ---
 # ==========================================
-st.markdown("### 🖨️ 14. Export Enterprise PDF Report")
+st.markdown("### 14. Long-Term Portfolio Wealth (IRR & ROI)")
+
+long_term_intro = (
+    f"By retaining the asset, the Build-to-Rent strategy shifts from transactional income to compounding generational wealth. "
+    f"This module projects the financial performance over a 30-year horizon, tracking the total equity accumulation driven by "
+    f"the **{appreciation_rate*100:.1f}% annual asset appreciation** and the continuous principal paydown funded directly by your tenants."
+)
+st.info(long_term_intro.replace("$", r"\$"))
+
+# --- MATH: AMORTIZATION & APPRECIATION OVER 30 YEARS ---
+proj_years = list(range(0, refi_term_years + 1))
+asset_vals = [total_arv * ((1 + appreciation_rate) ** y) for y in proj_years]
+
+r_monthly = net_refi_rate / 12.0
+n_months = refi_term_years * 12
+loan_vals = []
+
+for y in proj_years:
+    m = y * 12
+    if r_monthly > 0:
+        bal = loan_total * (((1 + r_monthly)**n_months - (1 + r_monthly)**m) / ((1 + r_monthly)**n_months - 1))
+    else:
+        bal = loan_total * (1 - m / n_months) if n_months > 0 else 0
+    loan_vals.append(max(0, bal))
+
+equity_vals = [av - lv for av, lv in zip(asset_vals, loan_vals)]
+cumulative_cf = [monthly_cash_flow * 12 * y for y in proj_years]
+principal_paid = [loan_total - lv for lv in loan_vals]
+
+# --- PLOTLY CHART: EQUITY ACCUMULATION ---
+fig_wealth = go.Figure()
+# Add Loan Balance (Red)
+fig_wealth.add_trace(go.Scatter(x=proj_years, y=loan_vals, name="Remaining Loan Balance", fill='tozeroy', fillcolor='rgba(214, 39, 40, 0.1)', mode='lines', line_color='#d62728'))
+# Add Asset Value (Green)
+fig_wealth.add_trace(go.Scatter(x=proj_years, y=asset_vals, name="Asset Value", fill='tonexty', fillcolor='rgba(44, 160, 44, 0.2)', mode='lines', line_color='#2ca02c'))
+
+fig_wealth.update_layout(title="Generational Wealth Creation (Equity Accumulation)", xaxis_title="Years After Stabilization", yaxis_title="Portfolio Value ($)", hovermode="x unified")
+st.plotly_chart(fig_wealth, use_container_width=True)
+
+# --- MATH: IRR CALCULATION ---
+def calc_irr(cash_flows):
+    if sum(cash_flows) < 0:
+        return 0.0
+    rate = 0.1
+    for _ in range(100):
+        npv = sum(cf / (1 + rate)**i for i, cf in enumerate(cash_flows))
+        derivative_npv = sum(-i * cf / (1 + rate)**(i + 1) for i, cf in enumerate(cash_flows) if i > 0)
+        if abs(npv) < 1e-6:
+            return rate
+        if derivative_npv == 0:
+            break
+        rate = rate - npv / derivative_npv
+    return rate
+
+if cash_surplus >= 0:
+    irr_5_str = "Infinite (Zero Capital Trapped)"
+    irr_10_str = "Infinite (Zero Capital Trapped)"
+else:
+    # 5 Year IRR
+    cfs_5 = [cash_surplus] + [monthly_cash_flow * 12] * 4 + [(monthly_cash_flow * 12) + equity_vals[5]]
+    irr_5 = calc_irr(cfs_5)
+    irr_5_str = f"{irr_5*100:.1f}%"
+    
+    # 10 Year IRR
+    cfs_10 = [cash_surplus] + [monthly_cash_flow * 12] * 9 + [(monthly_cash_flow * 12) + equity_vals[10]]
+    irr_10 = calc_irr(cfs_10)
+    irr_10_str = f"{irr_10*100:.1f}%"
+
+with st.expander("📊 View 5-Year and 10-Year Projected Returns", expanded=False):
+    projection_data = {
+        "Metric": [
+            "Projected Portfolio Asset Value",
+            "Remaining Commercial Loan Balance",
+            "Total Accumulated Equity",
+            "Cumulative Net Cash Flow Generated",
+            "Total Principal Paid by Renters",
+            "Internal Rate of Return (IRR) on Retained Capital"
+        ],
+        "Year 1": [
+            f"${asset_vals[1]:,.0f}",
+            f"${loan_vals[1]:,.0f}",
+            f"${equity_vals[1]:,.0f}",
+            f"${cumulative_cf[1]:,.0f}",
+            f"${principal_paid[1]:,.0f}",
+            "-"
+        ],
+        "Year 5": [
+            f"${asset_vals[5]:,.0f}",
+            f"${loan_vals[5]:,.0f}",
+            f"${equity_vals[5]:,.0f}",
+            f"${cumulative_cf[5]:,.0f}",
+            f"${principal_paid[5]:,.0f}",
+            irr_5_str
+        ],
+        "Year 10": [
+            f"${asset_vals[10]:,.0f}",
+            f"${loan_vals[10]:,.0f}",
+            f"${equity_vals[10]:,.0f}",
+            f"${cumulative_cf[10]:,.0f}",
+            f"${principal_paid[10]:,.0f}",
+            irr_10_str
+        ]
+    }
+    st.dataframe(pd.DataFrame(projection_data), hide_index=True, use_container_width=True)
+
+st.divider()
+
+
+# ==========================================
+# --- 15. PDF GENERATION ENGINE ---
+# ==========================================
+st.markdown("### 🖨️ 15. Export Enterprise PDF Report")
 pdf_detail_mode = st.radio(
     "Construction Budget Detail Level for PDF:",
     ["Full 36-Component Breakdown", "8 Major NAHB Categories Only", "High-Level Roll-up Only"],
@@ -2669,6 +2784,35 @@ def create_pdf(detail_mode):
         pdf.cell(130, 7, "= Available Budget for Heated Shell:", 0, 0)
         pdf.cell(60, 7, f"${target_heated_hard_cost:,.0f}", 0, 1, 'R')
         pdf.ln(5)
+        
+    # 14. LONG-TERM PORTFOLIO WEALTH
+    pdf.set_font("Arial", 'B', 12)
+    pdf.set_fill_color(220, 220, 220)
+    pdf.cell(0, 8, " 14. Long-Term Portfolio Wealth (IRR & ROI)", ln=1, fill=True)
+    pdf.set_font("Arial", '', 10)
+    
+    clean_long_term = long_term_intro.replace("**", "").replace(r"\$", "$").encode('latin-1', 'replace').decode('latin-1')
+    pdf.multi_cell(0, 6, clean_long_term)
+    pdf.ln(3)
+    
+    pdf.set_font("Arial", 'B', 9)
+    pdf.cell(85, 6, "Metric", 1, 0, 'C')
+    pdf.cell(35, 6, "Year 1", 1, 0, 'C')
+    pdf.cell(35, 6, "Year 5", 1, 0, 'C')
+    pdf.cell(35, 6, "Year 10", 1, 1, 'C')
+    
+    pdf.set_font("Arial", '', 8)
+    for i in range(len(projection_data["Metric"])):
+        metric = str(projection_data["Metric"][i])
+        y1 = str(projection_data["Year 1"][i])
+        y5 = str(projection_data["Year 5"][i])
+        y10 = str(projection_data["Year 10"][i])
+        
+        pdf.cell(85, 6, metric[:45], 1, 0, 'L')
+        pdf.cell(35, 6, y1, 1, 0, 'C')
+        pdf.cell(35, 6, y5, 1, 0, 'C')
+        pdf.cell(35, 6, y10, 1, 1, 'C')
+    pdf.ln(5)
     
     with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as tmp:
         pdf.output(tmp.name)
@@ -2686,9 +2830,9 @@ st.download_button(
 )
 
 # ==========================================
-# --- 15. PRESENTATION DECK GENERATION ---
+# --- 16. PRESENTATION DECK GENERATION ---
 # ==========================================
-st.markdown("### 📊 15. Export Presentation Deck (PPTX & PDF)")
+st.markdown("### 📊 16. Export Presentation Deck (PPTX & PDF)")
 st.info("Automatically generates a 4-slide executive summary deck suitable for investor and commercial lender reviews.")
 
 def create_pptx():
