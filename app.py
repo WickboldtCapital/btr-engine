@@ -51,6 +51,12 @@ HARDCODED_DRIVERS = {
     "build_months": 7,
     "const_rate_pct": 7.50,
     
+    # Lender Specifics
+    "const_bank_name": "Local Regional Bank",
+    "const_bank_contact": "Commercial Loan Officer",
+    "refi_bank_name": "National DSCR Lender",
+    "refi_bank_contact": "Takeout Underwriter",
+    
     # Construction Loan Closing Fees
     "const_closing_mode": "Flat Lump Sum",
     "const_closing_fee": 6000,
@@ -315,6 +321,10 @@ with st.sidebar.container():
     st.slider("Construction Duration (Months)", min_value=3, max_value=18, step=1, key="build_months")
     st.slider("Construction Loan Rate (%)", min_value=4.0, max_value=14.0, step=0.5, key="const_rate_pct")
     
+    st.markdown("##### Lender Information")
+    st.text_input("Construction Bank Name", value=st.session_state.get("const_bank_name", "Local Regional Bank"), key="const_bank_name")
+    st.text_input("Contact Person", value=st.session_state.get("const_bank_contact", "Commercial Loan Officer"), key="const_bank_contact")
+    
     st.markdown("##### Closing Costs")
     st.radio("Closing Fee Entry Mode", ["Flat Lump Sum", "Detailed Enterprise Breakout"], key="const_closing_mode")
     if st.session_state.const_closing_mode == "Flat Lump Sum":
@@ -391,6 +401,11 @@ with st.sidebar.container():
     st.slider("Refinance LTV (%)", min_value=60.0, max_value=85.0, step=5.0, key="refi_ltv_pct")
     st.selectbox("Amortization Term (Years)", [15, 20, 25, 30], key="refi_term_years")
     st.slider("Base Refi Interest Rate (%)", min_value=4.0, max_value=10.0, step=0.25, key="base_refi_rate_pct")
+    
+    st.markdown("##### Lender Information")
+    st.text_input("Refinance Bank Name", value=st.session_state.get("refi_bank_name", "National DSCR Lender"), key="refi_bank_name")
+    st.text_input("Contact Person", value=st.session_state.get("refi_bank_contact", "Takeout Underwriter"), key="refi_bank_contact")
+    
     st.number_input("Refinance Closing Fee ($ total)", min_value=0, step=250, format="%d", key="refi_closing_fee")
     st.checkbox("Apply Interest Rate Buydown Points?", key="apply_buydown")
     if st.session_state.apply_buydown:
@@ -2930,9 +2945,139 @@ st.download_button(
 )
 
 # ==========================================
-# --- 16. PRESENTATION DECK GENERATION ---
+# --- 16. LENDER PROPOSAL LETTERS ---
 # ==========================================
-st.markdown("### 📊 16. Export Presentation Deck (PPTX & PDF)")
+st.markdown("### ✉️ 16. Generate Lender Proposal Letters")
+st.info("Download customized, professional funding proposals addressed directly to your selected banks. These letters automatically extract the exact capital requirements, LTV/LTC limits, and stabilized yields calculated in your active pro forma.")
+
+def create_lender_letter_pdf(letter_type):
+    pdf = FPDF(orientation='P', unit='mm', format='Letter')
+    pdf.add_page()
+    
+    # Add Logo
+    try:
+        if os.path.exists("Gemini_Generated_Image_.png"):
+            pdf.image("Gemini_Generated_Image_.png", x=10, y=10, w=50)
+    except Exception:
+        pass
+    
+    pdf.set_y(35)
+    pdf.set_font('Arial', 'B', 12)
+    pdf.cell(0, 6, "WICKBOLDT CAPITAL", ln=1)
+    pdf.set_font('Arial', '', 10)
+    pdf.cell(0, 5, "General Contractor & Real Estate Development", ln=1)
+    pdf.cell(0, 5, "Prairieville, Louisiana", ln=1)
+    pdf.ln(10)
+    
+    pdf.set_font('Arial', '', 11)
+    pdf.cell(0, 6, f"Date: {report_date}", ln=1)
+    pdf.ln(5)
+    
+    if letter_type == "Construction":
+        bank = st.session_state.get("const_bank_name", "Local Regional Bank")
+        contact = st.session_state.get("const_bank_contact", "Commercial Loan Officer")
+        subject = f"Funding Proposal: Construction Facility for {project_name if project_name else 'BTR Development'}"
+    else:
+        bank = st.session_state.get("refi_bank_name", "National DSCR Lender")
+        contact = st.session_state.get("refi_bank_contact", "Takeout Underwriter")
+        subject = f"Refinance Takeout: Permanent DSCR Loan for {project_name if project_name else 'BTR Portfolio'}"
+        
+    pdf.set_font('Arial', 'B', 11)
+    pdf.cell(0, 6, f"To: {contact}", ln=1)
+    pdf.cell(0, 6, f"Company: {bank}", ln=1)
+    pdf.ln(5)
+    
+    pdf.cell(0, 6, f"RE: {subject}", ln=1)
+    pdf.line(10, pdf.get_y(), 200, pdf.get_y())
+    pdf.ln(5)
+    
+    pdf.set_font('Arial', '', 11)
+    pdf.cell(0, 6, f"Dear {contact},", ln=1)
+    pdf.ln(3)
+    
+    if letter_type == "Construction":
+        body = (
+            f"Wickboldt Capital is pleased to present this funding proposal for the development of "
+            f"{project_name if project_name else 'our upcoming project'}, a {units}-unit Build-to-Rent (BTR) "
+            f"asset located at {project_address if project_address else 'the subject property'}.\n\n"
+            
+            f"We are requesting a construction loan facility of ${actual_const_loan:,.0f} to fund the vertical "
+            f"and horizontal development. The total estimated project capital basis is ${total_project_basis:,.0f}. "
+            f"As the sponsor, Wickboldt Capital is prepared to inject ${seed_capital:,.0f} in Day-1 equity to "
+            f"close the facility and fulfill all reserve requirements.\n\n"
+            
+            f"Upon completion of the {build_months}-month build cycle, the asset holds a projected As-Repaired "
+            f"Value (ARV) of ${total_arv:,.0f}. This represents a conservative Loan-to-Cost (LTC) ratio of "
+            f"{const_ltv*100:.1f}%.\n\n"
+            
+            f"Our exit strategy for this facility is to stabilize the property and execute a commercial DSCR "
+            f"takeout refinance, retaining the asset long-term within our portfolio.\n\n"
+            
+            f"Attached to this letter, please find our comprehensive algorithmic pro forma, granular direct "
+            f"cost breakdowns, and the S-Curve capital draw schedule for your underwriting review.\n\n"
+        )
+    else:
+        body = (
+            f"Wickboldt Capital is seeking permanent commercial financing to take out our existing construction "
+            f"facility on {project_name if project_name else 'our newly developed property'}, a stabilized "
+            f"{units}-unit Build-to-Rent (BTR) asset located at {project_address if project_address else 'the subject property'}.\n\n"
+            
+            f"We are requesting a commercial DSCR loan in the amount of ${loan_total:,.0f}. This represents an "
+            f"{refi_ltv*100:.1f}% Loan-to-Value (LTV) against the asset's projected ARV of ${total_arv:,.0f}.\n\n"
+            
+            f"The asset yields exceptional operating metrics, generating ${total_gross_monthly_income:,.0f} in gross "
+            f"monthly revenue and ${monthly_noi:,.0f} in monthly Net Operating Income (NOI). Based on a target "
+            f"interest rate of {net_refi_rate*100:.3f}% over a {refi_term_years}-year amortization, the property "
+            f"easily clears commercial underwriting with an actual DSCR of {actual_dscr:.2f}x. This robust performance "
+            f"produces ${monthly_cash_flow:,.0f} in net passive cash flow every month.\n\n"
+            
+            f"Attached to this letter, please find our stabilized operating pro forma, OpEx breakdown, and "
+            f"long-term portfolio wealth projections for your underwriting review.\n\n"
+        )
+        
+    clean_body = body.replace(r"\$", "$").encode('latin-1', 'replace').decode('latin-1')
+    pdf.multi_cell(0, 6, clean_body)
+    
+    pdf.ln(5)
+    pdf.cell(0, 6, "Thank you for your time and partnership.", ln=1)
+    pdf.ln(5)
+    pdf.cell(0, 6, "Sincerely,", ln=1)
+    pdf.ln(10)
+    pdf.set_font('Arial', 'B', 11)
+    pdf.cell(0, 6, "Stephen Wickboldt Jr.", ln=1)
+    pdf.set_font('Arial', '', 11)
+    pdf.cell(0, 6, "Principal, Wickboldt Capital", ln=1)
+    pdf.cell(0, 6, "Licensed General Contractor, Louisiana", ln=1)
+
+    with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as tmp:
+        pdf.output(tmp.name)
+        with open(tmp.name, "rb") as f:
+            return f.read()
+
+letter_col1, letter_col2 = st.columns(2)
+with letter_col1:
+    st.download_button(
+        label="📄 Download Construction Lender Proposal Letter",
+        data=create_lender_letter_pdf("Construction"),
+        file_name=f"Wickboldt_Capital_Const_Proposal_{report_date.replace(' ', '_').replace(',', '')}.pdf",
+        mime="application/pdf",
+        type="secondary",
+        use_container_width=True
+    )
+with letter_col2:
+    st.download_button(
+        label="📄 Download Refinance Takeout Letter",
+        data=create_lender_letter_pdf("Refinance"),
+        file_name=f"Wickboldt_Capital_Refi_Proposal_{report_date.replace(' ', '_').replace(',', '')}.pdf",
+        mime="application/pdf",
+        type="secondary",
+        use_container_width=True
+    )
+
+# ==========================================
+# --- 17. PRESENTATION DECK GENERATION ---
+# ==========================================
+st.markdown("### 📊 17. Export Presentation Deck (PPTX & PDF)")
 st.info("Automatically generates a 4-slide executive summary deck suitable for investor and commercial lender reviews.")
 
 def add_logo_to_slide(slide, left, top, width):
