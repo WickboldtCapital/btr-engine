@@ -1018,6 +1018,109 @@ st.success(y5_takeaway.replace("$", r"\$"))
 st.divider()
 
 # ==========================================
+# --- 16.6 POST-REFINANCE CASH FLOW SENSITIVITY ---
+# ==========================================
+st.markdown("### 16.6 Post-Refinance Cash Flow Sensitivity Analysis (Post-Year 5 Refi)")
+
+# --- Dynamic Post-Refi Variables ---
+y5_loan_per_door = y5_new_loan / y5_units
+y5_noi_total = y_noi[4]
+y5_noi_per_door_annual = y5_noi_total / y5_units
+y5_noi_per_door_monthly = y5_noi_per_door_annual / 12.0
+y5_gross_rent_door = y_rent[4]
+
+y5_sens_intro = (
+    f"Following the Year-5 cash-out refinance at {y5_refi_ltv*100:.0f}% LTV, the new total portfolio loan balance across the {y5_units} homes is "
+    f"**${y5_new_loan:,.0f}** (${y5_loan_per_door:,.0f} per door). This section evaluates the resulting annual and monthly cash flow per door "
+    f"across different permanent commercial interest rates, assuming Year-5 operating performance (Year-5 Gross Rent of **${y5_gross_rent_door:,.0f}/mo**, "
+    f"{vac_r*100:.0f}% vacancy, and {opex_r*100:.0f}% OpEx yielding a Year-5 NOI of **${y5_noi_total:,.0f}** total / **${y5_noi_per_door_annual:,.0f}** per door)."
+)
+st.info(y5_sens_intro.replace("$", r"\$"))
+
+y5_sens_data = []
+y5_rates_labels = []
+y5_cfs_plot = []
+y5_dscrs_plot = []
+y5_colors_plot = []
+
+# Generate symmetrical rate offsets around the baseline refi rate (-1.0%, -0.5%, Base, +0.5%, +1.0%)
+rate_offsets = [-0.01, -0.005, 0.0, 0.005, 0.01]
+
+for r_offset in rate_offsets:
+    test_rate = calc['net_refi_rate'] + r_offset
+    if test_rate <= 0: continue
+    
+    test_rate_mo = test_rate / 12.0
+    
+    # Calculate New P&I per door for Year 5 Loan
+    pi_mo_door = y5_loan_per_door * (test_rate_mo * (1 + test_rate_mo)**360) / ((1 + test_rate_mo)**360 - 1)
+    pi_ann_door = pi_mo_door * 12.0
+    
+    ncf_mo_door = y5_noi_per_door_monthly - pi_mo_door
+    dscr_val = y5_noi_per_door_annual / pi_ann_door
+    
+    # Formatting & Logic
+    lbl = f"{test_rate*100:.2f}% Interest Rate" + (" (Baseline)" if r_offset == 0.0 else "")
+    
+    dscr_str = f"{dscr_val:.2f}x"
+    if dscr_val < calc['target_dscr_rate']:
+        dscr_str += " (Requires Buydown)"
+        bar_color = '#d62728' # Red
+    elif ncf_mo_door < 0:
+        bar_color = '#d62728' # Red
+    elif dscr_val < calc['target_dscr_rate'] + 0.05:
+        bar_color = '#ff7f0e' # Orange
+    else:
+        bar_color = '#2ca02c' # Green
+        
+    y5_rates_labels.append(f"{test_rate*100:.2f}%")
+    y5_cfs_plot.append(ncf_mo_door)
+    y5_dscrs_plot.append(dscr_val)
+    y5_colors_plot.append(bar_color)
+
+    y5_sens_data.append({
+        "Interest Rate Scenario": lbl,
+        "New Loan Balance (Per Door)": f"${y5_loan_per_door:,.0f}",
+        "Annual P&I (Per Door)": f"-${pi_ann_door:,.0f}",
+        "Monthly P&I (Per Door)": f"-${pi_mo_door:,.0f}",
+        "Year-5 NOI (Per Door)": f"${y5_noi_per_door_annual:,.0f}",
+        "Net Monthly Cash Flow (Per Door)": f"+${ncf_mo_door:,.0f} / mo" if ncf_mo_door >= 0 else f"-${-ncf_mo_door:,.0f} / mo",
+        "Post-Refi DSCR": dscr_str
+    })
+
+# --- Dynamic Bar Chart ---
+fig_y5_sens = go.Figure(go.Bar(
+    x=y5_rates_labels, 
+    y=y5_cfs_plot,
+    marker_color=y5_colors_plot,
+    text=[f"CF: ${cf:,.0f}<br>{d:.2f}x DSCR" for cf, d in zip(y5_cfs_plot, y5_dscrs_plot)],
+    textposition='auto',
+))
+
+# Breakeven Line (Zero Cash Flow)
+fig_y5_sens.add_hline(
+    y=0, 
+    line_dash="solid", 
+    line_color="black", 
+    annotation_text="Breakeven", 
+    annotation_position="bottom right"
+)
+
+fig_y5_sens.update_layout(
+    title="Year-5 Post-Refinance Net Monthly Cash Flow (Per Door) vs. Interest Rates",
+    yaxis_title="Net Cash Flow per Door ($)",
+    xaxis_title="Future Takeout Interest Rate",
+    showlegend=False
+)
+st.plotly_chart(fig_y5_sens, use_container_width=True)
+
+# --- Data Table ---
+with st.expander("📊 View Post-Refinance Cash Flow Sensitivity Matrix", expanded=False):
+    st.dataframe(pd.DataFrame(y5_sens_data), hide_index=True, use_container_width=True)
+
+st.divider()
+
+# ==========================================
 # --- 17. EXPORT ENGINES ---
 # ==========================================
 st.markdown("### 🖨️ 17. Export Reports & Lender Proposals")
