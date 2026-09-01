@@ -34,7 +34,7 @@ HARDCODED_DRIVERS = {
     "target_dscr_rate": 1.20,
     "target_min_cashflow_per_door": 200.0,
     "vacancy_rate_pct": 5.0,
-    "opex_rate_pct": 20.0,
+    "opex_rate_pct": 25.0,
     "income_tax_rate_pct": 30.0,
     "appreciation_rate_pct": 3.0,
     
@@ -69,7 +69,7 @@ HARDCODED_DRIVERS = {
     "base_refi_rate_pct": 7.00,
     "refi_closing_fee": 5000,
     "apply_buydown": True,
-    "buydown_pts": 2.75,
+    "buydown_pts": 2.00,
     
     "gc_fee_mode": "Percentage of Hard Costs (%)",
     "gc_fee_pct": 7.0,
@@ -393,7 +393,7 @@ gross_monthly_rent = st.session_state.get("gross_monthly_rent", 1600)
 target_dscr_rate = st.session_state.get("target_dscr_rate", 1.20)
 target_min_cashflow_per_door = st.session_state.get("target_min_cashflow_per_door", 200.0)
 vacancy_rate = st.session_state.get("vacancy_rate_pct", 5.0) / 100.0
-opex_rate = st.session_state.get("opex_rate_pct", 20.0) / 100.0
+opex_rate = st.session_state.get("opex_rate_pct", 25.0) / 100.0
 income_tax_rate_pct = st.session_state.get("income_tax_rate_pct", 30.0) / 100.0
 appreciation_rate = st.session_state.get("appreciation_rate_pct", 3.0) / 100.0
 
@@ -429,7 +429,7 @@ refi_term_years = st.session_state.get("refi_term_years", 30)
 base_refi_rate = st.session_state.get("base_refi_rate_pct", 7.00) / 100.0
 refi_closing_fee = st.session_state.get("refi_closing_fee", 5000)
 apply_buydown = st.session_state.get("apply_buydown", True)
-buydown_pts = st.session_state.get("buydown_pts", 2.75)
+buydown_pts = st.session_state.get("buydown_pts", 2.00)
 net_refi_rate = max(0.01, base_refi_rate - (buydown_pts * 0.0025)) if apply_buydown else base_refi_rate
 
 gc_fee_mode = st.session_state.get("gc_fee_mode", "Percentage of Hard Costs (%)")
@@ -1486,7 +1486,7 @@ else:
     st.info(pdf_grm_info_text.replace("$", r"\$"))
     
     stress_test_data = {
-        "Bank Underwriting Step": [
+        "Bank Under underwriting Step": [
             "1. Gross Potential Rent (Bank Model)",
             "2. Bank Underwriting GRM",
             "3. Bank Implied Asset Value (Value of the House)",
@@ -1595,35 +1595,54 @@ st.divider()
 # ==========================================
 # --- 7. OPERATING PERFORMANCE & DSCR ---
 # ==========================================
-st.markdown("### 7. Operating Performance Summary")
+st.markdown("### 7. Operating Performance & DSCR Requirements")
+
+buydown_narrative = f", the permanent interest rate is bought down from **{base_refi_rate*100:.2f}%** to **{net_refi_rate*100:.2f}%**." if apply_buydown and buydown_pts > 0 else f" at a permanent interest rate of **{net_refi_rate*100:.2f}%**."
 
 operating_summary_text = (
-    f"**Stabilized Yield Analysis:**\n\n"
-    f"Upon stabilization, the {units}-unit portfolio is projected to generate **${total_gross_monthly_income:,.0f}** in gross monthly rent. "
+    f"**Commercial Underwriting:** Lenders typically require a minimum **{target_dscr_rate:.2f}x** Debt Service Coverage Ratio (DSCR) calculated strictly from Net Operating Income (NOI). "
+    f"To hit this ratio on the **${loan_total:,.0f}** permanent loan ({refi_ltv*100:.0f}% LTV){buydown_narrative}\n\n"
+    f"**Stabilized Yield Analysis:** Upon stabilization, the {units}-unit portfolio generates **${total_gross_monthly_income:,.0f}** in gross monthly rent. "
     f"After applying a **{vacancy_rate*100:.1f}%** vacancy allowance and a **{opex_rate*100:.1f}%** operating expense ratio, "
-    f"the property yields **${monthly_noi:,.0f}** in monthly Net Operating Income (NOI). "
-    f"Against a permanent debt service of **${total_monthly_pi:,.0f}** (modeled at **{net_refi_rate*100:.3f}%**), "
-    f"the asset operates at a **{actual_dscr:.2f}x DSCR**, producing **${monthly_cash_flow_per_door:,.0f}** "
-    f"in net passive cash flow per door every month."
+    f"the property yields **${monthly_noi:,.0f}** in monthly NOI. Against the debt service of **${total_monthly_pi:,.0f}**, "
+    f"the asset operates at a **{actual_dscr:.2f}x DSCR**, producing **${monthly_cash_flow_per_door:,.0f}** in net passive cash flow per door every month."
 )
 st.info(operating_summary_text.replace("$", r"\$"))
 
-# --- NEW OPERATING WATERFALL CHART ---
-monthly_opex = annual_opex / 12.0
+# Dynamic OpEx Breakdown Calculations
+mo_opex = annual_opex / 12.0
+tax_est = mo_opex * 0.375
+ins_est = mo_opex * 0.2875
+mgmt_est = mo_opex * 0.2375
+capex_est = mo_opex * 0.10
+
+st.markdown(f"**OpEx Breakdown (Estimated):** Taxes ~${tax_est:,.0f}/mo, Hazard/Wind Insurance ~${ins_est:,.0f}/mo, Mgmt ~${mgmt_est:,.0f}/mo, Turnover/CapEx ~${capex_est:,.0f}/mo.")
+
+# --- NEW DETAILED OPERATING WATERFALL CHART ---
 fig_op = go.Figure(go.Waterfall(
     name="Operating Cash Flow",
     orientation="v",
-    measure=["relative", "relative", "relative", "total", "relative", "total"],
-    x=["Gross Rent", "Vacancy Loss", "Operating Expenses", "NOI", "Debt Service (P&I)", "Net Cash Flow"],
+    measure=["relative", "relative", "relative", "relative", "relative", "relative", "total", "relative", "total"],
+    x=["Gross Rent", "Vacancy", "Taxes", "Insurance", "Mgmt", "CapEx", "NOI", "Debt Service", "Net Cash Flow"],
     textposition="outside",
-    text=[f"+${total_gross_monthly_income:,.0f}", f"-${monthly_vacancy_loss:,.0f}", f"-${monthly_opex:,.0f}", f"${monthly_noi:,.0f}", f"-${total_monthly_pi:,.0f}", f"${monthly_cash_flow:,.0f}"],
-    y=[total_gross_monthly_income, -monthly_vacancy_loss, -monthly_opex, monthly_noi, -total_monthly_pi, monthly_cash_flow],
+    text=[
+        f"+${total_gross_monthly_income:,.0f}", 
+        f"-${monthly_vacancy_loss:,.0f}", 
+        f"-${tax_est:,.0f}", 
+        f"-${ins_est:,.0f}", 
+        f"-${mgmt_est:,.0f}", 
+        f"-${capex_est:,.0f}", 
+        f"${monthly_noi:,.0f}", 
+        f"-${total_monthly_pi:,.0f}", 
+        f"${monthly_cash_flow:,.0f}"
+    ],
+    y=[total_gross_monthly_income, -monthly_vacancy_loss, -tax_est, -ins_est, -mgmt_est, -capex_est, monthly_noi, -total_monthly_pi, monthly_cash_flow],
     connector={"line": {"color": "rgb(63, 63, 63)"}},
     decreasing={"marker": {"color": "#d62728"}},
     increasing={"marker": {"color": "#2ca02c"}},
     totals={"marker": {"color": "#1f77b4"}}
 ))
-fig_op.update_layout(title="Monthly Operating Cash Flow Waterfall", showlegend=False, yaxis_title="Amount ($)")
+fig_op.update_layout(title="Monthly Operating Cash Flow & DSCR Waterfall", showlegend=False, yaxis_title="Amount ($)")
 st.plotly_chart(fig_op, use_container_width=True)
 
 
@@ -2571,11 +2590,16 @@ def create_pdf(detail_mode):
     # 7. OPERATING PERFORMANCE & DSCR
     pdf.set_font("Arial", 'B', 12)
     pdf.set_fill_color(220, 220, 220)
-    pdf.cell(0, 8, " 7. Operating Performance Summary", ln=1, fill=True)
+    pdf.cell(0, 8, " 7. Operating Performance & DSCR Requirements", ln=1, fill=True)
     pdf.set_font("Arial", '', 10)
     
     clean_op_summary = operating_summary_text.replace("**", "").encode('latin-1', 'replace').decode('latin-1')
     pdf.multi_cell(0, 6, clean_op_summary)
+    pdf.ln(3)
+
+    pdf.set_font("Arial", 'I', 9)
+    opex_breakdown_str = f"OpEx Breakdown (Estimated): Taxes ~${tax_est:,.0f}/mo, Insurance ~${ins_est:,.0f}/mo, Mgmt ~${mgmt_est:,.0f}/mo, CapEx ~${capex_est:,.0f}/mo."
+    pdf.multi_cell(0, 6, opex_breakdown_str)
     pdf.ln(3)
 
     pdf.set_font("Arial", 'B', 9)
