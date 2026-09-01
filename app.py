@@ -871,6 +871,153 @@ with st.expander("📊 View Projected Returns", expanded=False):
 st.divider()
 
 # ==========================================
+# --- 16.5 FIVE-YEAR PORTFOLIO PROJECTIONS & REFI ---
+# ==========================================
+st.markdown("### 16.5 Five-Year Portfolio Projections & 80% LTV Refinance Analysis")
+
+# --- Dynamic Year 5 Engine Variables ---
+y5_units = 6
+y5_rent_growth = 0.03  # Standard 3% escalation
+y5_refi_ltv = 0.80
+y5_closing_pct = 0.03  # 3% refi closing costs
+
+arv_u = calc['arv_per_unit']
+rent_u = calc['gross_monthly_rent']
+appr_r = calc['appreciation_rate']
+vac_r = calc['vacancy_rate']
+opex_r = calc['opex_rate']
+mo_pi_u = calc['monthly_pi_per_unit']
+r_mo = calc['net_refi_rate'] / 12.0
+
+initial_loan_u = calc['loan_total'] / calc['units']
+bal = initial_loan_u * y5_units
+total_ds_annual = mo_pi_u * 12 * y5_units
+
+y_arv, y_port, y_rent, y_gross, y_egi, y_opex, y_noi, y_ds, y_ncf, y_prin, y_bal = [], [], [], [], [], [], [], [], [], [], []
+cum_prin = 0
+
+# --- Calculate 5-Year Progression ---
+for y in range(1, 6):
+    # Appreciation & Value
+    curr_arv = arv_u * ((1 + appr_r) ** (y - 1))
+    port_val = curr_arv * y5_units
+    
+    # Income & Operations
+    curr_rent = rent_u * ((1 + y5_rent_growth) ** (y - 1))
+    ann_gross = curr_rent * 12 * y5_units
+    egi = ann_gross * (1 - vac_r)
+    opex = egi * opex_r
+    noi = egi - opex
+    ncf = noi - total_ds_annual
+    
+    # Exact Amortization Paydown Loop (12 months)
+    yr_prin = 0
+    for _ in range(12):
+        if r_mo > 0:
+            interest = bal * r_mo
+            prin = (mo_pi_u * y5_units) - interest
+        else:
+            prin = (mo_pi_u * y5_units)
+        yr_prin += prin
+        bal -= prin
+        
+    cum_prin += yr_prin
+    
+    y_arv.append(curr_arv)
+    y_port.append(port_val)
+    y_rent.append(curr_rent)
+    y_gross.append(ann_gross)
+    y_egi.append(egi)
+    y_opex.append(-opex)
+    y_noi.append(noi)
+    y_ds.append(-total_ds_annual)
+    y_ncf.append(ncf)
+    y_prin.append(cum_prin)
+    y_bal.append(bal)
+
+# --- Year 5 Refinance Execution ---
+y5_new_loan = y_port[4] * y5_refi_ltv
+y5_closing_costs = y5_new_loan * y5_closing_pct
+y5_payoff = y_bal[4]
+y5_net_cash_out = y5_new_loan - y5_payoff - y5_closing_costs
+
+# Calculate new DSCR on the newly minted debt to verify solvency
+if r_mo > 0:
+    y5_new_mo_pi = (y5_new_loan) * (r_mo * (1 + r_mo)**360) / ((1 + r_mo)**360 - 1)
+else:
+    y5_new_mo_pi = y5_new_loan / 360
+y5_new_dscr = y_noi[4] / (y5_new_mo_pi * 12) if y5_new_mo_pi > 0 else 0
+
+# --- UI Rendering ---
+y5_intro = (
+    f"This section projects the 5-year financial performance of the **{y5_units}-house** annual portfolio. It incorporates compounding "
+    f"**{y5_rent_growth*100:.1f}%** annual rent growth, **{appr_r*100:.1f}%** annual appreciation (starting from ${arv_u:,.0f} ARV), "
+    f"standard debt amortization, a Year-5 cash-out refinance at an **{y5_refi_ltv*100:.0f}% LTV**, and deducts estimated refinance "
+    f"closing costs of {y5_closing_pct*100:.1f}% of the new loan amount."
+)
+st.info(y5_intro.replace("$", r"\$"))
+
+# --- Dynamic Waterfall Chart ---
+fig_y5_refi = go.Figure(go.Waterfall(
+    name="Year 5 Refinance",
+    orientation="v",
+    measure=["relative", "relative", "relative", "total"],
+    x=[f"{y5_refi_ltv*100:.0f}% LTV New Loan", "Payoff Existing Debt", "Closing Costs (3%)", "Net Tax-Free Liquidity"],
+    textposition="outside",
+    text=[f"+${y5_new_loan:,.0f}", f"-${y5_payoff:,.0f}", f"-${y5_closing_costs:,.0f}", f"${y5_net_cash_out:,.0f}"],
+    y=[y5_new_loan, -y5_payoff, -y5_closing_costs, y5_net_cash_out],
+    connector={"line": {"color": "rgb(63, 63, 63)"}},
+    decreasing={"marker": {"color": "#d62728"}},
+    increasing={"marker": {"color": "#1f77b4"}},
+    totals={"marker": {"color": "#2ca02c"}}
+))
+fig_y5_refi.update_layout(
+    title=f"Year-5 Portfolio Refinance Event Execution ({y5_units} Doors)", 
+    showlegend=False, 
+    yaxis_title="Amount ($)",
+    margin=dict(t=40, b=20, l=20, r=20)
+)
+st.plotly_chart(fig_y5_refi, use_container_width=True)
+
+# --- Data Table ---
+y5_data = {
+    "Portfolio Projection Metric": [
+        f"Average Property Value (ARV @ {appr_r*100:.1f}% Appr.)",
+        f"Total Portfolio Value ({y5_units} Doors)",
+        f"Average Monthly Gross Rent ({y5_rent_growth*100:.1f}% Esc.)",
+        f"Total Annual Gross Revenue ({y5_units} Doors)",
+        f"Effective Gross Income (Less {vac_r*100:.1f}% Vacancy)",
+        f"Operating Expenses ({opex_r*100:.1f}% OpEx)",
+        "Portfolio Net Operating Income (NOI)",
+        f"Total Annual Debt Service",
+        "Total Annual Net Cash Flow (Portfolio)",
+        f"Cumulative Principal Paydown",
+        "Ending Total Loan Balance (Remaining Prin.)",
+        f"Year-5 {y5_refi_ltv*100:.0f}% LTV Refi Gross Proceeds",
+        f"(-) Estimated Refi Closing Costs ({y5_closing_pct*100:.1f}%)",
+        f"Year-5 Net Tax-Free Cash-Out Proceeds"
+    ],
+    "Year 1": [f"${y_arv[0]:,.0f}", f"${y_port[0]:,.0f}", f"${y_rent[0]:,.0f}", f"${y_gross[0]:,.0f}", f"${y_egi[0]:,.0f}", f"${y_opex[0]:,.0f}", f"${y_noi[0]:,.0f}", f"${y_ds[0]:,.0f}", f"${y_ncf[0]:,.0f}", f"${y_prin[0]:,.0f}", f"${y_bal[0]:,.0f}", "-", "-", "-"],
+    "Year 2": [f"${y_arv[1]:,.0f}", f"${y_port[1]:,.0f}", f"${y_rent[1]:,.0f}", f"${y_gross[1]:,.0f}", f"${y_egi[1]:,.0f}", f"${y_opex[1]:,.0f}", f"${y_noi[1]:,.0f}", f"${y_ds[1]:,.0f}", f"${y_ncf[1]:,.0f}", f"${y_prin[1]:,.0f}", f"${y_bal[1]:,.0f}", "-", "-", "-"],
+    "Year 3": [f"${y_arv[2]:,.0f}", f"${y_port[2]:,.0f}", f"${y_rent[2]:,.0f}", f"${y_gross[2]:,.0f}", f"${y_egi[2]:,.0f}", f"${y_opex[2]:,.0f}", f"${y_noi[2]:,.0f}", f"${y_ds[2]:,.0f}", f"${y_ncf[2]:,.0f}", f"${y_prin[2]:,.0f}", f"${y_bal[2]:,.0f}", "-", "-", "-"],
+    "Year 4": [f"${y_arv[3]:,.0f}", f"${y_port[3]:,.0f}", f"${y_rent[3]:,.0f}", f"${y_gross[3]:,.0f}", f"${y_egi[3]:,.0f}", f"${y_opex[3]:,.0f}", f"${y_noi[3]:,.0f}", f"${y_ds[3]:,.0f}", f"${y_ncf[3]:,.0f}", f"${y_prin[3]:,.0f}", f"${y_bal[3]:,.0f}", "-", "-", "-"],
+    "Year 5": [f"${y_arv[4]:,.0f}", f"${y_port[4]:,.0f}", f"${y_rent[4]:,.0f}", f"${y_gross[4]:,.0f}", f"${y_egi[4]:,.0f}", f"${y_opex[4]:,.0f}", f"${y_noi[4]:,.0f}", f"${y_ds[4]:,.0f}", f"${y_ncf[4]:,.0f}", f"${y_prin[4]:,.0f}", f"${y_bal[4]:,.0f}", f"${y5_new_loan:,.0f}", f"-${y5_closing_costs:,.0f}", f"+${y5_net_cash_out:,.0f}"]
+}
+
+with st.expander(f"📈 View {y5_units}-House 5-Year Portfolio Progression Matrix", expanded=True):
+    st.dataframe(pd.DataFrame(y5_data), hide_index=True, use_container_width=True)
+
+y5_takeaway = (
+    f"**5-Year Projections & Net {y5_refi_ltv*100:.0f}% LTV Refinance Takeaway**\n\n"
+    f"Over a 5-year hold, compounding {y5_rent_growth*100:.0f}% annual rent growth expands annual portfolio net cash flow from **${y_ncf[0]:,.0f}** to **${y_ncf[4]:,.0f}/year** "
+    f"while standard amortization pays down **${y_prin[4]:,.0f} in principal**. By Year 5, portfolio value reaches **${y_port[4]:,.0f}**. "
+    f"Executing an {y5_refi_ltv*100:.0f}% LTV cash-out refinance (${y5_new_loan:,.0f} gross proceeds minus ${y5_payoff:,.0f} payoff balance and ${y5_closing_costs:,.0f} in estimated closing costs) "
+    f"unlocks a net **${y5_net_cash_out:,.0f} in tax-free liquidity** for the developer while maintaining a highly secure **{y5_new_dscr:.2f}x DSCR** on the newly minted commercial debt."
+)
+st.success(y5_takeaway.replace("$", r"\$"))
+st.divider()
+
+# ==========================================
 # --- 17. EXPORT ENGINES ---
 # ==========================================
 st.markdown("### 🖨️ 17. Export Reports & Lender Proposals")
