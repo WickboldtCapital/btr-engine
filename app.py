@@ -11,6 +11,7 @@ import os
 import json
 import math
 from datetime import datetime
+from config import HARDCODED_DRIVERS, NAHB_HEATED_DIVS, NAHB_STRUCT_DIVS, STRESS_SCENARIOS
 
 # Page Configuration
 st.set_page_config(page_title="Wickboldt Capital | Algorithmic Cost & Yield Optimization Engine", layout="wide")
@@ -1305,68 +1306,12 @@ hc_chart_placeholder = st.empty()
 with st.expander("🔨 View Granular Trade Buildup & Master Roll-up", expanded=False):
     granular_mode = st.radio("Buildup Entry Mode", ["Auto-Proportional (Linked to Master Model)", "Manual Custom Entry (Bottom-Up)"], horizontal=True)
 
-    # Exact NAHB 8 Stages & 36 Components Mapping
-    raw_heated_divs = [
-        ("I. SITE WORK", 7.6, True),
-        ("- Building Permit Fees", 1.8, False),
-        ("- Impact Fee", 1.5, False),
-        ("- Water & Sewer Fees / Inspections", 1.5, False),
-        ("- Architecture & Engineering", 1.5, False),
-        ("- Site Work - Other", 1.3, False),
-
-        ("II. FOUNDATIONS", 10.5, True),
-        ("- Excavation, Foundation, Concrete, Backfill", 10.0, False),
-        ("- Foundations - Other", 0.5, False),
-
-        ("III. FRAMING", 16.6, True),
-        ("- Framing (including roof)", 11.6, False),
-        ("- Trusses", 3.0, False),
-        ("- Sheathing", 1.5, False),
-        ("- General Metal, Steel", 0.4, False),
-        ("- Framing - Other", 0.1, False),
-
-        ("IV. EXTERIOR FINISHES", 13.4, True),
-        ("- Exterior Wall Finish", 5.7, False),
-        ("- Roofing", 3.9, False),
-        ("- Windows and Doors (incl. garage door)", 3.7, False),
-        ("- Exterior Finishes - Other", 0.1, False),
-
-        ("V. MAJOR SYSTEMS ROUGH-INS", 19.2, True),
-        ("- Plumbing (except fixtures)", 6.3, False),
-        ("- Electrical (except fixtures)", 6.4, False),
-        ("- HVAC", 6.3, False),
-        ("- Major Systems - Other", 0.2, False),
-
-        ("VI. INTERIOR FINISHES", 24.1, True),
-        ("- Insulation", 1.6, False),
-        ("- Drywall", 3.3, False),
-        ("- Interior Trims, Doors, and Mirrors", 3.0, False),
-        ("- Painting", 2.6, False),
-        ("- Lighting", 1.3, False),
-        ("- Cabinets, Countertops", 4.4, False),
-        ("- Appliances", 1.7, False),
-        ("- Flooring", 3.6, False),
-        ("- Plumbing Fixtures", 1.8, False),
-        ("- Fireplace", 0.6, False),
-        ("- Interior Finishes - Other", 0.2, False),
-
-        ("VII. FINAL STEPS", 6.5, True),
-        ("- Landscaping", 2.2, False),
-        ("- Outdoor Structures (deck, patio, porches)", 1.1, False),
-        ("- Driveway", 2.3, False),
-        ("- Clean Up", 0.9, False),
-
-        ("VIII. OTHER", 2.1, True),
-        ("- Miscellaneous / Other", 2.1, False),
-    ]
-
-    raw_struct_divs = [("AUXILIARY: CARPORT / GARAGE", 35.00, True)]
     pdf_granular_data = []
 
     if granular_mode == "Auto-Proportional (Linked to Master Model)":
         st.markdown(f"#### 4.1 Heated Living Area ({sqft} SF @ ${direct_cost_sf:.2f} / SF)".replace("$", r"\$"))
         h_data = {"Division / Trade Level": [], "Live Cost / SF": [], "Per Unit Cost": []}
-        for name, base_val, is_header in raw_heated_divs:
+        for name, base_val, is_header in NAHB_HEATED_DIVS:
             live_sf = direct_cost_sf * (base_val / 100.0)
             if is_header:
                 h_data["Division / Trade Level"].append(f"{name}")
@@ -1382,7 +1327,7 @@ with st.expander("🔨 View Granular Trade Buildup & Master Roll-up", expanded=F
         
         st.markdown(f"#### 4.2 {st.session_state.structure_type} Auxiliary ({struct_sqft} SF @ ${struct_cost_sf:.2f} / SF)".replace("$", r"\$"))
         s_data = {"Component Level": [], "Live Cost / SF": [], "Per Unit Cost": []}
-        for name, base_val, is_header in raw_struct_divs:
+        for name, base_val, is_header in NAHB_STRUCT_DIVS:
             live_sf = struct_cost_sf * (base_val / 35.0)
             s_data["Component Level"].append(name)
             s_data["Live Cost / SF"].append(f"${live_sf:.2f}")
@@ -1392,7 +1337,7 @@ with st.expander("🔨 View Granular Trade Buildup & Master Roll-up", expanded=F
         st.markdown(f"#### 4.1 Heated Living Area ({sqft} SF)")
         hl_heated = []
         current_header = ""
-        for name, base, is_h in raw_heated_divs:
+        for name, base, is_h in NAHB_HEATED_DIVS:
             if is_h:
                 current_header = name
             else:
@@ -1414,7 +1359,7 @@ with st.expander("🔨 View Granular Trade Buildup & Master Roll-up", expanded=F
                 pdf_granular_data.append((f"   - {row['Division / Component']}", live_sf, live_sf * sqft, live_sf * sqft * units, False))
         
         st.markdown(f"#### 4.2 {st.session_state.structure_type} Auxiliary ({struct_sqft} SF)")
-        hl_struct = [{"Component Level": name, "Cost / SF": struct_cost_sf * (base/35.0)} for name, base, is_h in raw_struct_divs]
+        hl_struct = [{"Component Level": name, "Cost / SF": struct_cost_sf * (base/35.0)} for name, base, is_h in NAHB_STRUCT_DIVS]
         edited_s = st.data_editor(pd.DataFrame(hl_struct), column_config={"Component Level": st.column_config.TextColumn(disabled=True), "Cost / SF": st.column_config.NumberColumn(format="$%.2f", min_value=0.0, step=0.5)}, hide_index=True, use_container_width=True)
         struct_cost_sf = edited_s["Cost / SF"].sum()
 
