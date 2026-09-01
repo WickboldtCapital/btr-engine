@@ -2025,6 +2025,41 @@ if cost_calc_mode in ["Reverse-Engineer from Appraisal", "Reverse-Engineer from 
     )
     st.info(rev_eng_summary.replace("$", r"\$"))
     
+    # --- NEW REVERSE ENGINEERING WATERFALL CHART ---
+    lot_val = reference_price * lot_cost_pct
+    profit_val = reference_price * profit_margin_pct
+    overhead_val = reference_price * overhead_pct
+    sales_val = reference_price * sales_pct
+    finance_val = reference_price * finance_pct
+    
+    fig_rev = go.Figure(go.Waterfall(
+        name="Reverse Engineering",
+        orientation="v",
+        measure=["relative", "relative", "relative", "relative", "relative", "relative", "total", "relative", "total", "relative", "total"],
+        x=["Target ARV", "Lot Cost", "Profit", "Overhead", "Sales", "Finance", "Const. Budget", "Indirects", "Hard Costs", "Aux/Elev", "Shell Budget"],
+        textposition="outside",
+        text=[
+            f"+${reference_price:,.0f}", 
+            f"-${lot_val:,.0f}", 
+            f"-${profit_val:,.0f}", 
+            f"-${overhead_val:,.0f}", 
+            f"-${sales_val:,.0f}", 
+            f"-${finance_val:,.0f}", 
+            f"${total_construction_budget:,.0f}", 
+            f"-${total_indirect_costs:,.0f}", 
+            f"${target_direct_hard_cost:,.0f}", 
+            f"-${our_aux_cost_total:,.0f}", 
+            f"${target_heated_hard_cost:,.0f}"
+        ],
+        y=[reference_price, -lot_val, -profit_val, -overhead_val, -sales_val, -finance_val, 0, -total_indirect_costs, 0, -our_aux_cost_total, 0],
+        connector={"line": {"color": "rgb(63, 63, 63)"}},
+        decreasing={"marker": {"color": "#d62728"}},
+        increasing={"marker": {"color": "#1f77b4"}},
+        totals={"marker": {"color": "#2ca02c"}}
+    ))
+    fig_rev.update_layout(title="Reverse-Engineered Target Budget Waterfall", showlegend=False, yaxis_title="Amount ($)")
+    st.plotly_chart(fig_rev, use_container_width=True)
+    
     with st.expander("⚙️ View Reverse-Engineering Budget Breakdown", expanded=False):
         breakdown_data = {
             "Cost Category": [
