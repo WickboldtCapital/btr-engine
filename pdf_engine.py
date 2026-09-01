@@ -478,7 +478,9 @@ def create_pdf(detail_mode, ui, calc, texts, tables):
     for i in range(len(strategy_data["Financial Metric"])):
         metric = str(strategy_data["Financial Metric"][i])
         retail = str(strategy_data["National Builder (Retail Sell)"][i])
-        btr = str(strategy_data["Build-to-Rent (Commercial DSCR Takeout)"][i])
+        
+        # CORRECTED DICTIONARY KEY MATCH
+        btr = str(strategy_data["Build-to-Rent (DSCR Takeout)"][i])
         
         if "(~8% Realtor & concessions)" in retail:
             retail = retail.replace("(~8% Realtor & concessions)", "(8% Fees)")
