@@ -75,7 +75,7 @@ with st.sidebar.container():
 
     st.markdown("##### 2.1 Primary Comp Metrics")
     is_rentcast = st.session_state.comp_entry_mode == "RentCast Live API Fetch"
-    st.text_input("Comparable Property Address", key="comp_address", disabled=is_rentcast)
+    st.text_input("Comparable Property Address", value="435 Pine St, Independence, LA 70443", key="comp_address", disabled=is_rentcast)
     st.number_input("Comp Sale Price ($)", min_value=0, step=1000, key="comp_price", disabled=is_rentcast)
     st.number_input("Comp Heated SF", min_value=0, step=50, key="comp_heated_sf", disabled=is_rentcast)
 
@@ -211,10 +211,10 @@ with st.sidebar.container():
             except Exception as e:
                 st.error(f"Connection error: {e}")
                     
-    current_prime = st.session_state.get("base_prime_rate", 7.50)
+    current_prime = st.session_state.get("base_prime_rate", 6.75)
     
     if st.session_state.prime_rate_mode == "Manual Entry":
-        current_prime = st.number_input("Manual Prime Rate (%)", min_value=1.0, max_value=15.0, step=0.25, value=st.session_state.get("base_prime_rate", 7.50), key="base_prime_rate")
+        current_prime = st.number_input("Manual Prime Rate (%)", min_value=1.0, max_value=15.0, step=0.25, value=st.session_state.get("base_prime_rate", 6.75), key="base_prime_rate")
 
     st.markdown("##### Bank Lending Margin & Discounts")
     bank_margin = st.number_input("Bank Lending Margin (Prime + %)", min_value=0.0, max_value=10.0, step=0.25, value=1.00, key="bank_margin_pct", help="The spread your bank charges above the Prime Rate.")
@@ -270,7 +270,6 @@ with st.sidebar.container():
 with st.sidebar.container():
     st.subheader("9. True Operating Pro Forma")
     
-    # 1. SWAPPED ORDER AND STEP ADJUSTMENT
     st.number_input("Min. Acceptable Cash Flow / Door ($)", min_value=0.0, max_value=1000.0, step=25.0, key="target_min_cashflow_per_door")
     st.number_input("Gross Monthly Rental Income per Unit ($)", min_value=0, step=25, format="%d", key="gross_monthly_rent")
     
@@ -338,7 +337,6 @@ with st.sidebar.container():
     ], key="appraisal_mode")
     
     if st.session_state.appraisal_mode in ["Income Approach (GRM)", "Conservative (Lesser of GRM or DSCR)"]:
-        # 2. SET GLOBAL GRM DEFAULT TO 10.0
         st.number_input("Gross Rent Multiplier (GRM)", min_value=4.0, max_value=25.0, step=0.1, value=10.0, key="target_grm")
         
     if st.session_state.appraisal_mode == "Income Approach (DSCR Loan Sizing)":
@@ -349,7 +347,6 @@ with st.sidebar.container():
     st.divider()
     st.markdown("##### Secondary ARV Constraints")
     
-    # 3. SET REVERSE-ENGINEER TO LOAD AS DEFAULT (First in the list)
     arv_constraint = st.radio("Override Target ARV?", [
         "Reverse-Engineer Max ARV from Min. Cash Flow",
         "No Override (Use Valuation Mode Above)",
@@ -363,10 +360,7 @@ with st.sidebar.container():
     st.subheader("11. Takeout Refinance & Optimization Terms")
     
     st.selectbox("Refinance LTV Tier (%)", [80.0, 75.0, 70.0], key="refi_ltv_pct")
-    
-    # 4. FULLY AMORTIZING SET AS DEFAULT / FIRST CHOICE
     st.selectbox("Amortization Structure", ["Fully Amortizing (30-Yr)", "Interest-Only (10-Yr IO Rider)"], key="amortization_type")
-    
     st.number_input("Bank Target DSCR Rate", min_value=1.0, max_value=1.5, step=0.05, key="target_dscr_rate")
     st.selectbox("Amortization Term (Years)", [15, 20, 25, 30], key="refi_term_years")
     
@@ -404,10 +398,34 @@ with st.sidebar.container():
     else:
         current_refi_index = st.number_input("Manual Index Rate (%)", min_value=1.0, max_value=15.0, step=0.25, value=st.session_state.get("refi_index_rate", 7.50), key="refi_index_rate")
 
-    st.markdown("##### Bank Lending Margin & Discounts")
+    # --- BANK LENDING MARGIN & RISK PROFILE ---
+    st.markdown("##### Bank Lending Margin & Risk Profile")
+    st.number_input("Borrower FICO Score", min_value=300, max_value=850, step=10, value=750, key="borrower_fico")
     
-    # 5. REFI LENDING SPREAD GLOBAL VALUE SET TO 0.50
-    refi_margin = st.number_input("Refi Lending Spread (+ %)", min_value=0.0, max_value=10.0, step=0.25, value=0.50, key="refi_margin_pct", help="The margin your bank charges above the Index Rate.")
+    margin_mode = st.radio("Refi Lending Spread Mode", ["Estimated Risk-Based Margin", "Manual Entry"], key="refi_margin_mode")
+    
+    # Calculate target tier logic behind the scenes
+    fico = st.session_state.get("borrower_fico", 750)
+    ltv = st.session_state.get("refi_ltv_pct", 80.0)
+    dscr_check = st.session_state.get("target_dscr_rate", 1.25)
+    
+    # Tier assessment logic (worst constraint assigns the tier)
+    if fico < 680 or ltv > 75.0 or dscr_check < 1.15:
+        derived_tier = 3
+        derived_margin = 4.00 # Prime + 4.00%
+    elif fico >= 740 and ltv <= 70.0 and dscr_check >= 1.30:
+        derived_tier = 1
+        derived_margin = 1.25 # Prime + 1.25%
+    else:
+        derived_tier = 2
+        derived_margin = 2.125 # Prime + 2.125%
+        
+    if margin_mode == "Estimated Risk-Based Margin":
+        st.info(f"**Tier {derived_tier} Pricing Activated:** `+{derived_margin:.3f}%` Margin")
+        refi_margin = derived_margin
+    else:
+        refi_margin = st.number_input("Manual Refi Lending Spread (+ %)", min_value=0.0, max_value=10.0, step=0.125, value=0.50, key="refi_margin_pct", help="The margin your bank charges above the Index Rate.")
+    # ------------------------------------------
 
     raw_refi_rate = current_refi_index + refi_margin
     current_refi_ltv = st.session_state.get("refi_ltv_pct", 80.0)
@@ -424,7 +442,6 @@ with st.sidebar.container():
     
     st.markdown("##### Lender Points & Closing Bundle")
     
-    # 6. LENDER DISCOUNT POINTS GLOBAL VALUE SET TO 3.0
     st.number_input(
         "Lender Discount Points (%)", 
         min_value=0.0, 
@@ -768,7 +785,7 @@ if calc['const_bank_val_mode'] == "DSCR Stress Test":
         "Value": [f"${calc['cb_gross_annual_rent']:,.0f} / yr", f"-${calc['cb_gross_annual_rent'] - calc['cb_noi']:,.0f} / yr", f"${calc['cb_noi']:,.0f} / yr", f"{calc['const_bank_dscr']:.2f}x", f"${calc['bank_stressed_value']:,.0f}", f"${calc['actual_const_loan']:,.0f}", f"${calc['total_construction_basis']:,.0f}", f"${calc['seed_capital']:,.0f}"]
     }
 else:
-    st.info(f"**Construction Loan Underwriting:** The bank determines implied asset value on a **{calc['const_bank_grm']:.1f}x Gross Rent Multiplier** (yielding **${calc['bank_stressed_value']:,.0f}**). Loan cap: **${calc['actual_const_loan']:,.0f}**.".replace("$", r"\$"))
+    st.info(f"**Construction Loan Under underwriting:** The bank determines implied asset value on a **{calc['const_bank_grm']:.1f}x Gross Rent Multiplier** (yielding **${calc['bank_stressed_value']:,.0f}**). Loan cap: **${calc['actual_const_loan']:,.0f}**.".replace("$", r"\$"))
     stress_test_data = {
         "Bank Underwriting Step": ["1. Gross Potential Rent (Bank Model)", "2. Bank Underwriting GRM", "3. Bank Implied Asset Value", f"4. Const. Lender Loan Value ({calc['const_ltv']*100:.1f}% Bank LTC)", "5. Total Capitalized Construction Basis", "6. Required Seed Capital Reserve"],
         "Value": [f"${calc['cb_gross_annual_rent']:,.0f} / yr", f"{calc['const_bank_grm']:.1f}x", f"${calc['bank_stressed_value']:,.0f}", f"${calc['actual_const_loan']:,.0f}", f"${calc['total_construction_basis']:,.0f}", f"${calc['seed_capital']:,.0f}"]
@@ -1077,6 +1094,53 @@ st.plotly_chart(fig_scurve, use_container_width=True)
 
 with st.expander("View S-Curve Schedule Table", expanded=False):
     st.dataframe(calc['df_schedule'].style.format({"Monthly Draw ($)": "${:,.0f}", "Capitalized Interest ($)": "${:,.0f}", "Total Drawn Balance ($)": "${:,.0f}"}), hide_index=True, use_container_width=True)
+st.divider()
+
+# ==========================================
+# --- 11.2 COMMERCIAL TAKEOUT RISK PROFILE ---
+# ==========================================
+st.markdown("### 11.2 Commercial Takeout Risk Profile & Pricing Margin")
+
+risk_intro = (
+    "Commercial DSCR loan pricing is highly sensitive to the borrower's risk profile. "
+    "Lenders determine the base margin (spread over the index rate) using a matrix driven primarily by "
+    "**FICO Score**, **Loan-to-Value (LTV)**, and the calculated **Debt Service Coverage Ratio (DSCR)**."
+)
+st.info(risk_intro)
+
+risk_df = pd.DataFrame({
+    "Risk Profile Characteristics": [
+        "Tier 1 (Prime Pricing)", 
+        "Tier 2 (Standard Pricing)", 
+        "Tier 3 (High-Risk Pricing)"
+    ],
+    "DSCR Requirement": ["≥ 1.30x", "1.15x – 1.29x", "< 1.15x"],
+    "FICO Requirement": ["≥ 740", "680 – 739", "< 680"],
+    "Max LTV Limit": ["≤ 70%", "75%", "80%"],
+    "Estimated Margin Spread": [
+        "Prime + 1.00% to 1.50%", 
+        "Prime + 1.75% to 2.50%", 
+        "Prime + 3.00% to 5.00%"
+    ]
+})
+
+st.dataframe(risk_df, hide_index=True, use_container_width=True)
+
+col_r1, col_r2 = st.columns(2)
+
+with col_r1:
+    st.markdown("#### 🎯 Active Risk Assessment")
+    st.markdown(f"- **Borrower FICO:** `{st.session_state.get('borrower_fico', 750)}`")
+    st.markdown(f"- **Refinance LTV:** `{st.session_state.get('refi_ltv_pct', 80.0)}%`")
+    st.markdown(f"- **Underwritten DSCR:** `{calc['actual_dscr']:.2f}x`")
+
+with col_r2:
+    st.markdown("#### 🏦 Applied Pricing Tier")
+    st.markdown(f"Based on the worst-case constraining metric, the engine has automatically categorized this transaction as **Tier {derived_tier}**.")
+    st.markdown(f"- **Applied Target Margin:** `+{derived_margin:.3f}%`")
+    st.markdown(f"- **Index Rate:** `{calc.get('refi_index_rate', current_refi_index):.2f}%`")
+    st.markdown(f"- **Gross Base Rate:** `{calc.get('refi_index_rate', current_refi_index) + derived_margin:.3f}%`")
+
 st.divider()
 
 # ==========================================
