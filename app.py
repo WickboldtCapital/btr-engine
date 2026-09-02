@@ -648,33 +648,78 @@ with st.expander("💰 View Capital Ledgers & Transaction Scope", expanded=False
 st.divider()
 
 # ==========================================
-# --- 7. OPERATING PERFORMANCE & DSCR ---
+# --- 7. BANK DSCR UNDERWRITING & TRUE CASH FLOW ---
 # ==========================================
-st.markdown("### 7. Operating Performance & DSCR Requirements")
+st.markdown("### 7. Bank DSCR Underwriting & True Operating Cash Flow")
+
+# Re-calculate Bank PITIA for UI display
+u_rent = st.session_state.get('gross_monthly_rent', 0) * calc['units']
+u_tax = st.session_state.get('opex_taxes_mo', 0) * calc['units']
+u_ins = st.session_state.get('opex_ins_mo', 0) * calc['units']
+u_flood = st.session_state.get('opex_flood_mo', 0) * calc['units']
+u_hoa = st.session_state.get('opex_misc_mo', 0) * calc['units']
+
+bank_tia_mo = u_tax + u_ins + u_flood + u_hoa
+total_pitia_mo = calc['total_monthly_pi'] + bank_tia_mo
+
 operating_summary_text = (
-    f"Stabilized portfolio generates **${calc['total_gross_monthly_income']:,.0f}** gross rent. "
-    f"Yields **${calc['monthly_noi']:,.0f}** in monthly NOI. "
-    f"At a permanent debt service of **${calc['total_monthly_pi']:,.0f}**, the asset operates at a **{calc['actual_dscr']:.2f}x DSCR**, "
-    f"producing **${calc['monthly_cash_flow_per_door']:,.0f}** in net cash flow per door every month."
+    f"**1. Bank Underwriting (PITIA Method):** The lender sizes the commercial loan by dividing the Gross Rent (**${u_rent:,.0f}**) by the PITIA payment "
+    f"(P&I + Taxes + Ins + HOA = **${total_pitia_mo:,.0f}**), yielding a **{calc['actual_dscr']:.2f}x DSCR**.\n\n"
+    f"**2. True Pro Forma Cash Flow:** After satisfying the bank's PITIA, we account for actual market Vacancy (**${calc['monthly_vacancy_loss']:,.0f}**), "
+    f"Management Fees (**${calc['monthly_mgmt_fee']:,.0f}**), and Maintenance/Lawn Care. The asset produces a true net operating cash flow of "
+    f"**${calc['monthly_cash_flow_per_door']:,.0f} / door / month**."
 )
 st.info(operating_summary_text.replace("$", r"\$"))
 
-op_x = ["Gross Rent", "Vacancy", "Mgmt", "Taxes", "Insurance", "NOI", "Debt Service", "Net Cash Flow"]
-op_measure = ["relative", "relative", "relative", "relative", "relative", "total", "relative", "total"]
-op_text = [f"+${calc['total_gross_monthly_income']:,.0f}", f"-${calc['monthly_vacancy_loss']:,.0f}", f"-${calc['mgmt_est']:,.0f}", f"-${calc['tax_est']:,.0f}", f"-${calc['ins_est']:,.0f}", f"${calc['monthly_noi']:,.0f}", f"-${calc['total_monthly_pi']:,.0f}", f"${calc['monthly_cash_flow']:,.0f}"]
-op_y = [calc['total_gross_monthly_income'], -calc['monthly_vacancy_loss'], -calc['mgmt_est'], -calc['tax_est'], -calc['ins_est'], calc['monthly_noi'], -calc['total_monthly_pi'], calc['monthly_cash_flow']]
-
-fig_op = go.Figure(go.Waterfall(orientation="v", measure=op_measure, x=op_x, textposition="outside", text=op_text, y=op_y, decreasing={"marker": {"color": "#d62728"}}, increasing={"marker": {"color": "#2ca02c"}}, totals={"marker": {"color": "#1f77b4"}}))
-fig_op.update_layout(title="Monthly Operating Cash Flow & DSCR Waterfall", showlegend=False, yaxis_title="Amount ($)")
-st.plotly_chart(fig_op, use_container_width=True)
-
+# Data Tables for UI
 dscr_summary_data = {
-    "Pro Forma Line Item": ["Gross Potential Rent (GPR)", f"(-) Vacancy Loss @ {calc['vacancy_rate']*100:.1f}%", "= Effective Gross Income (EGI)", f"(-) Property Management @ {calc['mgmt_fee_pct']*100:.1f}% of EGI", "(-) Other Operating Expenses", "= Net Operating Income (NOI)", "(-) Total Debt Service (P&I)", "= Net Cash Flow", "Actual DSCR Rate", "Target Lender DSCR", "DSCR Variance"],
-    "Monthly": [f"${calc['total_gross_monthly_income']:,.2f}", f"-${calc['monthly_vacancy_loss']:,.2f}", f"${calc['annual_egi'] / 12:,.2f}", f"-${calc['monthly_mgmt_fee']:,.2f}", f"-${calc['mo_other_opex']:,.2f}", f"${calc['monthly_noi']:,.2f}", f"-${calc['total_monthly_pi']:,.2f}", f"${calc['monthly_cash_flow']:,.2f}", f"{calc['actual_dscr']:.2f}x", f"{calc['target_dscr_rate']:.2f}x", f"{calc['dscr_variance']:+.2f}x"],
-    "Annual": [f"${calc['total_gross_monthly_income'] * 12:,.2f}", f"-${calc['annual_vacancy_loss']:,.2f}", f"${calc['annual_egi']:,.2f}", f"-${calc['annual_mgmt_fee']:,.2f}", f"-${calc['annual_other_opex']:,.2f}", f"${calc['annual_noi']:,.2f}", f"${calc['annual_debt_service']:,.2f}", f"${calc['monthly_cash_flow'] * 12:,.2f}", f"{calc['actual_dscr']:.2f}x", f"{calc['target_dscr_rate']:.2f}x", f"{calc['dscr_variance']:+.2f}x"]
+    "Bank Underwriting (DSCR Sizing)": [
+        "Gross Scheduled Rent", 
+        "(-) Monthly P&I Debt Service", 
+        "(-) Taxes, Ins, Flood & HOA (TIA)", 
+        "= Total Bank PITIA Payment", 
+        "Actual Bank DSCR (Rent ÷ PITIA)"
+    ],
+    "Monthly": [
+        f"${u_rent:,.0f}", 
+        f"-${calc['total_monthly_pi']:,.0f}", 
+        f"-${bank_tia_mo:,.0f}", 
+        f"${total_pitia_mo:,.0f}", 
+        f"{calc['actual_dscr']:.2f}x"
+    ]
 }
-with st.expander("🏢 View Stabilized Operating Pro Forma (DSCR)", expanded=False):
+
+proforma_summary_data = {
+    "True Operating Pro Forma": [
+        "Gross Scheduled Rent", 
+        f"(-) Vacancy Loss @ {st.session_state.get('vacancy_rate_pct', 5.0):.1f}%", 
+        "= Effective Gross Income (EGI)", 
+        f"(-) Property Management @ {st.session_state.get('mgmt_fee_pct', 8.0):.1f}%", 
+        "(-) Taxes, Insurance & HOA", 
+        "(-) Maintenance, Lawn & Turnover", 
+        "= True Net Operating Income (NOI)", 
+        "(-) Monthly P&I Debt Service", 
+        "= True Net Cash Flow"
+    ],
+    "Monthly": [
+        f"${u_rent:,.0f}", 
+        f"-${calc['monthly_vacancy_loss']:,.0f}", 
+        f"${(u_rent - calc['monthly_vacancy_loss']):,.0f}", 
+        f"-${calc['monthly_mgmt_fee']:,.0f}", 
+        f"-${bank_tia_mo:,.0f}", 
+        f"-${(calc['mo_other_opex'] * calc['units']) - bank_tia_mo:,.0f}", 
+        f"${calc['monthly_noi']:,.0f}", 
+        f"-${calc['total_monthly_pi']:,.0f}", 
+        f"${calc['monthly_cash_flow']:,.0f}"
+    ]
+}
+
+col_t1, col_t2 = st.columns(2)
+with col_t1:
     st.dataframe(pd.DataFrame(dscr_summary_data), hide_index=True, use_container_width=True)
+with col_t2:
+    st.dataframe(pd.DataFrame(proforma_summary_data), hide_index=True, use_container_width=True)
+
 st.divider()
 
 # ==========================================
