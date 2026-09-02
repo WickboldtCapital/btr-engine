@@ -228,7 +228,7 @@ with st.sidebar.container():
     if st.session_state.opex_entry_mode == "Percentage of EGI (%)":
         st.slider("Other Operating Expenses (OpEx) Rate of EGI (%)", min_value=5.0, max_value=50.0, step=1.0, key="opex_rate_pct")
     else:
-        # Dynamic OpEx Percentage Calculation for the UI Title
+        # Dynamic OpEx Percentage Calculation for the UI Title and Line Items
         current_tax = st.session_state.get("opex_taxes_mo", 0.0)
         current_ins = st.session_state.get("opex_ins_mo", 0.0)
         current_flood = st.session_state.get("opex_flood_mo", 0.0)
@@ -236,25 +236,32 @@ with st.sidebar.container():
         current_maint = st.session_state.get("opex_maint_mo", 0.0)
         current_misc = st.session_state.get("opex_misc_mo", 0.0)
         
-        total_itemized = current_tax + current_ins + current_flood + current_lawn + current_maint + current_misc
-        
         current_rent = st.session_state.get("gross_monthly_rent", 1)
         current_vac = st.session_state.get("vacancy_rate_pct", 5.0) / 100.0
         current_egi = current_rent * (1 - current_vac)
         
+        total_itemized = current_tax + current_ins + current_flood + current_lawn + current_maint + current_misc
         dyn_opex_pct = (total_itemized / current_egi) * 100 if current_egi > 0 else 0.0
+        
+        # Calculate individual line-item percentages
+        tax_pct = (current_tax / current_egi) * 100 if current_egi > 0 else 0.0
+        ins_pct = (current_ins / current_egi) * 100 if current_egi > 0 else 0.0
+        flood_pct = (current_flood / current_egi) * 100 if current_egi > 0 else 0.0
+        lawn_pct = (current_lawn / current_egi) * 100 if current_egi > 0 else 0.0
+        maint_pct = (current_maint / current_egi) * 100 if current_egi > 0 else 0.0
+        misc_pct = (current_misc / current_egi) * 100 if current_egi > 0 else 0.0
 
         with st.expander(f"📝 Itemized Other OpEx ({dyn_opex_pct:.1f}% of EGI)", expanded=True):
-            st.number_input("Property Taxes ($/mo)", min_value=0.0, step=10.0, key="opex_taxes_mo")
-            st.number_input("Hazard/Wind Insurance ($/mo)", min_value=0.0, step=10.0, key="opex_ins_mo")
-            st.number_input("Flood Insurance ($/mo)", min_value=0.0, step=10.0, key="opex_flood_mo")
-            st.number_input("Lawn Maintenance ($/mo)", min_value=0.0, step=10.0, key="opex_lawn_mo")
-            st.number_input("Turnover & Maintenance ($/mo)", min_value=0.0, step=10.0, key="opex_maint_mo")
-            st.number_input("HOA / Misc ($/mo)", min_value=0.0, step=10.0, key="opex_misc_mo")
+            st.number_input(f"Property Taxes ($/mo) — {tax_pct:.1f}%", min_value=0.0, step=10.0, key="opex_taxes_mo")
+            st.number_input(f"Hazard/Wind Ins ($/mo) — {ins_pct:.1f}%", min_value=0.0, step=10.0, key="opex_ins_mo")
+            st.number_input(f"Flood Insurance ($/mo) — {flood_pct:.1f}%", min_value=0.0, step=10.0, key="opex_flood_mo")
+            st.number_input(f"Lawn Maintenance ($/mo) — {lawn_pct:.1f}%", min_value=0.0, step=10.0, key="opex_lawn_mo")
+            st.number_input(f"Turnover & Maint ($/mo) — {maint_pct:.1f}%", min_value=0.0, step=10.0, key="opex_maint_mo")
+            st.number_input(f"HOA / Misc ($/mo) — {misc_pct:.1f}%", min_value=0.0, step=10.0, key="opex_misc_mo")
             
     st.slider("Marginal Tax Rate (%) for Depreciation Benefit", min_value=10.0, max_value=50.0, step=1.0, key="income_tax_rate_pct")
     st.slider("Annual Asset Appreciation (%)", min_value=0.0, max_value=10.0, step=0.5, key="appreciation_rate_pct")
-
+    
 with st.sidebar.container():
     st.subheader("10. Takeout Appraisal Methodology")
     st.radio("Valuation Mode", [
