@@ -235,7 +235,7 @@ def run_underwriting_engine(params, STRESS_SCENARIOS):
         isolated_heated_rate = comp_isolated_heated_value / comp_heated_sf if comp_heated_sf > 0 else 0
         comp_equivalent_arv = (isolated_heated_rate * sqft) + (aux_sqft_total * comp_aux_rate_sf) + additional_foundation_cost
 
-    # Appraisals (NEW PITIA LOGIC & CF LIMIT)
+   # Appraisals (NEW PITIA LOGIC & CF LIMIT)
     grm_arv = (gross_monthly_rent * 12) * target_grm
     refi_monthly_rate = net_refi_rate / 12.0
     refi_term_months = refi_term_years * 12
@@ -272,7 +272,11 @@ def run_underwriting_engine(params, STRESS_SCENARIOS):
         cf_max_loan_per_unit = 0
         
     cf_max_loan_total = cf_max_loan_per_unit * units
+    
+    # Calculate the Implied ARV needed to generate the exact Cash Flow Loan
+    cf_arv_per_unit = cf_max_loan_per_unit / refi_ltv if refi_ltv > 0 else 0
 
+    # Determine Base ARV
     if appraisal_mode == "Sales Comp (Price/SF)":
         arv_per_unit = comp_equivalent_arv
     elif appraisal_mode == "Income Approach (GRM)":
@@ -282,7 +286,7 @@ def run_underwriting_engine(params, STRESS_SCENARIOS):
     else: 
         arv_per_unit = min(grm_arv, dscr_arv)
         
-    # NEW LOGIC: Intercept and override the ARV based on UI Constraints
+    # Intercept and override the ARV based on UI Constraints
     arv_constraint_mode = params.get("arv_constraint_mode", "No Override (Use Valuation Mode Above)")
     if arv_constraint_mode == "Force ARV to exactly meet Min. Cash Flow":
         arv_per_unit = cf_arv_per_unit
