@@ -235,7 +235,7 @@ def run_underwriting_engine(params, STRESS_SCENARIOS):
         isolated_heated_rate = comp_isolated_heated_value / comp_heated_sf if comp_heated_sf > 0 else 0
         comp_equivalent_arv = (isolated_heated_rate * sqft) + (aux_sqft_total * comp_aux_rate_sf) + additional_foundation_cost
 
-    # Appraisals (NEW PITIA LOGIC)
+    # Appraisals (NEW PITIA LOGIC & CF LIMIT)
     grm_arv = (gross_monthly_rent * 12) * target_grm
     refi_monthly_rate = net_refi_rate / 12.0
     refi_term_months = refi_term_years * 12
@@ -259,6 +259,19 @@ def run_underwriting_engine(params, STRESS_SCENARIOS):
         target_loan_per_unit = max_pi_per_unit * refi_term_months
         
     dscr_arv = target_loan_per_unit / refi_ltv if refi_ltv > 0 else 0
+    bank_dscr_max_loan_total = target_loan_per_unit * units
+    
+    # Reverse calculate Cash Flow constrained loan
+    max_cf_pi_per_unit = (monthly_noi / units) - target_min_cashflow_per_door
+    if max_cf_pi_per_unit > 0:
+        if refi_monthly_rate > 0:
+            cf_max_loan_per_unit = max_cf_pi_per_unit * ((1.0 - (1.0 + refi_monthly_rate)**-refi_term_months) / refi_monthly_rate)
+        else:
+            cf_max_loan_per_unit = max_cf_pi_per_unit * refi_term_months
+    else:
+        cf_max_loan_per_unit = 0
+        
+    cf_max_loan_total = cf_max_loan_per_unit * units
 
     if appraisal_mode == "Sales Comp (Price/SF)":
         arv_per_unit = comp_equivalent_arv
