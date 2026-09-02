@@ -269,8 +269,11 @@ with st.sidebar.container():
 
 with st.sidebar.container():
     st.subheader("9. True Operating Pro Forma")
-    st.number_input("Gross Monthly Rental Income per Unit ($)", min_value=0, step=50, format="%d", key="gross_monthly_rent")
+    
+    # 1. SWAPPED ORDER AND STEP ADJUSTMENT
     st.number_input("Min. Acceptable Cash Flow / Door ($)", min_value=0.0, max_value=1000.0, step=25.0, key="target_min_cashflow_per_door")
+    st.number_input("Gross Monthly Rental Income per Unit ($)", min_value=0, step=25, format="%d", key="gross_monthly_rent")
+    
     st.slider("Vacancy Rate (%)", min_value=0.0, max_value=15.0, step=1.0, key="vacancy_rate_pct")
     st.slider("Property Management Fee (% of EGI)", min_value=0.0, max_value=15.0, step=0.5, key="mgmt_fee_pct")
     
@@ -335,7 +338,8 @@ with st.sidebar.container():
     ], key="appraisal_mode")
     
     if st.session_state.appraisal_mode in ["Income Approach (GRM)", "Conservative (Lesser of GRM or DSCR)"]:
-        st.number_input("Gross Rent Multiplier (GRM)", min_value=4.0, max_value=25.0, step=0.1, key="target_grm")
+        # 2. SET GLOBAL GRM DEFAULT TO 10.0
+        st.number_input("Gross Rent Multiplier (GRM)", min_value=4.0, max_value=25.0, step=0.1, value=10.0, key="target_grm")
         
     if st.session_state.appraisal_mode == "Income Approach (DSCR Loan Sizing)":
         st.info("ARV is automatically derived from your Operating (NOI) and Refi Loan terms to exactly meet your Target DSCR and LTV constraints.")
@@ -344,9 +348,11 @@ with st.sidebar.container():
         
     st.divider()
     st.markdown("##### Secondary ARV Constraints")
+    
+    # 3. SET REVERSE-ENGINEER TO LOAD AS DEFAULT (First in the list)
     arv_constraint = st.radio("Override Target ARV?", [
-        "No Override (Use Valuation Mode Above)",
         "Reverse-Engineer Max ARV from Min. Cash Flow",
+        "No Override (Use Valuation Mode Above)",
         "Manual Target ARV Override"
     ], key="arv_constraint_mode", help="Allows you to bypass the primary valuation and force the reverse-engineering engine to use a specific ARV limit.")
     
@@ -357,7 +363,10 @@ with st.sidebar.container():
     st.subheader("11. Takeout Refinance & Optimization Terms")
     
     st.selectbox("Refinance LTV Tier (%)", [80.0, 75.0, 70.0], key="refi_ltv_pct")
-    st.selectbox("Amortization Structure", ["Interest-Only (10-Yr IO Rider)", "Fully Amortizing (30-Yr)"], key="amortization_type")
+    
+    # 4. FULLY AMORTIZING SET AS DEFAULT / FIRST CHOICE
+    st.selectbox("Amortization Structure", ["Fully Amortizing (30-Yr)", "Interest-Only (10-Yr IO Rider)"], key="amortization_type")
+    
     st.number_input("Bank Target DSCR Rate", min_value=1.0, max_value=1.5, step=0.05, key="target_dscr_rate")
     st.selectbox("Amortization Term (Years)", [15, 20, 25, 30], key="refi_term_years")
     
@@ -396,7 +405,9 @@ with st.sidebar.container():
         current_refi_index = st.number_input("Manual Index Rate (%)", min_value=1.0, max_value=15.0, step=0.25, value=st.session_state.get("refi_index_rate", 7.50), key="refi_index_rate")
 
     st.markdown("##### Bank Lending Margin & Discounts")
-    refi_margin = st.number_input("Refi Lending Spread (+ %)", min_value=0.0, max_value=10.0, step=0.25, value=1.00, key="refi_margin_pct", help="The margin your bank charges above the Index Rate.")
+    
+    # 5. REFI LENDING SPREAD GLOBAL VALUE SET TO 0.50
+    refi_margin = st.number_input("Refi Lending Spread (+ %)", min_value=0.0, max_value=10.0, step=0.25, value=0.50, key="refi_margin_pct", help="The margin your bank charges above the Index Rate.")
 
     raw_refi_rate = current_refi_index + refi_margin
     current_refi_ltv = st.session_state.get("refi_ltv_pct", 80.0)
@@ -412,11 +423,14 @@ with st.sidebar.container():
         st.markdown(f"🎯 **Effective Base Refi Rate:** `{adjusted_base_r_rate:.2f}%`")
     
     st.markdown("##### Lender Points & Closing Bundle")
+    
+    # 6. LENDER DISCOUNT POINTS GLOBAL VALUE SET TO 3.0
     st.number_input(
         "Lender Discount Points (%)", 
         min_value=0.0, 
         max_value=5.0, 
-        step=0.25, 
+        step=0.25,
+        value=3.0,
         format="%.2f", 
         key="refi_points_pct", 
         help="Points paid to lender to buy down rate (e.g. 3.0 pts for 6.99%)."
