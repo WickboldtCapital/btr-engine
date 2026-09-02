@@ -288,7 +288,9 @@ def run_underwriting_engine(params, STRESS_SCENARIOS):
         
     # Intercept and override the ARV based on UI Constraints
     arv_constraint_mode = params.get("arv_constraint_mode", "No Override (Use Valuation Mode Above)")
-    if arv_constraint_mode == "Force ARV to exactly meet Min. Cash Flow":
+    
+    # EXACT STRING MATCH FIX IS HERE
+    if arv_constraint_mode == "Reverse-Engineer Max ARV from Min. Cash Flow":
         arv_per_unit = cf_arv_per_unit
     elif arv_constraint_mode == "Manual Target ARV Override":
         arv_per_unit = params.get("manual_arv_override", 250000.0)
