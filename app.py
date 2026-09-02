@@ -379,7 +379,7 @@ if dscr_pass_safe and cf_pass and cash_pass:
         f"Operations generate a healthy **${calc['monthly_cash_flow_per_door']:,.0f} per month** net cash flow per door. "
         f"Most importantly, the loan proceeds completely pay off the **${calc['total_project_basis']:,.0f}** capital basis, returning 100% of your seed capital and handing you a **${calc['cash_surplus']:,.0f} tax-free cash surplus** at closing."
     )
-    st.success(conclusion_text)
+    st.success(conclusion_text.replace("$", r"\$"))
 else:
     failures = []
     
@@ -392,9 +392,12 @@ else:
     if not cash_pass:
         failures.append(f"- **Trapped Capital (Loss at Close):** The takeout loan (${calc['loan_total']:,.0f}) is too small to cover the total project basis (${calc['total_project_basis']:,.0f}). This traps **${-calc['cash_surplus']:,.0f}** of seed capital inside the asset as dead equity.")
         
-    conclusion_text = f"**🛑 UNDERWRITING WARNING - OPTIMIZATION REQUIRED:**\n\nThis configuration fails one or more core investment constraints. To execute an infinite-return BTR strategy, you must adjust your levers (lower direct costs, buy down the interest rate, or increase target rents):\n\n" + "\n\n".join(failures)
-    
-    st.error(conclusion_text)
+    conclusion_text = (
+        f"**🛑 UNDERWRITING WARNING - OPTIMIZATION REQUIRED:**\n\n"
+        f"This configuration fails one or more core investment constraints. To execute an infinite-return BTR strategy, you must adjust your levers (lower direct costs, buy down the interest rate, or increase target rents):\n\n" + 
+        "\n\n".join(failures)
+    )
+    st.error(conclusion_text.replace("$", r"\$"))
 
 st.divider()
 
