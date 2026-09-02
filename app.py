@@ -310,7 +310,7 @@ with st.sidebar.container():
     st.markdown("##### Secondary ARV Constraints")
     arv_constraint = st.radio("Override Target ARV?", [
         "No Override (Use Valuation Mode Above)",
-        "Force ARV to exactly meet Min. Cash Flow",
+        "Reverse-Engineer Max ARV from Min. Cash Flow",
         "Manual Target ARV Override"
     ], key="arv_constraint_mode", help="Allows you to bypass the primary valuation and force the reverse-engineering engine to use a specific ARV limit.")
     
