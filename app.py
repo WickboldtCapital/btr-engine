@@ -224,9 +224,13 @@ with st.sidebar.container():
     st.slider("Vacancy Rate (%)", min_value=0.0, max_value=15.0, step=1.0, key="vacancy_rate_pct")
     st.slider("Property Management Fee (% of EGI)", min_value=0.0, max_value=15.0, step=0.5, key="mgmt_fee_pct")
     
+    current_mgmt_pct = st.session_state.get("mgmt_fee_pct", 8.0)
+    
     st.radio("Other OpEx Entry Mode", ["Percentage of EGI (%)", "Itemized Monthly Costs ($ per door)"], key="opex_entry_mode")
     if st.session_state.opex_entry_mode == "Percentage of EGI (%)":
         st.slider("Other Operating Expenses (OpEx) Rate of EGI (%)", min_value=5.0, max_value=50.0, step=1.0, key="opex_rate_pct")
+        current_other_pct = st.session_state.get("opex_rate_pct", 15.0)
+        st.markdown(f"**🎯 True Total OpEx:** `{current_mgmt_pct + current_other_pct:.1f}% of EGI`")
     else:
         # Dynamic OpEx Percentage Calculation for the UI Title and Line Items
         current_tax = st.session_state.get("opex_taxes_mo", 0.0)
@@ -242,7 +246,10 @@ with st.sidebar.container():
         
         total_itemized = current_tax + current_ins + current_flood + current_lawn + current_maint + current_misc
         dyn_opex_pct = (total_itemized / current_egi) * 100 if current_egi > 0 else 0.0
+        true_total_opex = current_mgmt_pct + dyn_opex_pct
         
+        st.markdown(f"**🎯 True Total OpEx:** `{true_total_opex:.1f}% of EGI`")
+
         # Calculate individual line-item percentages
         tax_pct = (current_tax / current_egi) * 100 if current_egi > 0 else 0.0
         ins_pct = (current_ins / current_egi) * 100 if current_egi > 0 else 0.0
