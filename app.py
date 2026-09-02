@@ -25,6 +25,9 @@ for key, value in HARDCODED_DRIVERS.items():
 if "raw_api_data" not in st.session_state:
     st.session_state.raw_api_data = None
 
+def format_surplus(val):
+    return f"+${val:,.0f}" if val >= 0 else f"-${-val:,.0f}"
+
 # ==========================================
 # --- SIDEBAR (Live Underwriting Controls) ---
 # ==========================================
@@ -216,14 +219,11 @@ with st.sidebar.container():
     st.markdown("##### Bank Lending Margin & Discounts")
     bank_margin = st.number_input("Bank Lending Margin (Prime + %)", min_value=0.0, max_value=10.0, step=0.25, value=1.00, key="bank_margin_pct", help="The spread your bank charges above the Prime Rate.")
     
-    # Tiered LTV Selector
     st.selectbox("Construction / Bank LTC (%)", [80.0, 75.0, 70.0], key="const_ltv_pct", help="Select bank loan-to-cost tier. Lower LTC tiers unlock commercial rate discounts.")
     
-    # Calculate base const rate (Prime + Margin) and save it for calculations.py
     base_c_rate = current_prime + bank_margin
     st.session_state["const_rate_pct"] = base_c_rate 
     
-    # Display live tiered construction rate for the UI
     current_ltv = st.session_state.get("const_ltv_pct", 80.0)
     rate_discount = max(0.0, (80.0 - current_ltv) / 5.0) * 0.5
     effective_c_rate = max(1.0, base_c_rate - rate_discount)
@@ -437,10 +437,11 @@ calc = run_underwriting_engine(st.session_state, STRESS_SCENARIOS)
 # ==========================================
 st.markdown("### 11.5 Refinance Optimization Matrix & Target Benchmarking")
 
+current_rent = st.session_state.get("gross_monthly_rent", 1750)
 opt_intro = (
     f"This matrix sweeps across LTV tiers (**80%, 75%, 70%**) and debt structures to identify the optimal configuration "
     f"meeting your target **$\ge \$200/mo$ net cash flow** and **net-zero out-of-pocket** closing constraints "
-    f"for the Hammond asset (**${calc['total_arv']/calc['units']:,.0f} ARV**, **${calc['total_project_basis']:,.0f} Basis**, **${gross_monthly_rent:,.0f}/mo Rent**)."
+    f"for the Hammond asset (**${calc['total_arv']/calc['units']:,.0f} ARV**, **${calc['total_project_basis']:,.0f} Basis**, **${current_rent:,.0f}/mo Rent**)."
 )
 st.info(opt_intro.replace("$", r"\$"))
 
