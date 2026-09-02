@@ -187,29 +187,29 @@ with st.sidebar.container():
     st.markdown("##### Commercial Base Rate (WSJ Prime)")
     st.radio("Prime Rate Source", ["Manual Entry", "Fetch Live FRED API (DPRIME)"], key="prime_rate_mode")
     if st.button("Fetch Live Fed Prime Rate", width='stretch'):
-            fred_api_key = os.environ.get("FRED_API_KEY", "")
-            if not fred_api_key:
-                try:
-                    fred_api_key = st.secrets.get("FRED_API_KEY", "")
-                except Exception:
-                    fred_api_key = ""
+        fred_api_key = os.environ.get("FRED_API_KEY", "")
+        if not fred_api_key:
+            try:
+                fred_api_key = st.secrets.get("FRED_API_KEY", "")
+            except Exception:
+                fred_api_key = ""
 
-            if not fred_api_key:
-                st.error("FRED_API_KEY not found in environment variables or secrets.toml.")
-            else:
-                try:
-                    with st.spinner("Fetching DPRIME from St. Louis Fed..."):
-                        url = f"https://api.stlouisfed.org/fred/series/observations?series_id=DPRIME&api_key={fred_api_key.strip()}&file_type=json&sort_order=desc&limit=1"
-                        response = requests.get(url, timeout=10)
-                        if response.status_code == 200:
-                            data = response.json()
-                            wsj_prime = float(data['observations'][0]['value'])
-                            st.session_state.base_prime_rate = wsj_prime
-                            st.success(f"Successfully fetched: {wsj_prime}%")
-                        else:
-                            st.error(f"FRED API Error: {response.status_code}")
-                except Exception as e:
-                    st.error(f"Connection error: {e}")
+        if not fred_api_key:
+            st.error("FRED_API_KEY not found in environment variables or secrets.toml.")
+        else:
+            try:
+                with st.spinner("Fetching DPRIME from St. Louis Fed..."):
+                    url = f"https://api.stlouisfed.org/fred/series/observations?series_id=DPRIME&api_key={fred_api_key.strip()}&file_type=json&sort_order=desc&limit=1"
+                    response = requests.get(url, timeout=10)
+                    if response.status_code == 200:
+                        data = response.json()
+                        wsj_prime = float(data['observations'][0]['value'])
+                        st.session_state.base_prime_rate = wsj_prime
+                        st.success(f"Successfully fetched: {wsj_prime}%")
+                    else:
+                        st.error(f"FRED API Error: {response.status_code}")
+            except Exception as e:
+                st.error(f"Connection error: {e}")
                     
     current_prime = st.session_state.get("base_prime_rate", 7.50)
     
@@ -411,9 +411,6 @@ with st.sidebar.container():
     else:
         st.markdown(f"🎯 **Effective Base Refi Rate:** `{adjusted_base_r_rate:.2f}%`")
     
-    st.markdown("##### Lender Points & Closing Bundle")
-    st.number_input("Lender Discount Points (%)", min_value=0.0, max_value=5.0, step=0.25, format="%.2f", key="refi_points_pct", help="Points paid to lender to buy down rate (e.g. 3.0 pts for 6.99%).")
-
     st.markdown("##### Lender Points & Closing Bundle")
     st.number_input(
         "Lender Discount Points (%)", 
