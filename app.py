@@ -448,10 +448,12 @@ with st.sidebar.container():
     
     st.session_state["base_refi_rate_pct"] = adjusted_base_r_rate
     
+    # Clear breakdown of where the Effective Base Rate comes from
+    margin_display_str = f"+{refi_margin:.3f}%" if refi_margin >= 0 else f"{refi_margin:.3f}%"
     if refi_rate_discount > 0:
-        st.markdown(f"📈 **Raw Rate (Index + Spread):** `{raw_refi_rate:.2f}%`\n📉 **Tiered Equity Discount:** `-{refi_rate_discount:.2f}%`\n🎯 **Effective Base Rate:** `{adjusted_base_r_rate:.2f}%`")
+        st.markdown(f"🏛️ **Index Rate:** `{current_refi_index:.2f}%`\n📊 **Risk Margin (Tier {derived_tier}):** `{margin_display_str}`\n📈 **Raw Rate (Index + Spread):** `{raw_refi_rate:.3f}%`\n📉 **Tiered Equity Discount (LTV Reward):** `-{refi_rate_discount:.3f}%`\n🎯 **Effective Base Rate:** `{adjusted_base_r_rate:.3f}%`")
     else:
-        st.markdown(f"🎯 **Effective Base Refi Rate:** `{adjusted_base_r_rate:.2f}%`")
+        st.markdown(f"🏛️ **Index Rate:** `{current_refi_index:.2f}%`\n📊 **Risk Margin (Tier {derived_tier}):** `{margin_display_str}`\n📈 **Raw Rate (Index + Spread):** `{raw_refi_rate:.3f}%`\n🎯 **Effective Base Rate:** `{adjusted_base_r_rate:.3f}%`")
     
     st.markdown("##### Lender Points & Closing Bundle")
     
@@ -798,7 +800,7 @@ if calc['const_bank_val_mode'] == "DSCR Stress Test":
         "Value": [f"${calc['cb_gross_annual_rent']:,.0f} / yr", f"-${calc['cb_gross_annual_rent'] - calc['cb_noi']:,.0f} / yr", f"${calc['cb_noi']:,.0f} / yr", f"{calc['const_bank_dscr']:.2f}x", f"${calc['bank_stressed_value']:,.0f}", f"${calc['actual_const_loan']:,.0f}", f"${calc['total_construction_basis']:,.0f}", f"${calc['seed_capital']:,.0f}"]
     }
 else:
-    st.info(f"**Construction Loan Underwriting:** The bank determines implied asset value on a **{calc['const_bank_grm']:.1f}x Gross Rent Multiplier** (yielding **${calc['bank_stressed_value']:,.0f}**). Loan cap: **${calc['actual_const_loan']:,.0f}**.".replace("$", r"\$"))
+    st.info(f"**Construction Loan Under underwriting:** The bank determines implied asset value on a **{calc['const_bank_grm']:.1f}x Gross Rent Multiplier** (yielding **${calc['bank_stressed_value']:,.0f}**). Loan cap: **${calc['actual_const_loan']:,.0f}**.".replace("$", r"\$"))
     stress_test_data = {
         "Bank Underwriting Step": ["1. Gross Potential Rent (Bank Model)", "2. Bank Underwriting GRM", "3. Bank Implied Asset Value", f"4. Const. Lender Loan Value ({calc['const_ltv']*100:.1f}% Bank LTC)", "5. Total Capitalized Construction Basis", "6. Required Seed Capital Reserve"],
         "Value": [f"${calc['cb_gross_annual_rent']:,.0f} / yr", f"{calc['const_bank_grm']:.1f}x", f"${calc['bank_stressed_value']:,.0f}", f"${calc['actual_const_loan']:,.0f}", f"${calc['total_construction_basis']:,.0f}", f"${calc['seed_capital']:,.0f}"]
@@ -1603,7 +1605,7 @@ fig_y5_refi = go.Figure(go.Waterfall(
     y=[y5_new_loan, -y5_payoff, -y5_closing_costs, y5_net_cash_out],
     connector={"line": {"color": "rgb(63, 63, 63)"}},
     decreasing={"marker": {"color": "#d62728"}},
-    increasing={"marker": {"color": "#1f77b4"}},
+    increasing={"marker": {"color": "#2ca02c"}},
     totals={"marker": {"color": "#2ca02c"}}
 ))
 fig_y5_refi.update_layout(
