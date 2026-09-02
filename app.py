@@ -187,17 +187,24 @@ with st.sidebar.container():
     if st.session_state.prime_rate_mode == "Scrape Live WSJ Prime":
         if st.button("Fetch Live WSJ Prime Rate", use_container_width=True):
             try:
-                with st.spinner("Scraping WSJ Prime..."):
-                    headers = {"User-Agent": "Mozilla/5.0"}
-                    # Bankrate maintains a clean, consistently formatted HTML table for the WSJ Prime Rate
-                    response = requests.get("https://www.bankrate.com/rates/interest-rates/wall-street-prime-rate/", headers=headers)
+                with st.spinner("Scraping JPMorgan Chase..."):
+                    # Heavy-duty browser disguise to bypass firewalls
+                    headers = {
+                        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36",
+                        "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8",
+                        "Accept-Language": "en-US,en;q=0.5"
+                    }
+                    response = requests.get("https://www.jpmorganchase.com/about/our-business/historical-prime-rate", headers=headers, timeout=10)
                     tables = pd.read_html(response.text)
-                    # The first table contains WSJ Prime Rate in the first row, second column
-                    wsj_prime = float(tables[0].iloc[0, 1])
+                    
+                    # JPMorgan's table has the Rate in the 2nd column (index 1) of the 1st row
+                    raw_rate = str(tables[0].iloc[0, 1])
+                    wsj_prime = float(raw_rate.replace('%', '').strip())
+                    
                     st.session_state.base_prime_rate = wsj_prime
                     st.success(f"Successfully scraped: {wsj_prime}%")
             except Exception as e:
-                st.error("Could not scrape rate. Please use Manual Entry.")
+                st.error("Could not bypass anti-bot protection. Please use Manual Entry.")
                 
         current_prime = st.session_state.get("base_prime_rate", 7.50)
         st.info(f"**Active Prime Rate:** `{current_prime:.2f}%`")
@@ -361,15 +368,22 @@ with st.sidebar.container():
     if st.session_state.refi_rate_mode == "Scrape Live WSJ Prime":
         if st.button("Fetch Live Refi Index Rate", use_container_width=True):
             try:
-                with st.spinner("Scraping WSJ Prime..."):
-                    headers = {"User-Agent": "Mozilla/5.0"}
-                    response = requests.get("https://www.bankrate.com/rates/interest-rates/wall-street-prime-rate/", headers=headers)
+                with st.spinner("Scraping JPMorgan Chase..."):
+                    headers = {
+                        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36",
+                        "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8",
+                        "Accept-Language": "en-US,en;q=0.5"
+                    }
+                    response = requests.get("https://www.jpmorganchase.com/about/our-business/historical-prime-rate", headers=headers, timeout=10)
                     tables = pd.read_html(response.text)
-                    wsj_prime = float(tables[0].iloc[0, 1])
+                    
+                    raw_rate = str(tables[0].iloc[0, 1])
+                    wsj_prime = float(raw_rate.replace('%', '').strip())
+                    
                     st.session_state.refi_index_rate = wsj_prime
                     st.success(f"Successfully scraped: {wsj_prime}%")
             except Exception as e:
-                st.error("Could not scrape rate. Please use Manual Entry.")
+                st.error("Could not bypass anti-bot protection. Please use Manual Entry.")
                 
         current_refi_index = st.session_state.get("refi_index_rate", 7.50)
         st.info(f"**Active Index Rate:** `{current_refi_index:.2f}%`")
@@ -389,6 +403,24 @@ with st.sidebar.container():
     
     # Save the final discounted base rate for calculations.py
     st.session_state["base_refi_rate_pct"] = adjusted_base_r_rate
+    
+    # Display the breakdown in the UI
+    if refi_rate_discount > 0:
+        st.markdown(f"📈 **Raw Rate (Index + Spread):** `{raw_refi_rate:.2f}%`\n📉 **Tiered Equity Discount:** `-{refi_rate_discount:.2f}%`\n🎯 **Effective Base Rate:** `{adjusted_base_r_rate:.2f}%`")
+    else:
+        st.markdown(f"🎯 **Effective Base Refi Rate:** `{adjusted_base_r_rate:.2f}%`")
+    
+    st.markdown("##### Lender Information")
+    st.text_input("Refinance Bank Name", key="refi_bank_name")
+    st.text_input("Contact Person", key="refi_bank_contact")
+    
+    st.number_input("Refinance Closing Fee ($ total)", min_value=0, step=250, format="%d", key="refi_closing_fee")
+    st.checkbox("Apply Interest Rate Buydown Points?", key="apply_buydown")
+    if st.session_state.apply_buydown:
+        st.number_input("Discount Points", min_value=0.0, max_value=10.0, step=0.25, format="%.2f", key="buydown_pts")
+        # Compute the final net rate off the dynamically generated adjusted_base_r_rate
+        net_rate = max(0.01, (adjusted_base_r_rate / 100.0) - (st.session_state.buydown_pts * 0.0025))
+        st.markdown(f"📉 **Final Buydown Net Rate:** `{net_rate*100:.3f}%`")
     
     # Display the breakdown in the UI
     if refi_rate_discount > 0:
