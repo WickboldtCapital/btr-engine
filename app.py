@@ -22,10 +22,16 @@ for key, value in HARDCODED_DRIVERS.items():
     if key not in st.session_state:
         st.session_state[key] = value
 
-# Enforce specific UI defaults on the very first load (Overriding config.py if necessary)
+# Enforce specific UI defaults on initial load (takes precedence over config.py)
 if "first_load_complete" not in st.session_state:
     st.session_state["amortization_type"] = "Fully Amortizing (30-Yr)"
     st.session_state["arv_constraint_mode"] = "Reverse-Engineer Max ARV from Min. Cash Flow"
+    st.session_state["target_grm"] = 10.0
+    st.session_state["base_prime_rate"] = 6.75
+    st.session_state["borrower_fico"] = 750
+    st.session_state["comp_address"] = "435 Pine St, Independence, LA 70443"
+    st.session_state["refi_points_pct"] = 3.0
+    st.session_state["refi_margin_pct"] = 0.50
     st.session_state["first_load_complete"] = True
 
 if "raw_api_data" not in st.session_state:
@@ -410,27 +416,28 @@ with st.sidebar.container():
     
     margin_mode = st.radio("Refi Lending Spread Mode", ["Estimated Risk-Based Margin", "Manual Entry"], key="refi_margin_mode")
     
-    # Calculate target tier logic behind the scenes
+    # Calculate target tier logic
     fico = st.session_state.get("borrower_fico", 750)
     ltv = st.session_state.get("refi_ltv_pct", 80.0)
     dscr_check = st.session_state.get("target_dscr_rate", 1.25)
     
-    # Tier assessment logic (worst constraint assigns the tier)
-    if fico < 680 or ltv > 75.0 or dscr_check < 1.15:
+    # Recalibrated Wholesale Risk-Based Pricing Matrix
+    if fico < 680 or ltv > 80.0 or dscr_check < 1.00:
         derived_tier = 3
-        derived_margin = 4.00 # Prime + 4.00%
-    elif fico >= 740 and ltv <= 70.0 and dscr_check >= 1.30:
+        derived_margin = 1.375 # Prime + 1.375% (Midpoint of Tier 3)
+    elif fico >= 740 and ltv <= 75.0 and dscr_check >= 1.25:
         derived_tier = 1
-        derived_margin = 1.25 # Prime + 1.25%
+        derived_margin = -0.375 # Prime - 0.375% (Midpoint of Tier 1 Discount)
     else:
         derived_tier = 2
-        derived_margin = 2.125 # Prime + 2.125%
+        derived_margin = 0.625 # Prime + 0.625% (Midpoint of Tier 2)
         
     if margin_mode == "Estimated Risk-Based Margin":
-        st.info(f"**Tier {derived_tier} Pricing Activated:** `+{derived_margin:.3f}%` Margin")
+        margin_tag = f"+{derived_margin:.3f}%" if derived_margin >= 0 else f"{derived_margin:.3f}%"
+        st.info(f"**Tier {derived_tier} Pricing Activated:** `{margin_tag}` Margin")
         refi_margin = derived_margin
     else:
-        refi_margin = st.number_input("Manual Refi Lending Spread (+ %)", min_value=0.0, max_value=10.0, step=0.1, value=0.50, key="refi_margin_pct", help="The margin your bank charges above the Index Rate.")
+        refi_margin = st.number_input("Manual Refi Lending Spread (+/- %)", min_value=-5.0, max_value=10.0, step=0.1, value=0.50, key="refi_margin_pct", help="The margin your bank charges above or below the Index Rate.")
     # ------------------------------------------
 
     raw_refi_rate = current_refi_index + refi_margin
@@ -791,7 +798,7 @@ if calc['const_bank_val_mode'] == "DSCR Stress Test":
         "Value": [f"${calc['cb_gross_annual_rent']:,.0f} / yr", f"-${calc['cb_gross_annual_rent'] - calc['cb_noi']:,.0f} / yr", f"${calc['cb_noi']:,.0f} / yr", f"{calc['const_bank_dscr']:.2f}x", f"${calc['bank_stressed_value']:,.0f}", f"${calc['actual_const_loan']:,.0f}", f"${calc['total_construction_basis']:,.0f}", f"${calc['seed_capital']:,.0f}"]
     }
 else:
-    st.info(f"**Construction Loan Under underwriting:** The bank determines implied asset value on a **{calc['const_bank_grm']:.1f}x Gross Rent Multiplier** (yielding **${calc['bank_stressed_value']:,.0f}**). Loan cap: **${calc['actual_const_loan']:,.0f}**.".replace("$", r"\$"))
+    st.info(f"**Construction Loan Underwriting:** The bank determines implied asset value on a **{calc['const_bank_grm']:.1f}x Gross Rent Multiplier** (yielding **${calc['bank_stressed_value']:,.0f}**). Loan cap: **${calc['actual_const_loan']:,.0f}**.".replace("$", r"\$"))
     stress_test_data = {
         "Bank Underwriting Step": ["1. Gross Potential Rent (Bank Model)", "2. Bank Underwriting GRM", "3. Bank Implied Asset Value", f"4. Const. Lender Loan Value ({calc['const_ltv']*100:.1f}% Bank LTC)", "5. Total Capitalized Construction Basis", "6. Required Seed Capital Reserve"],
         "Value": [f"${calc['cb_gross_annual_rent']:,.0f} / yr", f"{calc['const_bank_grm']:.1f}x", f"${calc['bank_stressed_value']:,.0f}", f"${calc['actual_const_loan']:,.0f}", f"${calc['total_construction_basis']:,.0f}", f"${calc['seed_capital']:,.0f}"]
@@ -839,7 +846,7 @@ bank_tia_mo = u_tax + u_ins + u_flood + u_hoa
 total_pitia_mo = calc['total_monthly_pi'] + bank_tia_mo
 
 operating_summary_text = (
-    f"**1. Bank Under underwriting (PITIA Method):** The lender sizes the commercial loan by dividing the Gross Rent (**${u_rent:,.0f}**) by the PITIA payment "
+    f"**1. Bank Underwriting (PITIA Method):** The lender sizes the commercial loan by dividing the Gross Rent (**${u_rent:,.0f}**) by the PITIA payment "
     f"(P&I + Taxes + Ins + HOA = **${total_pitia_mo:,.0f}**), yielding a **{calc['actual_dscr']:.2f}x DSCR**.\n\n"
     f"**2. True Pro Forma Cash Flow:** After satisfying the bank's PITIA, we account for actual market Vacancy (**${calc['monthly_vacancy_loss']:,.0f}**), "
     f"Management Fees (**${calc['monthly_mgmt_fee']:,.0f}**), and Maintenance/Lawn Care. The asset produces a true net operating cash flow of "
@@ -1108,9 +1115,9 @@ st.divider()
 st.markdown("### 11.2 Commercial Takeout Risk Profile & Pricing Margin")
 
 risk_intro = (
-    "Commercial DSCR loan pricing is highly sensitive to the borrower's risk profile. "
-    "Lenders determine the base margin (spread over the index rate) using a matrix driven primarily by "
-    "**FICO Score**, **Loan-to-Value (LTV)**, and the calculated **Debt Service Coverage Ratio (DSCR)**."
+    "Commercial DSCR loan pricing is directly linked to the borrower's risk profile. "
+    "Lenders determine the base margin over WSJ Prime using a matrix driven by "
+    "**FICO Score**, **Loan-to-Value (LTV)**, and the underwritten **Debt Service Coverage Ratio (DSCR)**."
 )
 st.info(risk_intro)
 
@@ -1120,13 +1127,13 @@ risk_df = pd.DataFrame({
         "Tier 2 (Standard Pricing)", 
         "Tier 3 (High-Risk Pricing)"
     ],
-    "DSCR Requirement": ["≥ 1.30x", "1.15x – 1.29x", "< 1.15x"],
+    "DSCR Requirement": ["≥ 1.25x", "1.00x – 1.24x", "< 1.00x"],
     "FICO Requirement": ["≥ 740", "680 – 739", "< 680"],
-    "Max LTV Limit": ["≤ 70%", "75%", "80%"],
+    "Max LTV Limit": ["≤ 75%", "80%", "> 80%"],
     "Estimated Margin Spread": [
-        "Prime + 1.00% to 1.50%", 
-        "Prime + 1.75% to 2.50%", 
-        "Prime + 3.00% to 5.00%"
+        "Prime - 0.625% to -0.125%", 
+        "Prime + 0.250% to +1.000%", 
+        "Prime + 1.000% to +1.750%"
     ]
 })
 
@@ -1137,15 +1144,16 @@ col_r1, col_r2 = st.columns(2)
 with col_r1:
     st.markdown("#### 🎯 Active Risk Assessment")
     st.markdown(f"- **Borrower FICO:** `{st.session_state.get('borrower_fico', 750)}`")
-    st.markdown(f"- **Refinance LTV:** `{st.session_state.get('refi_ltv_pct', 80.0)}%`")
+    st.markdown(f"- **Refinance LTV:** `{st.session_state.get('refi_ltv_pct', 80.0):.0f}%`")
     st.markdown(f"- **Underwritten DSCR:** `{calc['actual_dscr']:.2f}x`")
 
 with col_r2:
     st.markdown("#### 🏦 Applied Pricing Tier")
-    st.markdown(f"Based on the worst-case constraining metric, the engine has automatically categorized this transaction as **Tier {derived_tier}**.")
-    st.markdown(f"- **Applied Target Margin:** `+{derived_margin:.3f}%`")
-    st.markdown(f"- **Index Rate:** `{calc.get('refi_index_rate', current_refi_index):.2f}%`")
-    st.markdown(f"- **Gross Base Rate:** `{calc.get('refi_index_rate', current_refi_index) + derived_margin:.3f}%`")
+    st.markdown(f"Based on the most constraining metric, the engine has categorized this transaction as **Tier {derived_tier}**.")
+    margin_disp = f"+{derived_margin:.3f}%" if derived_margin >= 0 else f"{derived_margin:.3f}%"
+    st.markdown(f"- **Applied Target Margin:** `{margin_disp}`")
+    st.markdown(f"- **Index Rate:** `{current_refi_index:.2f}%`")
+    st.markdown(f"- **Gross Base Rate:** `{current_refi_index + derived_margin:.3f}%`")
 
 st.divider()
 
@@ -1847,7 +1855,7 @@ st.divider()
 # ==========================================
 # --- 19. MASTER MODEL DRIVERS & EXECUTIVE CONCLUSION ---
 # ==========================================
-st.markdown("### 🔑 19. MASTER MODEL DRIVERS & EXECUTIVE CONCLUSION")
+st.markdown("### 🔑 19. Master Model Drivers & Executive Conclusion")
 
 intro_text = (
     "The financial success of the Wickboldt Capital BTR strategy relies on the precise orchestration of interrelated project variables. "
