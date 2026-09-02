@@ -437,11 +437,10 @@ calc = run_underwriting_engine(st.session_state, STRESS_SCENARIOS)
 # ==========================================
 st.markdown("### 11.5 Refinance Optimization Matrix & Target Benchmarking")
 
-current_rent = st.session_state.get("gross_monthly_rent", 1750)
 opt_intro = (
     f"This matrix sweeps across LTV tiers (**80%, 75%, 70%**) and debt structures to identify the optimal configuration "
     f"meeting your target **$\ge \$200/mo$ net cash flow** and **net-zero out-of-pocket** closing constraints "
-    f"for the Hammond asset (**${calc['total_arv']/calc['units']:,.0f} ARV**, **${calc['total_project_basis']:,.0f} Basis**, **${current_rent:,.0f}/mo Rent**)."
+    f"for the Hammond asset (**${calc['total_arv']/calc['units']:,.0f} ARV**, **${calc['total_project_basis']:,.0f} Basis**, **${calc['gross_monthly_rent']:,.0f}/mo Rent**)."
 )
 st.info(opt_intro.replace("$", r"\$"))
 
@@ -455,33 +454,34 @@ for ltv_val in test_ltvs:
     buydown_pts_sim = st.session_state.get("refi_points_pct", 3.0)
     points_cost_sim = gross_loan_sim * (buydown_pts_sim / 100.0)
     net_rate_sim = calc['net_refi_rate']
+    refi_closing_bundle_sim = st.session_state.get("active_refi_bundle", 6500.0)
     
     for struct in test_structures:
         if struct == "Interest-Only (10-Yr IO Rider)":
-            pi_mo = (gross_loan_sim / units) * (net_rate_sim / 12.0)
+            pi_mo = (gross_loan_sim / calc['units']) * (net_rate_sim / 12.0)
         else:
             m_rate = net_rate_sim / 12.0
             n_pmts = calc['refi_term_years'] * 12
             if m_rate > 0:
-                pi_mo = (gross_loan_sim / units) * (m_rate * (1 + m_rate)**n_pmts) / ((1 + m_rate)**n_pmts - 1)
+                pi_mo = (gross_loan_sim / calc['units']) * (m_rate * (1 + m_rate)**n_pmts) / ((1 + m_rate)**n_pmts - 1)
             else:
-                pi_mo = (gross_loan_sim / units) / n_pmts
+                pi_mo = (gross_loan_sim / calc['units']) / n_pmts
                 
-        tot_pi_mo = pi_mo * units
-        tot_outflow_mo = tot_pi_mo + mo_opex
-        net_cf_door = (monthly_noi - tot_pi_mo) / units
+        tot_pi_mo = pi_mo * calc['units']
+        tot_outflow_mo = tot_pi_mo + calc['mo_opex']
+        net_cf_door = (calc['monthly_noi'] - tot_pi_mo) / calc['units']
         
         pitia_unit = pi_mo + calc['bank_tia_per_unit']
-        dscr_sim = gross_monthly_rent / pitia_unit if pitia_unit > 0 else 0
+        dscr_sim = calc['gross_monthly_rent'] / pitia_unit if pitia_unit > 0 else 0
         
         basis_payoff_sim = calc['total_construction_basis']
-        cash_at_table_sim = gross_loan_sim - basis_payoff_sim - points_cost_sim - refi_closing_bundle
+        cash_at_table_sim = gross_loan_sim - basis_payoff_sim - points_cost_sim - refi_closing_bundle_sim
         
-        if net_cf_door >= target_min_cashflow_per_door and cash_at_table_sim >= -500 and dscr_sim >= target_dscr_rate:
+        if net_cf_door >= calc['target_min_cashflow_per_door'] and cash_at_table_sim >= -500 and dscr_sim >= calc['target_dscr_rate']:
             fit_status = "🟢 Optimal Target"
-        elif net_cf_door >= target_min_cashflow_per_door and dscr_sim >= target_dscr_rate:
+        elif net_cf_door >= calc['target_min_cashflow_per_door'] and dscr_sim >= calc['target_dscr_rate']:
             fit_status = "🟡 Hits Flow / Capital Req."
-        elif dscr_sim >= target_dscr_rate:
+        elif dscr_sim >= calc['target_dscr_rate']:
             fit_status = "🟠 Misses Cash Flow Target"
         else:
             fit_status = "🔴 Fails DSCR / High Risk"
@@ -513,9 +513,9 @@ with col_b1:
 
 with col_b2:
     st.markdown("#### 📊 Execution Summary")
-    st.markdown(f"- **Total Monthly Outflow (PITIA + OpEx):** `${calc['total_monthly_pi'] + mo_opex:,.0f}/mo`")
-    st.markdown(f"- **Net Monthly Cash Flow:** `+${calc['monthly_cash_flow_per_door']:,.0f}/mo per door` (Target: $\ge\${target_min_cashflow_per_door:.0f}$) ")
-    st.markdown(f"- **Underwritten DSCR:** `{calc['actual_dscr']:.2f}x` (Target: $\ge{target_dscr_rate:.2f}x$)")
+    st.markdown(f"- **Total Monthly Outflow (PITIA + OpEx):** `${calc['total_monthly_pi'] + calc['mo_opex']:,.0f}/mo`")
+    st.markdown(f"- **Net Monthly Cash Flow:** `+${calc['monthly_cash_flow_per_door']:,.0f}/mo per door` (Target: $\ge\${calc['target_min_cashflow_per_door']:.0f}$) ")
+    st.markdown(f"- **Underwritten DSCR:** `{calc['actual_dscr']:.2f}x` (Target: $\ge{calc['target_dscr_rate']:.2f}x$)")
     st.markdown(f"- **Net Cash-at-Table:** `{format_surplus(calc['net_cash_at_closing'])}` (Target: $\ge \$0$)")
 
 st.divider()
@@ -1660,10 +1660,10 @@ ui_inputs = {
     "const_bank_contact": st.session_state.get("const_bank_contact", "Commercial Loan Officer"),
     "refi_bank_name": st.session_state.get("refi_bank_name", "National DSCR Lender"),
     "refi_bank_contact": st.session_state.get("refi_bank_contact", "Takeout Underwriter"),
-    "amortization_type": amortization_type,
-    "buydown_pts": buydown_pts,
-    "net_refi_rate": net_refi_rate,
-    "refi_closing_bundle": refi_closing_bundle
+    "amortization_type": st.session_state.get("amortization_type", "Interest-Only (10-Yr IO Rider)"),
+    "buydown_pts": calc.get('buydown_pts', 3.0),
+    "net_refi_rate": calc.get('net_refi_rate', 0.0699),
+    "refi_closing_bundle": st.session_state.get("active_refi_bundle", 6500.0)
 }
 
 texts_dict = {
