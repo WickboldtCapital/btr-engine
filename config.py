@@ -26,9 +26,9 @@ HARDCODED_DRIVERS = {
     "opex_taxes_mo": 150.0,
     "opex_ins_mo": 115.0,
     "opex_flood_mo": 30.0,
-    "opex_lawn_mo": 50.0,
+    "opex_lawn_mo": 35.0,
     "opex_maint_mo": 40.0,
-    "opex_misc_mo": 0.0,
+    "opex_misc_mo": 10.0,
     "income_tax_rate_pct": 30.0,
     "appreciation_rate_pct": 3.0,
     
@@ -46,7 +46,7 @@ HARDCODED_DRIVERS = {
     "borrower_name": "Stephen Wickboldt Jr.",
     "borrower_company": "Wickboldt Capital",
     "borrower_address": "Prairieville, LA",
-    "borrower_phone": "(555) 555-5555",
+    "borrower_phone": "(225) 505-9712",
     "borrower_email": "stephen@wickboldtcapital.com",
     
     # Construction Loan Closing Fees
@@ -73,10 +73,10 @@ HARDCODED_DRIVERS = {
     
     "refi_ltv_pct": 80.0,
     "refi_term_years": 30,
-    "base_refi_rate_pct": 7.00,
+    "base_refi_rate_pct": 6.75,
     "refi_closing_fee": 5000,
     "apply_buydown": True,
-    "buydown_pts": 2.00,
+    "buydown_pts": 3.00,
     
     # Soft Costs & Fees
     "indirect_permits_pct": 4.5,
