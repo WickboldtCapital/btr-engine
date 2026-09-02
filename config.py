@@ -136,7 +136,7 @@ HARDCODED_DRIVERS = {
     "comp_struct_sf": 213,
     "comp_front_sf": 49,
     "comp_back_sf": 49,
-    "comp_storage_sf": 0
+    "comp_storage_sf": 0,
     
     "refi_points_pct": 3.0,       # Default lender discount points for 6.99% pricing
     "amortization_type": "Interest-Only (10-Yr IO Rider)",
