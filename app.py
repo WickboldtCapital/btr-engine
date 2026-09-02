@@ -206,8 +206,7 @@ with st.sidebar.container():
                         else:
                             st.error(f"FRED API Error: {response.status_code}")
                 except Exception as e:
-                    st.error(f"Connection error: {e}")
-                    
+                    st.error(f"Connection error: {e}")                    
         current_prime = st.session_state.get("base_prime_rate", 7.50)
     
     else:
