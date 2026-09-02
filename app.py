@@ -435,8 +435,6 @@ with st.sidebar.container():
     # --- CLOSING BUNDLE TOGGLE ---
     st.markdown("##### Takeout Closing & Title Bundle")
     closing_bundle_mode = st.radio("Closing Bundle Mode", ["Standard Fixed ($6,500)", "Manual Custom Input"], key="refi_bundle_mode", horizontal=True)
-    
-    closing_bundle_mode = st.radio("Closing Bundle Mode", ["Standard Fixed ($6,500)", "Manual Custom Input"], key="refi_bundle_mode", horizontal=True)
 
     if closing_bundle_mode == "Standard Fixed ($6,500)":
         refi_closing_bundle = 6500.0
