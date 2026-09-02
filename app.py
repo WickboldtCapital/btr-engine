@@ -180,9 +180,21 @@ with st.sidebar.container():
 
 with st.sidebar.container():
     st.subheader("7. Construction Loan Terms")
-    st.slider("Construction / Bank LTC (%)", min_value=60.0, max_value=100.0, step=5.0, key="const_ltv_pct")
+    
+    # Tiered LTV Selector
+    st.selectbox("Construction / Bank LTC (%)", [80.0, 75.0, 70.0], key="const_ltv_pct", help="Select bank loan-to-cost tier. Lower LTC tiers unlock commercial rate discounts.")
+    
+    # Calculate and display live tiered construction rate
+    base_c_rate = st.session_state.get("const_rate_pct", 7.0)
+    current_ltv = st.session_state.get("const_ltv_pct", 80.0)
+    rate_discount = max(0.0, (80.0 - current_ltv) / 5.0) * 0.5
+    effective_c_rate = max(1.0, base_c_rate - rate_discount)
+    
+    st.slider("Base Construction Loan Rate (%)", min_value=4.0, max_value=14.0, step=0.5, key="const_rate_pct")
+    if rate_discount > 0:
+        st.markdown(f"📉 **Tiered Equity Discount:** `-{rate_discount:.2f}%` ⇒ **Effective Rate:** `{effective_c_rate:.2f}%`")
+    
     st.slider("Construction Duration (Months)", min_value=3, max_value=18, step=1, key="build_months")
-    st.slider("Construction Loan Rate (%)", min_value=4.0, max_value=14.0, step=0.5, key="const_rate_pct")
     
     st.markdown("##### Lender Information")
     st.text_input("Construction Bank Name", key="const_bank_name")
@@ -217,58 +229,66 @@ with st.sidebar.container():
         st.selectbox("Bank Amortization (Years)", [15, 20, 25, 30], key="const_bank_amort_yrs")
 
 with st.sidebar.container():
-    st.subheader("9. Operating Pro Forma (DSCR)")
+    st.subheader("9. True Operating Pro Forma")
     st.number_input("Gross Monthly Rental Income per Unit ($)", min_value=0, step=50, format="%d", key="gross_monthly_rent")
-    st.number_input("Target Lender DSCR Rate", min_value=1.0, max_value=1.5, step=0.05, key="target_dscr_rate")
     st.number_input("Min. Acceptable Cash Flow / Door ($)", min_value=0.0, max_value=1000.0, step=25.0, key="target_min_cashflow_per_door")
     st.slider("Vacancy Rate (%)", min_value=0.0, max_value=15.0, step=1.0, key="vacancy_rate_pct")
     st.slider("Property Management Fee (% of EGI)", min_value=0.0, max_value=15.0, step=0.5, key="mgmt_fee_pct")
     
     current_mgmt_pct = st.session_state.get("mgmt_fee_pct", 8.0)
+    project_units = st.session_state.get("units", 1)
     
-    st.radio("Other OpEx Entry Mode", ["Percentage of EGI (%)", "Itemized Monthly Costs ($ per door)"], key="opex_entry_mode")
+    st.radio("Other OpEx Entry Mode", ["Percentage of EGI (%)", "Itemized Global Costs ($ Total Project)"], key="opex_entry_mode")
     if st.session_state.opex_entry_mode == "Percentage of EGI (%)":
         st.slider("Other Operating Expenses (OpEx) Rate of EGI (%)", min_value=5.0, max_value=50.0, step=1.0, key="opex_rate_pct")
         current_other_pct = st.session_state.get("opex_rate_pct", 15.0)
         st.markdown(f"**🎯 True Total OpEx:** `{current_mgmt_pct + current_other_pct:.1f}% of EGI`")
     else:
-        # Dynamic OpEx Percentage Calculation for the UI Title and Line Items
-        current_tax = st.session_state.get("opex_taxes_mo", 0.0)
-        current_ins = st.session_state.get("opex_ins_mo", 0.0)
-        current_flood = st.session_state.get("opex_flood_mo", 0.0)
-        current_lawn = st.session_state.get("opex_lawn_mo", 0.0)
-        current_maint = st.session_state.get("opex_maint_mo", 0.0)
-        current_misc = st.session_state.get("opex_misc_mo", 0.0)
+        # Dynamic OpEx Percentage Calculation (Global Portfolio Level)
+        current_tax_g = st.session_state.get("opex_taxes_global", 0.0)
+        current_ins_g = st.session_state.get("opex_ins_global", 0.0)
+        current_flood_g = st.session_state.get("opex_flood_global", 0.0)
+        current_lawn_g = st.session_state.get("opex_lawn_global", 0.0)
+        current_maint_g = st.session_state.get("opex_maint_global", 0.0)
+        current_misc_g = st.session_state.get("opex_misc_global", 0.0)
         
-        current_rent = st.session_state.get("gross_monthly_rent", 1)
+        global_rent = st.session_state.get("gross_monthly_rent", 1) * project_units
         current_vac = st.session_state.get("vacancy_rate_pct", 5.0) / 100.0
-        current_egi = current_rent * (1 - current_vac)
+        global_egi = global_rent * (1 - current_vac)
         
-        total_itemized = current_tax + current_ins + current_flood + current_lawn + current_maint + current_misc
-        dyn_opex_pct = (total_itemized / current_egi) * 100 if current_egi > 0 else 0.0
+        total_itemized_g = current_tax_g + current_ins_g + current_flood_g + current_lawn_g + current_maint_g + current_misc_g
+        dyn_opex_pct = (total_itemized_g / global_egi) * 100 if global_egi > 0 else 0.0
         true_total_opex = current_mgmt_pct + dyn_opex_pct
         
         st.markdown(f"**🎯 True Total OpEx:** `{true_total_opex:.1f}% of EGI`")
 
         # Calculate individual line-item percentages
-        tax_pct = (current_tax / current_egi) * 100 if current_egi > 0 else 0.0
-        ins_pct = (current_ins / current_egi) * 100 if current_egi > 0 else 0.0
-        flood_pct = (current_flood / current_egi) * 100 if current_egi > 0 else 0.0
-        lawn_pct = (current_lawn / current_egi) * 100 if current_egi > 0 else 0.0
-        maint_pct = (current_maint / current_egi) * 100 if current_egi > 0 else 0.0
-        misc_pct = (current_misc / current_egi) * 100 if current_egi > 0 else 0.0
+        tax_pct = (current_tax_g / global_egi) * 100 if global_egi > 0 else 0.0
+        ins_pct = (current_ins_g / global_egi) * 100 if global_egi > 0 else 0.0
+        flood_pct = (current_flood_g / global_egi) * 100 if global_egi > 0 else 0.0
+        lawn_pct = (current_lawn_g / global_egi) * 100 if global_egi > 0 else 0.0
+        maint_pct = (current_maint_g / global_egi) * 100 if global_egi > 0 else 0.0
+        misc_pct = (current_misc_g / global_egi) * 100 if global_egi > 0 else 0.0
 
-        with st.expander(f"📝 Itemized Other OpEx ({dyn_opex_pct:.1f}% of EGI)", expanded=True):
-            st.number_input(f"Property Taxes ($/mo) — {tax_pct:.1f}%", min_value=0.0, step=10.0, key="opex_taxes_mo")
-            st.number_input(f"Hazard/Wind Ins ($/mo) — {ins_pct:.1f}%", min_value=0.0, step=10.0, key="opex_ins_mo")
-            st.number_input(f"Flood Insurance ($/mo) — {flood_pct:.1f}%", min_value=0.0, step=10.0, key="opex_flood_mo")
-            st.number_input(f"Lawn Maintenance ($/mo) — {lawn_pct:.1f}%", min_value=0.0, step=10.0, key="opex_lawn_mo")
-            st.number_input(f"Turnover & Maint ($/mo) — {maint_pct:.1f}%", min_value=0.0, step=10.0, key="opex_maint_mo")
-            st.number_input(f"HOA / Misc ($/mo) — {misc_pct:.1f}%", min_value=0.0, step=10.0, key="opex_misc_mo")
+        with st.expander(f"📝 Itemized Global OpEx ({dyn_opex_pct:.1f}% of EGI)", expanded=True):
+            st.number_input(f"Global Taxes ($/mo) — {tax_pct:.1f}%", min_value=0.0, step=50.0, key="opex_taxes_global")
+            st.number_input(f"Global Hazard Ins ($/mo) — {ins_pct:.1f}%", min_value=0.0, step=50.0, key="opex_ins_global")
+            st.number_input(f"Global Flood Ins ($/mo) — {flood_pct:.1f}%", min_value=0.0, step=50.0, key="opex_flood_global")
+            st.number_input(f"Global Lawn Maint ($/mo) — {lawn_pct:.1f}%", min_value=0.0, step=50.0, key="opex_lawn_global")
+            st.number_input(f"Global Turnover/Maint ($/mo) — {maint_pct:.1f}%", min_value=0.0, step=50.0, key="opex_maint_global")
+            st.number_input(f"Global HOA / Misc ($/mo) — {misc_pct:.1f}%", min_value=0.0, step=50.0, key="opex_misc_global")
+        
+        # Translate global values to per-door values so the underlying engine still works flawlessly
+        st.session_state['opex_taxes_mo'] = current_tax_g / project_units
+        st.session_state['opex_ins_mo'] = current_ins_g / project_units
+        st.session_state['opex_flood_mo'] = current_flood_g / project_units
+        st.session_state['opex_lawn_mo'] = current_lawn_g / project_units
+        st.session_state['opex_maint_mo'] = current_maint_g / project_units
+        st.session_state['opex_misc_mo'] = current_misc_g / project_units
             
     st.slider("Marginal Tax Rate (%) for Depreciation Benefit", min_value=10.0, max_value=50.0, step=1.0, key="income_tax_rate_pct")
     st.slider("Annual Asset Appreciation (%)", min_value=0.0, max_value=10.0, step=0.5, key="appreciation_rate_pct")
-    
+
 with st.sidebar.container():
     st.subheader("10. Takeout Appraisal Methodology")
     st.radio("Valuation Mode", [
@@ -289,6 +309,7 @@ with st.sidebar.container():
 with st.sidebar.container():
     st.subheader("11. Takeout Refinance Terms")
     st.slider("Refinance LTV (%)", min_value=60.0, max_value=85.0, step=5.0, key="refi_ltv_pct")
+    st.number_input("Bank Target DSCR Rate", min_value=1.0, max_value=1.5, step=0.05, key="target_dscr_rate")
     st.selectbox("Amortization Term (Years)", [15, 20, 25, 30], key="refi_term_years")
     st.slider("Base Refi Interest Rate (%)", min_value=4.0, max_value=10.0, step=0.25, key="base_refi_rate_pct")
     
@@ -610,13 +631,13 @@ st.markdown("### 5. Construction Lender Loan Cap & Stress Test")
 if calc['const_bank_val_mode'] == "DSCR Stress Test":
     st.info(f"**Construction Loan Underwriting:** The bank determines implied asset value on a **{calc['const_bank_dscr']:.2f}x DSCR stress test** (yielding **${calc['bank_stressed_value']:,.0f}**). Loan cap: **${calc['actual_const_loan']:,.0f}**.".replace("$", r"\$"))
     stress_test_data = {
-        "Bank Underwriting Step": ["1. Gross Potential Rent (Bank Model)", "2. Less: Bank Vacancy & OpEx Deductions", "3. Bank Qualified Net Operating Income (NOI)", "4. Target Construction DSCR Constraint", "5. Bank Implied Asset Value", f"6. Const. Lender Loan Value ({calc['const_bank_ltv']*100:.1f}% Bank LTV)", "7. Total Capitalized Construction Basis", "8. Required Seed Capital Reserve"],
+        "Bank Underwriting Step": ["1. Gross Potential Rent (Bank Model)", "2. Less: Bank Vacancy & OpEx Deductions", "3. Bank Qualified Net Operating Income (NOI)", "4. Target Construction DSCR Constraint", "5. Bank Implied Asset Value", f"6. Const. Lender Loan Value ({calc['const_ltv']*100:.1f}% Bank LTC)", "7. Total Capitalized Construction Basis", "8. Required Seed Capital Reserve"],
         "Value": [f"${calc['cb_gross_annual_rent']:,.0f} / yr", f"-${calc['cb_gross_annual_rent'] - calc['cb_noi']:,.0f} / yr", f"${calc['cb_noi']:,.0f} / yr", f"{calc['const_bank_dscr']:.2f}x", f"${calc['bank_stressed_value']:,.0f}", f"${calc['actual_const_loan']:,.0f}", f"${calc['total_construction_basis']:,.0f}", f"${calc['seed_capital']:,.0f}"]
     }
 else:
     st.info(f"**Construction Loan Underwriting:** The bank determines implied asset value on a **{calc['const_bank_grm']:.1f}x Gross Rent Multiplier** (yielding **${calc['bank_stressed_value']:,.0f}**). Loan cap: **${calc['actual_const_loan']:,.0f}**.".replace("$", r"\$"))
     stress_test_data = {
-        "Bank Underwriting Step": ["1. Gross Potential Rent (Bank Model)", "2. Bank Underwriting GRM", "3. Bank Implied Asset Value", f"4. Const. Lender Loan Value ({calc['const_bank_ltv']*100:.1f}% Bank LTV)", "5. Total Capitalized Construction Basis", "6. Required Seed Capital Reserve"],
+        "Bank Underwriting Step": ["1. Gross Potential Rent (Bank Model)", "2. Bank Underwriting GRM", "3. Bank Implied Asset Value", f"4. Const. Lender Loan Value ({calc['const_ltv']*100:.1f}% Bank LTC)", "5. Total Capitalized Construction Basis", "6. Required Seed Capital Reserve"],
         "Value": [f"${calc['cb_gross_annual_rent']:,.0f} / yr", f"{calc['const_bank_grm']:.1f}x", f"${calc['bank_stressed_value']:,.0f}", f"${calc['actual_const_loan']:,.0f}", f"${calc['total_construction_basis']:,.0f}", f"${calc['seed_capital']:,.0f}"]
     }
 
@@ -719,6 +740,49 @@ with col_t1:
     st.dataframe(pd.DataFrame(dscr_summary_data), hide_index=True, use_container_width=True)
 with col_t2:
     st.dataframe(pd.DataFrame(proforma_summary_data), hide_index=True, use_container_width=True)
+
+st.markdown("<br>", unsafe_allow_html=True)
+st.markdown("#### ⚖️ Maximum Loan Sizing Constraints & Reverse-Calculation")
+
+cf_loan = calc['cf_max_loan_total']
+bank_loan = calc['bank_dscr_max_loan_total']
+actual_loan = calc['loan_total']
+
+loan_comp_df = pd.DataFrame({
+    "Loan Limit Type": [
+        f"1. Bank Limit ({calc['target_dscr_rate']:.2f}x DSCR)", 
+        f"2. Cash Flow Limit (Min ${calc['target_min_cashflow_per_door']:,.0f}/door)", 
+        f"3. Active Modeled Loan ({calc['refi_ltv']*100:.0f}% LTV)"
+    ],
+    "Maximum Loan Amount": [bank_loan, cf_loan, actual_loan]
+})
+
+fig_loan_limits = px.bar(
+    loan_comp_df, 
+    x="Maximum Loan Amount", 
+    y="Loan Limit Type", 
+    orientation="h", 
+    color="Loan Limit Type",
+    text="Maximum Loan Amount",
+    color_discrete_sequence=["#1f77b4", "#ff7f0e", "#2ca02c"]
+)
+fig_loan_limits.update_traces(texttemplate='$%{text:,.0f}', textposition='inside', insidetextanchor='middle')
+fig_loan_limits.update_layout(showlegend=False, xaxis_title="Maximum Loan Amount ($)", yaxis_title="")
+
+limit_text = (
+    f"**The Leverage Squeeze:**\n\n"
+    f"While the bank's strict PITIA DSCR allows you to borrow up to **${bank_loan:,.0f}**, maximizing that leverage would compress your "
+    f"true operating cash flow below your baseline target of **${calc['target_min_cashflow_per_door']:,.0f}** per door.\n\n"
+    f"To successfully hit your personal cash flow minimums after accounting for all true operating expenses (vacancy, mgmt, maintenance), "
+    f"your maximum borrowable amount is strictly capped at **${cf_loan:,.0f}**.\n\n"
+    f"Currently, your active modeled takeout loan is **${actual_loan:,.0f}**."
+)
+
+col_l1, col_l2 = st.columns([1.5, 1])
+with col_l1:
+    st.plotly_chart(fig_loan_limits, use_container_width=True)
+with col_l2:
+    st.info(limit_text.replace("$", r"\$"))
 
 st.divider()
 
