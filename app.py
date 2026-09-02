@@ -182,29 +182,33 @@ with st.sidebar.container():
     st.subheader("7. Construction Loan Terms")
     
     st.markdown("##### Commercial Base Rate (WSJ Prime)")
-    st.radio("Prime Rate Source", ["Manual Entry", "Scrape Live WSJ Prime"], key="prime_rate_mode")
+    st.radio("Prime Rate Source", ["Manual Entry", "Fetch Live FRED API (DPRIME)"], key="prime_rate_mode")
     
-    if st.session_state.prime_rate_mode == "Scrape Live WSJ Prime":
-        if st.button("Fetch Live WSJ Prime Rate", use_container_width=True):
-            try:
-                with st.spinner("Scraping JPMorgan Chase..."):
-                    headers = {
-                        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36",
-                        "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8",
-                        "Accept-Language": "en-US,en;q=0.5"
-                    }
-                    response = requests.get("https://www.jpmorganchase.com/about/our-business/historical-prime-rate", headers=headers, timeout=10)
-                    tables = pd.read_html(response.text)
+    if st.session_state.prime_rate_mode == "Fetch Live FRED API (DPRIME)":
+        with st.expander("⚙️ FRED API Configuration"):
+            fred_key_c = st.text_input("FRED API Key", type="password", key="fred_key_const")
+            st.caption("Get a free API key at [fred.stlouisfed.org](https://fred.stlouisfed.org/)")
+            
+        if st.button("Fetch Live Fed Prime Rate", use_container_width=True):
+            fred_api_key = fred_key_c or os.environ.get("FRED_API_KEY") or st.secrets.get("FRED_API_KEY", "")
+            if not fred_api_key:
+                st.error("Please enter a valid FRED API key.")
+            else:
+                try:
+                    with st.spinner("Fetching DPRIME from St. Louis Fed..."):
+                        # Queries the FRED API for the single most recent data point of the DPRIME series
+                        url = f"https://api.stlouisfed.org/fred/series/observations?series_id=DPRIME&api_key={fred_api_key.strip()}&file_type=json&sort_order=desc&limit=1"
+                        response = requests.get(url, timeout=10)
+                        if response.status_code == 200:
+                            data = response.json()
+                            wsj_prime = float(data['observations'][0]['value'])
+                            st.session_state.base_prime_rate = wsj_prime
+                            st.success(f"Successfully fetched: {wsj_prime}%")
+                        else:
+                            st.error(f"FRED API Error: {response.status_code}")
+                except Exception as e:
+                    st.error(f"Connection error: {e}")
                     
-                    # JPMorgan's table has the Rate in the 2nd column (index 1) of the 1st row
-                    raw_rate = str(tables[0].iloc[0, 1])
-                    wsj_prime = float(raw_rate.replace('%', '').strip())
-                    
-                    st.session_state.base_prime_rate = wsj_prime
-                    st.success(f"Successfully scraped: {wsj_prime}%")
-            except Exception as e:
-                st.error("Could not bypass anti-bot protection. Please use Manual Entry.")
-                
         current_prime = st.session_state.get("base_prime_rate", 7.50)
         st.info(f"**Active Prime Rate:** `{current_prime:.2f}%`")
     else:
@@ -362,28 +366,32 @@ with st.sidebar.container():
     st.selectbox("Amortization Term (Years)", [15, 20, 25, 30], key="refi_term_years")
     
     st.markdown("##### Commercial Base Rate (Index)")
-    st.radio("Refi Rate Source", ["Manual Entry", "Scrape Live WSJ Prime"], key="refi_rate_mode")
+    st.radio("Refi Rate Source", ["Manual Entry", "Fetch Live FRED API (DPRIME)"], key="refi_rate_mode")
     
-    if st.session_state.refi_rate_mode == "Scrape Live WSJ Prime":
-        if st.button("Fetch Live Refi Index Rate", use_container_width=True):
-            try:
-                with st.spinner("Scraping JPMorgan Chase..."):
-                    headers = {
-                        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36",
-                        "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8",
-                        "Accept-Language": "en-US,en;q=0.5"
-                    }
-                    response = requests.get("https://www.jpmorganchase.com/about/our-business/historical-prime-rate", headers=headers, timeout=10)
-                    tables = pd.read_html(response.text)
+    if st.session_state.refi_rate_mode == "Fetch Live FRED API (DPRIME)":
+        with st.expander("⚙️ FRED API Configuration"):
+            fred_key_r = st.text_input("FRED API Key", type="password", key="fred_key_refi")
+            st.caption("Get a free API key at [fred.stlouisfed.org](https://fred.stlouisfed.org/)")
+            
+        if st.button("Fetch Live Fed Index Rate", use_container_width=True):
+            fred_api_key = fred_key_r or os.environ.get("FRED_API_KEY") or st.secrets.get("FRED_API_KEY", "")
+            if not fred_api_key:
+                st.error("Please enter a valid FRED API key.")
+            else:
+                try:
+                    with st.spinner("Fetching DPRIME from St. Louis Fed..."):
+                        url = f"https://api.stlouisfed.org/fred/series/observations?series_id=DPRIME&api_key={fred_api_key.strip()}&file_type=json&sort_order=desc&limit=1"
+                        response = requests.get(url, timeout=10)
+                        if response.status_code == 200:
+                            data = response.json()
+                            wsj_prime = float(data['observations'][0]['value'])
+                            st.session_state.refi_index_rate = wsj_prime
+                            st.success(f"Successfully fetched: {wsj_prime}%")
+                        else:
+                            st.error(f"FRED API Error: {response.status_code}")
+                except Exception as e:
+                    st.error(f"Connection error: {e}")
                     
-                    raw_rate = str(tables[0].iloc[0, 1])
-                    wsj_prime = float(raw_rate.replace('%', '').strip())
-                    
-                    st.session_state.refi_index_rate = wsj_prime
-                    st.success(f"Successfully scraped: {wsj_prime}%")
-            except Exception as e:
-                st.error("Could not bypass anti-bot protection. Please use Manual Entry.")
-                
         current_refi_index = st.session_state.get("refi_index_rate", 7.50)
         st.info(f"**Active Index Rate:** `{current_refi_index:.2f}%`")
     else:
