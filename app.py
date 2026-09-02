@@ -183,10 +183,7 @@ with st.sidebar.container():
     
     st.markdown("##### Commercial Base Rate (WSJ Prime)")
     st.radio("Prime Rate Source", ["Manual Entry", "Fetch Live FRED API (DPRIME)"], key="prime_rate_mode")
-    
-    if st.session_state.prime_rate_mode == "Fetch Live FRED API (DPRIME)":
-        if st.button("Fetch Live Fed Prime Rate", use_container_width=True):
-           # Safely pull the key without crashing if secrets.toml is missing
+    if st.button("Fetch Live Fed Prime Rate", width='stretch'):
             fred_api_key = os.environ.get("FRED_API_KEY", "")
             if not fred_api_key:
                 try:
@@ -197,10 +194,22 @@ with st.sidebar.container():
             if not fred_api_key:
                 st.error("FRED_API_KEY not found in environment variables or secrets.toml.")
             else:
-                # Proceed with API call... 
+                try:
+                    with st.spinner("Fetching DPRIME from St. Louis Fed..."):
+                        url = f"https://api.stlouisfed.org/fred/series/observations?series_id=DPRIME&api_key={fred_api_key.strip()}&file_type=json&sort_order=desc&limit=1"
+                        response = requests.get(url, timeout=10)
+                        if response.status_code == 200:
+                            data = response.json()
+                            wsj_prime = float(data['observations'][0]['value'])
+                            st.session_state.base_prime_rate = wsj_prime
+                            st.success(f"Successfully fetched: {wsj_prime}%")
+                        else:
+                            st.error(f"FRED API Error: {response.status_code}")
+                except Exception as e:
+                    st.error(f"Connection error: {e}")
                     
         current_prime = st.session_state.get("base_prime_rate", 7.50)
-        st.info(f"**Active Prime Rate:** `{current_prime:.2f}%`")
+    
     else:
         current_prime = st.number_input("Manual Prime Rate (%)", min_value=1.0, max_value=15.0, step=0.25, value=st.session_state.get("base_prime_rate", 7.50), key="base_prime_rate")
 
@@ -359,10 +368,16 @@ with st.sidebar.container():
     st.radio("Refi Rate Source", ["Manual Entry", "Fetch Live FRED API (DPRIME)"], key="refi_rate_mode")
     
     if st.session_state.refi_rate_mode == "Fetch Live FRED API (DPRIME)":
-        if st.button("Fetch Live Fed Index Rate", use_container_width=True):
-            fred_api_key = os.environ.get("FRED_API_KEY") or st.secrets.get("FRED_API_KEY", "")
+        if st.button("Fetch Live Fed Prime Rate", width='stretch'):
+            fred_api_key = os.environ.get("FRED_API_KEY", "")
             if not fred_api_key:
-                st.error("FRED_API_KEY not found in secrets.toml or Cloud settings.")
+                try:
+                    fred_api_key = st.secrets.get("FRED_API_KEY", "")
+                except Exception:
+                    fred_api_key = ""
+
+            if not fred_api_key:
+                st.error("FRED_API_KEY not found in environment variables or secrets.toml.")
             else:
                 try:
                     with st.spinner("Fetching DPRIME from St. Louis Fed..."):
@@ -371,14 +386,14 @@ with st.sidebar.container():
                         if response.status_code == 200:
                             data = response.json()
                             wsj_prime = float(data['observations'][0]['value'])
-                            st.session_state.refi_index_rate = wsj_prime
+                            st.session_state.base_prime_rate = wsj_prime
                             st.success(f"Successfully fetched: {wsj_prime}%")
                         else:
                             st.error(f"FRED API Error: {response.status_code}")
                 except Exception as e:
                     st.error(f"Connection error: {e}")
                     
-        current_refi_index = st.session_state.get("refi_index_rate", 7.50)
+        current_prime = st.session_state.get("base_prime_rate", 7.50)
         st.info(f"**Active Index Rate:** `{current_refi_index:.2f}%`")
     else:
         current_refi_index = st.number_input("Manual Index Rate (%)", min_value=1.0, max_value=15.0, step=0.25, value=st.session_state.get("refi_index_rate", 7.50), key="refi_index_rate")
