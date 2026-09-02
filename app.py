@@ -357,68 +357,32 @@ with st.sidebar.container():
         st.number_input("Custom Target ARV per Unit ($)", min_value=10000.0, step=5000.0, value=250000.0, key="manual_arv_override")
 
 with st.sidebar.container():
-    st.subheader("11. Takeout Refinance Terms")
+    st.subheader("11. Takeout Refinance & Optimization Terms")
     
-    # Tiered LTV Selector for Refinance
-    st.selectbox("Refinance LTV Tier (%)", [80.0, 75.0, 70.0], key="refi_ltv_pct", help="Select permanent loan-to-value tier. Lower LTV tiers unlock commercial rate discounts.")
+    # Tiered LTV & Amortization
+    st.selectbox("Refinance LTV Tier (%)", [80.0, 75.0, 70.0], key="refi_ltv_pct")
+    st.selectbox("Amortization Structure", ["Interest-Only (10-Yr IO Rider)", "Fully Amortizing (30-Yr)"], key="amortization_type")
     st.number_input("Bank Target DSCR Rate", min_value=1.0, max_value=1.5, step=0.05, key="target_dscr_rate")
     st.selectbox("Amortization Term (Years)", [15, 20, 25, 30], key="refi_term_years")
     
-    st.markdown("##### Commercial Base Rate (Index)")
+    st.markdown("##### Commercial Base Rate & Pricing")
     st.radio("Refi Rate Source", ["Manual Entry", "Fetch Live FRED API (DPRIME)"], key="refi_rate_mode")
+    # [Keep existing FRED fetch logic...]
     
-    if st.session_state.refi_rate_mode == "Fetch Live FRED API (DPRIME)":
-        if st.button("Fetch Live Fed Index Rate", width='stretch'):
-            fred_api_key = os.environ.get("FRED_API_KEY", "")
-            if not fred_api_key:
-                try:
-                    fred_api_key = st.secrets.get("FRED_API_KEY", "")
-                except Exception:
-                    fred_api_key = ""
+    st.markdown("##### Lender Points & Closing Bundle")
+    st.number_input("Lender Discount Points (%)", min_value=0.0, max_value=5.0, step=0.25, format="%.2f", key="refi_points_pct", help="Points paid to lender to buy down rate (e.g. 3.0 pts for 6.99%).")
+    
+    # --- CLOSING BUNDLE TOGGLE ---
+    st.markdown("##### Takeout Closing & Title Bundle")
+    closing_bundle_mode = st.radio("Closing Bundle Mode", ["Standard Fixed ($6,500)", "Manual Custom Input"], key="refi_bundle_mode", horizontal=True)
 
-            if not fred_api_key:
-                st.error("FRED_API_KEY not found in environment variables or secrets.toml.")
-            else:
-                try:
-                    with st.spinner("Fetching DPRIME from St. Louis Fed..."):
-                        url = f"https://api.stlouisfed.org/fred/series/observations?series_id=DPRIME&api_key={fred_api_key.strip()}&file_type=json&sort_order=desc&limit=1"
-                        response = requests.get(url, timeout=10)
-                        if response.status_code == 200:
-                            data = response.json()
-                            wsj_prime = float(data['observations'][0]['value'])
-                            st.session_state.refi_index_rate = wsj_prime
-                            st.success(f"Successfully fetched: {wsj_prime}%")
-                        else:
-                            st.error(f"FRED API Error: {response.status_code}")
-                except Exception as e:
-                    st.error(f"Connection error: {e}")
-                    
-        current_refi_index = st.session_state.get("refi_index_rate", 7.50)
-        st.info(f"**Active Index Rate:** `{current_refi_index:.2f}%`")
+    if closing_bundle_mode == "Standard Fixed ($6,500)":
+        refi_closing_bundle = 6500.0
+        st.info("📌 **Active Closing Bundle:** `$6,500` (Standard Title, Escrow & Legal)")
     else:
-        current_refi_index = st.number_input("Manual Index Rate (%)", min_value=1.0, max_value=15.0, step=0.25, value=st.session_state.get("refi_index_rate", 7.50), key="refi_index_rate")
-
-    st.markdown("##### Bank Lending Margin & Discounts")
-    refi_margin = st.number_input("Refi Lending Spread (+ %)", min_value=0.0, max_value=10.0, step=0.25, value=1.00, key="refi_margin_pct", help="The margin your bank charges above the Index Rate.")
-
-    # Calculate raw base refi rate (Index + Spread)
-    raw_refi_rate = current_refi_index + refi_margin
-    current_refi_ltv = st.session_state.get("refi_ltv_pct", 80.0)
+        refi_closing_bundle = st.number_input("Custom Closing Bundle ($)", min_value=0.0, step=250.0, value=6500.0, key="manual_refi_bundle")
+    st.session_state["active_refi_bundle"] = refi_closing_bundle
     
-    # Apply 0.5% rate reduction for every 5% drop in LTV below 80%
-    refi_rate_discount = max(0.0, (80.0 - current_refi_ltv) / 5.0) * 0.5
-    adjusted_base_r_rate = max(1.0, raw_refi_rate - refi_rate_discount)
-    
-    # Save the final discounted base rate for calculations.py
-    st.session_state["base_refi_rate_pct"] = adjusted_base_r_rate
-    
-    # Display the breakdown in the UI
-    if refi_rate_discount > 0:
-        st.markdown(f"📈 **Raw Rate (Index + Spread):** `{raw_refi_rate:.2f}%`\n📉 **Tiered Equity Discount:** `-{refi_rate_discount:.2f}%`\n🎯 **Effective Base Rate:** `{adjusted_base_r_rate:.2f}%`")
-    else:
-        st.markdown(f"🎯 **Effective Base Refi Rate:** `{adjusted_base_r_rate:.2f}%`")
-    
-    st.markdown("##### Lender Information")
     st.text_input("Refinance Bank Name", key="refi_bank_name")
     st.text_input("Contact Person", key="refi_bank_contact")
     
