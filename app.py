@@ -40,7 +40,7 @@ with st.sidebar.container():
 
     if st.session_state.comp_entry_mode == "RentCast Live API Fetch":
         search_address = st.text_input("Property Address", placeholder="e.g. 1103 S Spruce St, Hammond, LA")
-        with st.expander("⚙️ API Configuration (Optional)"):
+        with st.expander("API Configuration (Optional)"):
             manual_key = st.text_input("RentCast API Key Override", type="password")
 
         if st.button("Fetch Live Data", use_container_width=True):
@@ -205,7 +205,7 @@ with st.sidebar.container():
     if st.session_state.const_closing_mode == "Flat Lump Sum":
         st.number_input("Const Loan Closing Fee ($ total)", min_value=0, step=500, format="%d", key="const_closing_fee")
     else:
-        with st.expander("💼 Detailed Closing Costs", expanded=True):
+        with st.expander("Detailed Closing Costs", expanded=True):
             st.number_input("Origination / Lender Fee ($)", min_value=0.0, step=250.0, key="const_origination_fee")
             st.number_input("Appraisal & Feasibility ($)", min_value=0.0, step=100.0, key="const_appraisal_fee")
             st.number_input("Title, Escrow & Insurance ($)", min_value=0.0, step=100.0, key="const_title_fee")
@@ -270,7 +270,7 @@ with st.sidebar.container():
         maint_pct = (current_maint_g / global_egi) * 100 if global_egi > 0 else 0.0
         misc_pct = (current_misc_g / global_egi) * 100 if global_egi > 0 else 0.0
 
-        with st.expander(f"📝 Itemized Global OpEx ({dyn_opex_pct:.1f}% of EGI)", expanded=True):
+        with st.expander(f"Itemized Global OpEx ({dyn_opex_pct:.1f}% of EGI)", expanded=True):
             st.number_input(f"Global Taxes ($/mo) — {tax_pct:.1f}%", min_value=0.0, step=50.0, key="opex_taxes_global")
             st.number_input(f"Global Hazard Ins ($/mo) — {ins_pct:.1f}%", min_value=0.0, step=50.0, key="opex_ins_global")
             st.number_input(f"Global Flood Ins ($/mo) — {flood_pct:.1f}%", min_value=0.0, step=50.0, key="opex_flood_global")
@@ -297,6 +297,9 @@ with st.sidebar.container():
         "Income Approach (DSCR Loan Sizing)",
         "Conservative (Lesser of GRM or DSCR)"
     ], key="appraisal_mode")
+    
+    # NEW TOGGLE: Capping ARV to Cash Flow
+    st.checkbox("Cap ARV to Target Min. Cash Flow", key="constrain_arv_to_cf", help="If your cash flow drops below your target, this automatically caps the ARV and forces the reverse-engineering engine to shrink the construction budget to a level you can actually afford.")
     
     if st.session_state.appraisal_mode in ["Income Approach (GRM)", "Conservative (Lesser of GRM or DSCR)"]:
         st.number_input("Gross Rent Multiplier (GRM)", min_value=4.0, max_value=25.0, step=0.1, key="target_grm")
@@ -342,7 +345,7 @@ st.divider()
 # --- PROJECT & BORROWER INFO ---
 st.markdown("### 📋 Project & Borrower Information")
 
-with st.expander("📍 Project Details", expanded=True):
+with st.expander("Project Details", expanded=True):
     top_col1, top_col2, top_col3 = st.columns([2, 2, 1])
     project_name = top_col1.text_input("Project Title", placeholder="e.g. Phase 1 - 24-Lot Build-to-Rent")
     project_address = top_col2.text_input("Project Address", placeholder="e.g. Rogers Moore Parkway, Hammond, LA")
@@ -352,7 +355,7 @@ with st.expander("📍 Project Details", expanded=True):
     project_beds = sub_col1.number_input("Beds per Unit", min_value=1, value=3, step=1)
     project_baths = sub_col2.number_input("Baths per Unit", min_value=1.0, value=2.0, step=0.5)
 
-with st.expander("👤 Borrower Details", expanded=True):
+with st.expander("Borrower Details", expanded=True):
     b_col1, b_col2 = st.columns(2)
     borrower_name = b_col1.text_input("Borrower Name", value=st.session_state.get("borrower_name", "Stephen Wickboldt Jr."))
     borrower_company = b_col2.text_input("Company/Entity", value=st.session_state.get("borrower_company", "Wickboldt Capital"))
@@ -481,7 +484,7 @@ fig_comp.update_traces(texttemplate='$%{text:,.0f}', textposition='inside', insi
 fig_comp.update_layout(showlegend=False, xaxis_title="Value ($)", yaxis_title="")
 st.plotly_chart(fig_comp, use_container_width=True)
 
-with st.expander("🧮 View Comp Math Audit & Raw API Data", expanded=False):
+with st.expander("View Comp Math Audit & Raw API Data", expanded=False):
     st.markdown("**2.1 Raw Heated Rate (Total Price ÷ Heated SF Only)**")
     st.code(f"${calc['comp_price']:,.0f} ÷ {calc['comp_heated_sf']:,.0f} Heated SF = ${calc['raw_comp_price_sf']:.2f} / SF")
     st.markdown("**2.2 Raw Blended Rate (Total Price ÷ Total Under-Roof SF)**")
@@ -515,7 +518,7 @@ else:
     fig_land.update_layout(showlegend=False, yaxis_title="", height=250)
 st.plotly_chart(fig_land, use_container_width=True)
 
-with st.expander("🚜 View Land Development & Infrastructure Budget", expanded=False):
+with st.expander("View Land Development & Infrastructure Budget", expanded=False):
     if calc['land_entry_mode'] == "Detailed Horizontal Infrastructure (LF Parametrics)":
         horizontal_data = {
             "Cost Category": ["Raw Land Acquisition", "Earthwork & Fill", "Water Main Infrastructure", "Sewer Main Infrastructure", "Electrical/Comm Trenching", "Gas Main Infrastructure", "Roadways, Paving & Flatwork", "Stormwater & Drainage", "Site Amenities, Lights & Signage", "TOTAL ACTUAL HORIZONTAL BASIS", "TARGET FINISHED LOT VALUE (BENCHMARK)", "CAPTURED LAND EQUITY"],
@@ -545,7 +548,7 @@ st.info(granular_summary_text.replace("$", r"\$"))
 
 hc_chart_placeholder = st.empty()
 
-with st.expander("🔨 View Granular Trade Buildup & Master Roll-up", expanded=False):
+with st.expander("View Granular Trade Buildup & Master Roll-up", expanded=False):
     granular_mode = st.radio("Buildup Entry Mode", ["Auto-Proportional (Linked to Master Model)", "Manual Custom Entry (Bottom-Up)"], horizontal=True)
     pdf_granular_data = []
 
@@ -647,7 +650,7 @@ fig_cap.update_traces(texttemplate='$%{text:,.0f}', textposition='outside')
 fig_cap.update_layout(showlegend=False, xaxis_title="", yaxis_title="Amount ($)", yaxis=dict(range=[0, max(calc['bank_stressed_value'], calc['total_construction_basis']) * 1.15]))
 st.plotly_chart(fig_cap, use_container_width=True)
 
-with st.expander("🏦 View Bank Stress Test Metrics", expanded=False):
+with st.expander("View Bank Stress Test Metrics", expanded=False):
     st.dataframe(pd.DataFrame(stress_test_data), hide_index=True, use_container_width=True)
 st.divider()
 
@@ -660,7 +663,7 @@ fig_donut = px.pie(basis_breakdown, names="Category", values="Amount", hole=0.45
 fig_donut.update_traces(textposition='inside', textinfo='percent+label')
 st.plotly_chart(fig_donut, use_container_width=True)
 
-with st.expander("💰 View Capital Ledgers & Transaction Scope", expanded=False):
+with st.expander("View Capital Ledgers & Transaction Scope", expanded=False):
     col1, col2 = st.columns(2)
     with col1:
         st.dataframe(pd.DataFrame({"Component": [f"Finished Lot Benchmark ({calc['lot_cost_pct']*100:.1f}%)", "Adjusted BTR Hard Costs", "Indirects, Cont. & GC Fee", "On-Lot Utilities & Soft Costs", "Finance, Closing & Buydown", "Built-in Developer Margin", "Total Appraised Value (ARV)"], "Amount": [f"${calc['lot_benchmark']:,.0f}", f"${calc['total_hard_cost']:,.0f}", f"${calc['total_indirect_costs']:,.0f}", f"${calc['total_vertical_soft']:,.0f}", f"${calc['btr_finance_closing']:,.0f}", f"${calc['developer_margin']:,.0f}", f"${calc['total_arv']:,.0f}"]}), hide_index=True, use_container_width=True)
@@ -819,7 +822,7 @@ strategy_data = {
     "Build-to-Rent (DSCR Takeout)": [f"${calc['total_land_default']:,.0f}", f"${calc['total_hard_cost']:,.0f}", f"${calc['total_const']:,.0f}", f"${calc['total_vertical_soft']:,.0f}", f"${calc['btr_finance_closing']:,.0f}", f"${calc['total_project_basis']:,.0f}", f"${calc['loan_total']:,.0f}", "$0", f"${calc['cash_surplus']:,.0f}", "Yes", f"+${calc['monthly_cash_flow_per_door']:,.0f} / mo / door"]
 }
 strategy_footnote_text = f"BTR Model captures ${calc['default_gc_fee']:,.0f} in GC fee revenue with ${calc['day1_wealth']:,.0f} total Day-1 Created Value."
-with st.expander("⚖️ View Financial Strategy Comparison Matrix", expanded=False):
+with st.expander("View Financial Strategy Comparison Matrix", expanded=False):
     st.dataframe(pd.DataFrame(strategy_data), hide_index=True, use_container_width=True)
 st.divider()
 
@@ -840,7 +843,7 @@ scaling_data = {
     "6-House Annual Build (Year 1)": ["6 Units", f"${calc['unit_land'] * 6:,.0f}", f"${calc['unit_hard'] * 6:,.0f}", f"${calc['opt_gc_6']:,.0f}", f"${calc['unit_soft'] * 6:,.0f}", f"${calc['unit_fin'] * 6:,.0f}", f"${calc['cap_6']:,.0f}", f"${calc['loan_6']:,.0f}", f"${calc['surplus_6']:,.0f}", f"${calc['eq_6']:,.0f}", f"${calc['wealth_6']:,.0f}"]
 }
 scaling_takeaway = f"Executing a 6-house annual program yields ${calc['opt_gc_6']:,.0f} in active GC fees and generates ${calc['monthly_cf_6']:,.0f}/mo in cash flow."
-with st.expander("📈 View Multi-Unit Scaling Table", expanded=False):
+with st.expander("View Multi-Unit Scaling Table", expanded=False):
     st.dataframe(pd.DataFrame(scaling_data), hide_index=True, use_container_width=True)
 st.divider()
 
@@ -931,7 +934,7 @@ wealth_pocket_data = {
     ]
 }
 
-with st.expander("📊 View Detailed Wealth Creation Matrix", expanded=True):
+with st.expander("View Detailed Wealth Creation Matrix", expanded=True):
     st.dataframe(pd.DataFrame(wealth_pocket_data), hide_index=True, use_container_width=True)
 
 st.divider()
@@ -947,7 +950,7 @@ fig_scurve = px.bar(calc['df_schedule'], x="Month", y="Monthly Draw ($)", title=
 fig_scurve.update_traces(textposition='outside')
 st.plotly_chart(fig_scurve, use_container_width=True)
 
-with st.expander("📉 View S-Curve Schedule Table", expanded=False):
+with st.expander("View S-Curve Schedule Table", expanded=False):
     st.dataframe(calc['df_schedule'].style.format({"Monthly Draw ($)": "${:,.0f}", "Capitalized Interest ($)": "${:,.0f}", "Total Drawn Balance ($)": "${:,.0f}"}), hide_index=True, use_container_width=True)
 st.divider()
 
@@ -989,7 +992,7 @@ with stress_col2:
     fig_stress_surplus.update_layout(title="Capital Recovery Under Duress", yaxis_title="Surplus / (Trapped) $", showlegend=False)
     st.plotly_chart(fig_stress_surplus, use_container_width=True)
 
-with st.expander("🌩️ View Lender Risk Mitigation Matrix", expanded=False):
+with st.expander("View Lender Risk Mitigation Matrix", expanded=False):
     st.dataframe(calc['df_stress'].drop(columns=["Raw DSCR", "Raw Surplus"]), hide_index=True, use_container_width=True)
 st.divider()
 
@@ -1029,7 +1032,7 @@ with col_opex2:
     fig_opex_ncf.update_layout(title="Net Monthly Cash Flow Impact", yaxis_title="Net Cash Flow ($)", showlegend=False)
     st.plotly_chart(fig_opex_ncf, use_container_width=True)
 
-with st.expander("📊 View Detailed OpEx Stress Matrix", expanded=False):
+with st.expander("View Detailed OpEx Stress Matrix", expanded=False):
     st.dataframe(calc['df_opex_sens'], hide_index=True, use_container_width=True)
 st.divider()
 
@@ -1045,7 +1048,7 @@ fig_rent.add_hline(y=calc['target_min_cashflow_per_door'], line_dash="dash", lin
 fig_rent.update_layout(title="Net Monthly Cash Flow & DSCR Across Rent Scenarios", yaxis_title="Net Cash Flow per Door ($)", showlegend=False)
 st.plotly_chart(fig_rent, use_container_width=True)
 
-with st.expander("📊 View Detailed Rent Sensitivity Matrix", expanded=False):
+with st.expander("View Detailed Rent Sensitivity Matrix", expanded=False):
     st.dataframe(calc['df_rent_sens'], hide_index=True, use_container_width=True)
 st.divider()
 
@@ -1184,7 +1187,7 @@ fig_comp_chart.update_layout(
 )
 st.plotly_chart(fig_comp_chart, use_container_width=True)
 
-with st.expander("📊 View Detailed Cost Compression Matrix", expanded=True):
+with st.expander("View Detailed Cost Compression Matrix", expanded=True):
     st.dataframe(pd.DataFrame(compression_data), hide_index=True, use_container_width=True)
 
 comp_takeaway = (
@@ -1223,7 +1226,7 @@ projection_data = {
     "Year 5": [f"${calc['asset_vals'][5]:,.0f}", f"${calc['loan_vals'][5]:,.0f}", f"${calc['equity_vals'][5]:,.0f}", f"${calc['cumulative_cf'][5]:,.0f}", f"${calc['principal_paid'][5]:,.0f}", f"${calc['annual_tax_savings'] * 5:,.0f}", f"${calc['cumulative_cf'][5] + calc['principal_paid'][5] + (calc['asset_vals'][5] - calc['total_arv']) + (calc['annual_tax_savings'] * 5):,.0f}", calc['irr_5_str']],
     "Year 10": [f"${calc['asset_vals'][10]:,.0f}", f"${calc['loan_vals'][10]:,.0f}", f"${calc['equity_vals'][10]:,.0f}", f"${calc['cumulative_cf'][10]:,.0f}", f"${calc['principal_paid'][10]:,.0f}", f"${calc['annual_tax_savings'] * 10:,.0f}", f"${calc['cumulative_cf'][10] + calc['principal_paid'][10] + (calc['asset_vals'][10] - calc['total_arv']) + (calc['annual_tax_savings'] * 10):,.0f}", calc['irr_10_str']]
 }
-with st.expander("📊 View Projected Returns", expanded=False):
+with st.expander("View Projected Returns", expanded=False):
     st.dataframe(pd.DataFrame(projection_data), hide_index=True, use_container_width=True)
 st.divider()
 
@@ -1361,7 +1364,7 @@ y5_data = {
     "Year 5": [f"${y_arv[4]:,.0f}", f"${y_port[4]:,.0f}", f"${y_rent[4]:,.0f}", f"${y_gross[4]:,.0f}", f"${y_egi[4]:,.0f}", f"${y_opex[4]:,.0f}", f"${y_noi[4]:,.0f}", f"${y_ds[4]:,.0f}", f"${y_ncf[4]:,.0f}", f"${y_prin[4]:,.0f}", f"${y_bal[4]:,.0f}", f"${y5_new_loan:,.0f}", f"-${y5_closing_costs:,.0f}", f"+${y5_net_cash_out:,.0f}"]
 }
 
-with st.expander(f"📈 View {y5_units}-House 5-Year Portfolio Progression Matrix", expanded=True):
+with st.expander(f"View {y5_units}-House 5-Year Portfolio Progression Matrix", expanded=True):
     st.dataframe(pd.DataFrame(y5_data), hide_index=True, use_container_width=True)
 
 y5_takeaway = (
@@ -1472,7 +1475,7 @@ fig_y5_sens.update_layout(
 st.plotly_chart(fig_y5_sens, use_container_width=True)
 
 # --- Data Table ---
-with st.expander("📊 View Post-Refinance Cash Flow Sensitivity Matrix", expanded=False):
+with st.expander("View Post-Refinance Cash Flow Sensitivity Matrix", expanded=False):
     st.dataframe(pd.DataFrame(y5_sens_data), hide_index=True, use_container_width=True)
 
 st.divider()
