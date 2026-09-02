@@ -228,7 +228,23 @@ with st.sidebar.container():
     if st.session_state.opex_entry_mode == "Percentage of EGI (%)":
         st.slider("Other Operating Expenses (OpEx) Rate of EGI (%)", min_value=5.0, max_value=50.0, step=1.0, key="opex_rate_pct")
     else:
-        with st.expander("📝 Itemized Other OpEx (Per Door / Month)", expanded=True):
+        # Dynamic OpEx Percentage Calculation for the UI Title
+        current_tax = st.session_state.get("opex_taxes_mo", 0.0)
+        current_ins = st.session_state.get("opex_ins_mo", 0.0)
+        current_flood = st.session_state.get("opex_flood_mo", 0.0)
+        current_lawn = st.session_state.get("opex_lawn_mo", 0.0)
+        current_maint = st.session_state.get("opex_maint_mo", 0.0)
+        current_misc = st.session_state.get("opex_misc_mo", 0.0)
+        
+        total_itemized = current_tax + current_ins + current_flood + current_lawn + current_maint + current_misc
+        
+        current_rent = st.session_state.get("gross_monthly_rent", 1)
+        current_vac = st.session_state.get("vacancy_rate_pct", 5.0) / 100.0
+        current_egi = current_rent * (1 - current_vac)
+        
+        dyn_opex_pct = (total_itemized / current_egi) * 100 if current_egi > 0 else 0.0
+
+        with st.expander(f"📝 Itemized Other OpEx ({dyn_opex_pct:.1f}% of EGI)", expanded=True):
             st.number_input("Property Taxes ($/mo)", min_value=0.0, step=10.0, key="opex_taxes_mo")
             st.number_input("Hazard/Wind Insurance ($/mo)", min_value=0.0, step=10.0, key="opex_ins_mo")
             st.number_input("Flood Insurance ($/mo)", min_value=0.0, step=10.0, key="opex_flood_mo")
