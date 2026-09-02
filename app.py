@@ -291,15 +291,12 @@ with st.sidebar.container():
 
 with st.sidebar.container():
     st.subheader("10. Takeout Appraisal Methodology")
-    st.radio("Valuation Mode", [
+    st.radio("Primary Valuation Mode", [
         "Sales Comp (Price/SF)", 
         "Income Approach (GRM)", 
         "Income Approach (DSCR Loan Sizing)",
         "Conservative (Lesser of GRM or DSCR)"
     ], key="appraisal_mode")
-    
-    # NEW TOGGLE: Capping ARV to Cash Flow
-    st.checkbox("Cap ARV to Target Min. Cash Flow", key="constrain_arv_to_cf", help="If your cash flow drops below your target, this automatically caps the ARV and forces the reverse-engineering engine to shrink the construction budget to a level you can actually afford.")
     
     if st.session_state.appraisal_mode in ["Income Approach (GRM)", "Conservative (Lesser of GRM or DSCR)"]:
         st.number_input("Gross Rent Multiplier (GRM)", min_value=4.0, max_value=25.0, step=0.1, key="target_grm")
@@ -308,6 +305,17 @@ with st.sidebar.container():
         st.info("ARV is automatically derived from your Operating (NOI) and Refi Loan terms to exactly meet your Target DSCR and LTV constraints.")
     elif st.session_state.appraisal_mode == "Conservative (Lesser of GRM or DSCR)":
         st.info("ARV evaluates both the GRM and the DSCR max loan limit, automatically defaulting to whichever yields the lower valuation.")
+        
+    st.divider()
+    st.markdown("##### Secondary ARV Constraints")
+    arv_constraint = st.radio("Override Target ARV?", [
+        "No Override (Use Valuation Mode Above)",
+        "Force ARV to exactly meet Min. Cash Flow",
+        "Manual Target ARV Override"
+    ], key="arv_constraint_mode", help="Allows you to bypass the primary valuation and force the reverse-engineering engine to use a specific ARV limit.")
+    
+    if arv_constraint == "Manual Target ARV Override":
+        st.number_input("Custom Target ARV per Unit ($)", min_value=10000.0, step=5000.0, value=250000.0, key="manual_arv_override")
 
 with st.sidebar.container():
     st.subheader("11. Takeout Refinance Terms")
