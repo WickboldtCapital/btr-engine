@@ -74,7 +74,7 @@ HARDCODED_DRIVERS = {
     "refi_ltv_pct": 80.0,
     "refi_term_years": 30,
     "base_refi_rate_pct": 6.75,
-    "refi_closing_fee": 5000,
+    "refi_closing_fee": 6000,
     "apply_buydown": True,
     "buydown_pts": 3.00,
     
@@ -116,7 +116,7 @@ HARDCODED_DRIVERS = {
     "sewer_tie_in": 1500.0,
     "electric_drop": 1000.0,
     "gas_lateral": 0.0,
-    "impact_fees": 500.0,
+    "impact_fees": 250.0,
     
     "appraisal_mode": "Income Approach (DSCR Loan Sizing)",
     "target_grm": 10.0,
@@ -131,17 +131,17 @@ HARDCODED_DRIVERS = {
     "finance_pct": 1.5,
     
     "comp_address": "435 Pine St, Independence, LA 70443",
-    "comp_price": 195000,
+    "comp_price": 200000,
     "comp_heated_sf": 1275,
     "comp_struct_sf": 213,
     "comp_front_sf": 49,
     "comp_back_sf": 49,
     "comp_storage_sf": 0,
     
-    "refi_points_pct": 3.0,       # Default lender discount points for 6.99% pricing
+    "refi_points_pct": 3.0,       
     "amortization_type": "Interest-Only (10-Yr IO Rider)",
-    "refi_bundle_mode": "Standard Fixed ($6,500)",
-    "manual_refi_bundle": 6500.0,}
+    "refi_bundle_mode": "Standard Fixed ($6,000)",
+    "manual_refi_bundle": 6000.0,}
 
 
 # ==========================================
