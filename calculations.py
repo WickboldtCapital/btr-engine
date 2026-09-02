@@ -281,6 +281,13 @@ def run_underwriting_engine(params, STRESS_SCENARIOS):
         arv_per_unit = dscr_arv
     else: 
         arv_per_unit = min(grm_arv, dscr_arv)
+        
+    # NEW LOGIC: Intercept and override the ARV based on UI Constraints
+    arv_constraint_mode = params.get("arv_constraint_mode", "No Override (Use Valuation Mode Above)")
+    if arv_constraint_mode == "Force ARV to exactly meet Min. Cash Flow":
+        arv_per_unit = cf_arv_per_unit
+    elif arv_constraint_mode == "Manual Target ARV Override":
+        arv_per_unit = params.get("manual_arv_override", 250000.0)
 
     # Reverse engineer builder budget
     if cost_calc_mode == "Manual Set (Heated SF)":
