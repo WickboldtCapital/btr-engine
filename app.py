@@ -422,12 +422,6 @@ with st.sidebar.container():
         net_rate = max(0.01, (adjusted_base_r_rate / 100.0) - (st.session_state.buydown_pts * 0.0025))
         st.markdown(f"📉 **Final Buydown Net Rate:** `{net_rate*100:.3f}%`")
     
-    # Display the breakdown in the UI
-    if refi_rate_discount > 0:
-        st.markdown(f"📈 **Raw Rate (Index + Spread):** `{raw_refi_rate:.2f}%`\n📉 **Tiered Equity Discount:** `-{refi_rate_discount:.2f}%`\n🎯 **Effective Base Rate:** `{adjusted_base_r_rate:.2f}%`")
-    else:
-        st.markdown(f"🎯 **Effective Base Refi Rate:** `{adjusted_base_r_rate:.2f}%`")
-    
     st.markdown("##### Lender Information")
     st.text_input("Refinance Bank Name", key="refi_bank_name")
     st.text_input("Contact Person", key="refi_bank_contact")
