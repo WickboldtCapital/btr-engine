@@ -188,7 +188,6 @@ with st.sidebar.container():
         if st.button("Fetch Live WSJ Prime Rate", use_container_width=True):
             try:
                 with st.spinner("Scraping JPMorgan Chase..."):
-                    # Heavy-duty browser disguise to bypass firewalls
                     headers = {
                         "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36",
                         "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8",
@@ -409,18 +408,6 @@ with st.sidebar.container():
         st.markdown(f"📈 **Raw Rate (Index + Spread):** `{raw_refi_rate:.2f}%`\n📉 **Tiered Equity Discount:** `-{refi_rate_discount:.2f}%`\n🎯 **Effective Base Rate:** `{adjusted_base_r_rate:.2f}%`")
     else:
         st.markdown(f"🎯 **Effective Base Refi Rate:** `{adjusted_base_r_rate:.2f}%`")
-    
-    st.markdown("##### Lender Information")
-    st.text_input("Refinance Bank Name", key="refi_bank_name")
-    st.text_input("Contact Person", key="refi_bank_contact")
-    
-    st.number_input("Refinance Closing Fee ($ total)", min_value=0, step=250, format="%d", key="refi_closing_fee")
-    st.checkbox("Apply Interest Rate Buydown Points?", key="apply_buydown")
-    if st.session_state.apply_buydown:
-        st.number_input("Discount Points", min_value=0.0, max_value=10.0, step=0.25, format="%.2f", key="buydown_pts")
-        # Compute the final net rate off the dynamically generated adjusted_base_r_rate
-        net_rate = max(0.01, (adjusted_base_r_rate / 100.0) - (st.session_state.buydown_pts * 0.0025))
-        st.markdown(f"📉 **Final Buydown Net Rate:** `{net_rate*100:.3f}%`")
     
     st.markdown("##### Lender Information")
     st.text_input("Refinance Bank Name", key="refi_bank_name")
@@ -741,7 +728,7 @@ st.markdown("### 5. Construction Lender Loan Cap & Stress Test")
 if calc['const_bank_val_mode'] == "DSCR Stress Test":
     st.info(f"**Construction Loan Underwriting:** The bank determines implied asset value on a **{calc['const_bank_dscr']:.2f}x DSCR stress test** (yielding **${calc['bank_stressed_value']:,.0f}**). Loan cap: **${calc['actual_const_loan']:,.0f}**.".replace("$", r"\$"))
     stress_test_data = {
-        "Bank Underwriting Step": ["1. Gross Potential Rent (Bank Model)", "2. Less: Bank Vacancy & OpEx Deductions", "3. Bank Qualified Net Operating Income (NOI)", "4. Target Construction DSCR Constraint", "5. Bank Implied Asset Value", f"6. Const. Lender Loan Value ({calc['const_ltv']*100:.1f}% Bank LTC)", "7. Total Capitalized Construction Basis", "8. Required Seed Capital Reserve"],
+        "Bank Under underwriting Step": ["1. Gross Potential Rent (Bank Model)", "2. Less: Bank Vacancy & OpEx Deductions", "3. Bank Qualified Net Operating Income (NOI)", "4. Target Construction DSCR Constraint", "5. Bank Implied Asset Value", f"6. Const. Lender Loan Value ({calc['const_ltv']*100:.1f}% Bank LTC)", "7. Total Capitalized Construction Basis", "8. Required Seed Capital Reserve"],
         "Value": [f"${calc['cb_gross_annual_rent']:,.0f} / yr", f"-${calc['cb_gross_annual_rent'] - calc['cb_noi']:,.0f} / yr", f"${calc['cb_noi']:,.0f} / yr", f"{calc['const_bank_dscr']:.2f}x", f"${calc['bank_stressed_value']:,.0f}", f"${calc['actual_const_loan']:,.0f}", f"${calc['total_construction_basis']:,.0f}", f"${calc['seed_capital']:,.0f}"]
     }
 else:
