@@ -283,7 +283,6 @@ with st.sidebar.container():
         current_other_pct = st.session_state.get("opex_rate_pct", 15.0)
         st.markdown(f"**🎯 True Total OpEx:** `{current_mgmt_pct + current_other_pct:.1f}% of EGI`")
     else:
-        # Dynamic OpEx Percentage Calculation (Global Portfolio Level)
         current_tax_g = st.session_state.get("opex_taxes_global", 0.0)
         current_ins_g = st.session_state.get("opex_ins_global", 0.0)
         current_flood_g = st.session_state.get("opex_flood_global", 0.0)
@@ -301,7 +300,6 @@ with st.sidebar.container():
         
         st.markdown(f"**🎯 True Total OpEx:** `{true_total_opex:.1f}% of EGI`")
 
-        # Calculate individual line-item percentages
         tax_pct = (current_tax_g / global_egi) * 100 if global_egi > 0 else 0.0
         ins_pct = (current_ins_g / global_egi) * 100 if global_egi > 0 else 0.0
         flood_pct = (current_flood_g / global_egi) * 100 if global_egi > 0 else 0.0
@@ -317,7 +315,6 @@ with st.sidebar.container():
             st.number_input(f"Global Turnover/Maint ($/mo) — {maint_pct:.1f}%", min_value=0.0, step=50.0, key="opex_maint_global")
             st.number_input(f"Global HOA / Misc ($/mo) — {misc_pct:.1f}%", min_value=0.0, step=50.0, key="opex_misc_global")
         
-        # Translate global values to per-door values so the underlying engine still works flawlessly
         st.session_state['opex_taxes_mo'] = current_tax_g / project_units
         st.session_state['opex_ins_mo'] = current_ins_g / project_units
         st.session_state['opex_flood_mo'] = current_flood_g / project_units
@@ -359,7 +356,6 @@ with st.sidebar.container():
 with st.sidebar.container():
     st.subheader("11. Takeout Refinance & Optimization Terms")
     
-    # Tiered LTV & Amortization
     st.selectbox("Refinance LTV Tier (%)", [80.0, 75.0, 70.0], key="refi_ltv_pct")
     st.selectbox("Amortization Structure", ["Interest-Only (10-Yr IO Rider)", "Fully Amortizing (30-Yr)"], key="amortization_type")
     st.number_input("Bank Target DSCR Rate", min_value=1.0, max_value=1.5, step=0.05, key="target_dscr_rate")
@@ -367,13 +363,57 @@ with st.sidebar.container():
     
     st.markdown("##### Commercial Base Rate & Pricing")
     st.radio("Refi Rate Source", ["Manual Entry", "Fetch Live FRED API (DPRIME)"], key="refi_rate_mode")
-    # [Keep existing FRED fetch logic...]
+    
+    if st.session_state.refi_rate_mode == "Fetch Live FRED API (DPRIME)":
+        if st.button("Fetch Live Fed Index Rate", width='stretch'):
+            fred_api_key = os.environ.get("FRED_API_KEY", "")
+            if not fred_api_key:
+                try:
+                    fred_api_key = st.secrets.get("FRED_API_KEY", "")
+                except Exception:
+                    fred_api_key = ""
+
+            if not fred_api_key:
+                st.error("FRED_API_KEY not found in environment variables or secrets.toml.")
+            else:
+                try:
+                    with st.spinner("Fetching DPRIME from St. Louis Fed..."):
+                        url = f"https://api.stlouisfed.org/fred/series/observations?series_id=DPRIME&api_key={fred_api_key.strip()}&file_type=json&sort_order=desc&limit=1"
+                        response = requests.get(url, timeout=10)
+                        if response.status_code == 200:
+                            data = response.json()
+                            wsj_prime = float(data['observations'][0]['value'])
+                            st.session_state.refi_index_rate = wsj_prime
+                            st.success(f"Successfully fetched: {wsj_prime}%")
+                        else:
+                            st.error(f"FRED API Error: {response.status_code}")
+                except Exception as e:
+                    st.error(f"Connection error: {e}")
+                    
+        current_refi_index = st.session_state.get("refi_index_rate", 7.50)
+        st.info(f"**Active Index Rate:** `{current_refi_index:.2f}%`")
+    else:
+        current_refi_index = st.number_input("Manual Index Rate (%)", min_value=1.0, max_value=15.0, step=0.25, value=st.session_state.get("refi_index_rate", 7.50), key="refi_index_rate")
+
+    st.markdown("##### Bank Lending Margin & Discounts")
+    refi_margin = st.number_input("Refi Lending Spread (+ %)", min_value=0.0, max_value=10.0, step=0.25, value=1.00, key="refi_margin_pct", help="The margin your bank charges above the Index Rate.")
+
+    raw_refi_rate = current_refi_index + refi_margin
+    current_refi_ltv = st.session_state.get("refi_ltv_pct", 80.0)
+    
+    refi_rate_discount = max(0.0, (80.0 - current_refi_ltv) / 5.0) * 0.5
+    adjusted_base_r_rate = max(1.0, raw_refi_rate - refi_rate_discount)
+    
+    st.session_state["base_refi_rate_pct"] = adjusted_base_r_rate
+    
+    if refi_rate_discount > 0:
+        st.markdown(f"📈 **Raw Rate (Index + Spread):** `{raw_refi_rate:.2f}%`\n📉 **Tiered Equity Discount:** `-{refi_rate_discount:.2f}%`\n🎯 **Effective Base Rate:** `{adjusted_base_r_rate:.2f}%`")
+    else:
+        st.markdown(f"🎯 **Effective Base Refi Rate:** `{adjusted_base_r_rate:.2f}%`")
     
     st.markdown("##### Lender Points & Closing Bundle")
     st.number_input("Lender Discount Points (%)", min_value=0.0, max_value=5.0, step=0.25, format="%.2f", key="refi_points_pct", help="Points paid to lender to buy down rate (e.g. 3.0 pts for 6.99%).")
     
-    # --- CLOSING BUNDLE TOGGLE ---
-    st.markdown("##### Takeout Closing & Title Bundle")
     closing_bundle_mode = st.radio("Closing Bundle Mode", ["Standard Fixed ($6,500)", "Manual Custom Input"], key="refi_bundle_mode", horizontal=True)
 
     if closing_bundle_mode == "Standard Fixed ($6,500)":
@@ -383,16 +423,14 @@ with st.sidebar.container():
         refi_closing_bundle = st.number_input("Custom Closing Bundle ($)", min_value=0.0, step=250.0, value=6500.0, key="manual_refi_bundle")
     st.session_state["active_refi_bundle"] = refi_closing_bundle
     
+    st.markdown("##### Lender Information")
     st.text_input("Refinance Bank Name", key="refi_bank_name")
     st.text_input("Contact Person", key="refi_bank_contact")
-    
-    st.number_input("Refinance Closing Fee ($ total)", min_value=0, step=250, format="%d", key="refi_closing_fee")
-    st.checkbox("Apply Interest Rate Buydown Points?", key="apply_buydown")
-    if st.session_state.apply_buydown:
-        st.number_input("Discount Points", min_value=0.0, max_value=10.0, step=0.25, format="%.2f", key="buydown_pts")
-        # Compute the final net rate off the dynamically generated adjusted_base_r_rate
-        net_rate = max(0.01, (adjusted_base_r_rate / 100.0) - (st.session_state.buydown_pts * 0.0025))
-        st.markdown(f"📉 **Final Buydown Net Rate:** `{net_rate*100:.3f}%`")
+
+# ==========================================
+# --- MASTER ENGINE CALCULATION EXECUTION ---
+# ==========================================
+calc = run_underwriting_engine(st.session_state, STRESS_SCENARIOS)
 
 # ==========================================
 # --- SECTION 11.5: REFINANCE OPTIMIZATION MATRIX & TARGET CALLOUT ---
@@ -406,7 +444,6 @@ opt_intro = (
 )
 st.info(opt_intro.replace("$", r"\$"))
 
-# --- Run Matrix Sweep Simulation ---
 matrix_rows = []
 test_ltvs = [80.0, 75.0, 70.0]
 test_structures = ["Interest-Only (10-Yr IO Rider)", "Fully Amortizing (30-Yr)"]
@@ -414,15 +451,16 @@ test_structures = ["Interest-Only (10-Yr IO Rider)", "Fully Amortizing (30-Yr)"]
 for ltv_val in test_ltvs:
     ltv_decimal = ltv_val / 100.0
     gross_loan_sim = calc['total_arv'] * ltv_decimal
-    points_cost_sim = gross_loan_sim * (buydown_pts / 100.0)
-    net_rate_sim = max(0.01, base_refi_rate - (buydown_pts * 0.0025))
+    buydown_pts_sim = st.session_state.get("refi_points_pct", 3.0)
+    points_cost_sim = gross_loan_sim * (buydown_pts_sim / 100.0)
+    net_rate_sim = calc['net_refi_rate']
     
     for struct in test_structures:
         if struct == "Interest-Only (10-Yr IO Rider)":
             pi_mo = (gross_loan_sim / units) * (net_rate_sim / 12.0)
         else:
             m_rate = net_rate_sim / 12.0
-            n_pmts = refi_term_years * 12
+            n_pmts = calc['refi_term_years'] * 12
             if m_rate > 0:
                 pi_mo = (gross_loan_sim / units) * (m_rate * (1 + m_rate)**n_pmts) / ((1 + m_rate)**n_pmts - 1)
             else:
@@ -430,18 +468,14 @@ for ltv_val in test_ltvs:
                 
         tot_pi_mo = pi_mo * units
         tot_outflow_mo = tot_pi_mo + mo_opex
-        net_cf_door = monthly_cash_flow_per_door if ltv_val == refi_ltv*100 and struct == amortization_type else (monthly_noi - tot_pi_mo) / units
+        net_cf_door = (monthly_noi - tot_pi_mo) / units
         
-        # DSCR calculation
-        pitia_unit = pi_mo + bank_tia_per_unit
+        pitia_unit = pi_mo + calc['bank_tia_per_unit']
         dscr_sim = gross_monthly_rent / pitia_unit if pitia_unit > 0 else 0
         
-        # Cash-at-Table calculation (Gross Loan - Basis Payoff - Points - Closing Bundle)
-        # Note: Using total project basis ex-refi/buydown as the payoff benchmark
-        basis_payoff_sim = total_construction_basis
+        basis_payoff_sim = calc['total_construction_basis']
         cash_at_table_sim = gross_loan_sim - basis_payoff_sim - points_cost_sim - refi_closing_bundle
         
-        # Fit status
         if net_cf_door >= target_min_cashflow_per_door and cash_at_table_sim >= -500 and dscr_sim >= target_dscr_rate:
             fit_status = "🟢 Optimal Target"
         elif net_cf_door >= target_min_cashflow_per_door and dscr_sim >= target_dscr_rate:
@@ -453,7 +487,7 @@ for ltv_val in test_ltvs:
             
         matrix_rows.append({
             "LTV Tier": f"{ltv_val:.0f}%",
-            "Structure": "10-Yr IO" if "IO" in struct else f"{refi_term_years}-Yr Amort",
+            "Structure": "10-Yr IO" if "IO" in struct else f"{calc['refi_term_years']}-Yr Amort",
             "Rate": f"{net_rate_sim*100:.2f}%",
             "Gross Loan": f"${gross_loan_sim:,.0f}",
             "Monthly P&I": f"${tot_pi_mo:,.0f}",
@@ -465,31 +499,25 @@ for ltv_val in test_ltvs:
         })
 
 df_opt_matrix = pd.DataFrame(matrix_rows)
-st.dataframe(df_opt_matrix, hide_index=True, width='stretch')
+st.dataframe(df_opt_matrix, hide_index=True, use_container_width=True)
 
-# --- Hammond Target Benchmark Callout Card ---
 col_b1, col_b2 = st.columns(2)
 
 with col_b1:
     st.markdown("#### 🎯 Hammond Target Benchmark Card")
     st.markdown(f"- **ARV Valuation:** `${calc['arv_per_unit']:,.0f}`")
-    st.markdown(f"- **Construction Basis Payoff:** `${total_construction_basis:,.0f}`")
-    st.markdown(f"- **Active Gross Loan ({refi_ltv*100:.0f}% LTV):** `${loan_total:,.0f}`")
-    st.markdown(f"- **Net Effective Rate (w/ {buydown_pts:.1f} Pts):** `{net_refi_rate*100:.2f}%`")
+    st.markdown(f"- **Construction Basis Payoff:** `${calc['total_construction_basis']:,.0f}`")
+    st.markdown(f"- **Active Gross Loan ({calc['refi_ltv']*100:.0f}% LTV):** `${calc['loan_total']:,.0f}`")
+    st.markdown(f"- **Net Effective Rate (w/ {calc['buydown_pts']:.1f} Pts):** `{calc['net_refi_rate']*100:.2f}%`")
 
 with col_b2:
     st.markdown("#### 📊 Execution Summary")
-    st.markdown(f"- **Total Monthly Outflow (PITIA + OpEx):** `${total_monthly_pi + mo_opex:,.0f}/mo`")
-    st.markdown(f"- **Net Monthly Cash Flow:** `+${monthly_cash_flow_per_door:,.0f}/mo per door` (Target: $\ge\${target_min_cashflow_per_door:.0f}$) ")
-    st.markdown(f"- **Underwritten DSCR:** `{actual_dscr:.2f}x` (Target: $\ge{target_dscr_rate:.2f}x$)")
-    st.markdown(f"- **Net Cash-at-Table:** `{format_surplus(net_cash_at_closing)}` (Target: $\ge \$0$)")
+    st.markdown(f"- **Total Monthly Outflow (PITIA + OpEx):** `${calc['total_monthly_pi'] + mo_opex:,.0f}/mo`")
+    st.markdown(f"- **Net Monthly Cash Flow:** `+${calc['monthly_cash_flow_per_door']:,.0f}/mo per door` (Target: $\ge\${target_min_cashflow_per_door:.0f}$) ")
+    st.markdown(f"- **Underwritten DSCR:** `{calc['actual_dscr']:.2f}x` (Target: $\ge{target_dscr_rate:.2f}x$)")
+    st.markdown(f"- **Net Cash-at-Table:** `{format_surplus(calc['net_cash_at_closing'])}` (Target: $\ge \$0$)")
 
 st.divider()
-        
-# ==========================================
-# --- MASTER ENGINE CALCULATION EXECUTION ---
-# ==========================================
-calc = run_underwriting_engine(st.session_state, STRESS_SCENARIOS)
 
 # ==========================================
 # --- PAGE HEADER ---
@@ -1630,7 +1658,11 @@ ui_inputs = {
     "const_bank_name": st.session_state.get("const_bank_name", "Local Regional Bank"),
     "const_bank_contact": st.session_state.get("const_bank_contact", "Commercial Loan Officer"),
     "refi_bank_name": st.session_state.get("refi_bank_name", "National DSCR Lender"),
-    "refi_bank_contact": st.session_state.get("refi_bank_contact", "Takeout Underwriter")
+    "refi_bank_contact": st.session_state.get("refi_bank_contact", "Takeout Underwriter"),
+    "amortization_type": amortization_type,
+    "buydown_pts": buydown_pts,
+    "net_refi_rate": net_refi_rate,
+    "refi_closing_bundle": refi_closing_bundle
 }
 
 texts_dict = {
