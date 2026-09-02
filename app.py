@@ -413,6 +413,28 @@ with st.sidebar.container():
     
     st.markdown("##### Lender Points & Closing Bundle")
     st.number_input("Lender Discount Points (%)", min_value=0.0, max_value=5.0, step=0.25, format="%.2f", key="refi_points_pct", help="Points paid to lender to buy down rate (e.g. 3.0 pts for 6.99%).")
+
+    st.markdown("##### Lender Points & Closing Bundle")
+    st.number_input(
+        "Lender Discount Points (%)", 
+        min_value=0.0, 
+        max_value=5.0, 
+        step=0.25, 
+        format="%.2f", 
+        key="refi_points_pct", 
+        help="Points paid to lender to buy down rate (e.g. 3.0 pts for 6.99%)."
+    )
+    
+    # --- LIVE NET RATE DISPLAY ---
+    current_pts = st.session_state.get("refi_points_pct", 3.0)
+    # 1 point = 0.25% reduction in rate
+    final_net_rate_pct = max(0.25, adjusted_base_r_rate - (current_pts * 0.25))
+    st.markdown(f"🎯 **Effective Net Refi Rate (w/ {current_pts:.2f} Pts):** `{final_net_rate_pct:.2f}%`")
+    # -----------------------------
+    
+    # --- CLOSING BUNDLE TOGGLE ---
+    st.markdown("##### Takeout Closing & Title Bundle")
+    closing_bundle_mode = st.radio("Closing Bundle Mode", ["Standard Fixed ($6,500)", "Manual Custom Input"], key="refi_bundle_mode", horizontal=True)
     
     closing_bundle_mode = st.radio("Closing Bundle Mode", ["Standard Fixed ($6,500)", "Manual Custom Input"], key="refi_bundle_mode", horizontal=True)
 
