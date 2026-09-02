@@ -349,7 +349,9 @@ with st.sidebar.container():
 
 with st.sidebar.container():
     st.subheader("11. Takeout Refinance Terms")
-    st.slider("Refinance LTV (%)", min_value=60.0, max_value=85.0, step=5.0, key="refi_ltv_pct")
+    
+    # Tiered LTV Selector for Refinance
+    st.selectbox("Refinance LTV Tier (%)", [80.0, 75.0, 70.0], key="refi_ltv_pct", help="Select permanent loan-to-value tier. Lower LTV tiers unlock commercial rate discounts.")
     st.number_input("Bank Target DSCR Rate", min_value=1.0, max_value=1.5, step=0.05, key="target_dscr_rate")
     st.selectbox("Amortization Term (Years)", [15, 20, 25, 30], key="refi_term_years")
     
@@ -377,11 +379,22 @@ with st.sidebar.container():
     st.markdown("##### Bank Lending Margin & Discounts")
     refi_margin = st.number_input("Refi Lending Spread (+ %)", min_value=0.0, max_value=10.0, step=0.25, value=1.00, key="refi_margin_pct", help="The margin your bank charges above the Index Rate.")
 
-    # Calculate base refi rate (Index + Spread) and save it for calculations.py
-    base_r_rate = current_refi_index + refi_margin
-    st.session_state["base_refi_rate_pct"] = base_r_rate
+    # Calculate raw base refi rate (Index + Spread)
+    raw_refi_rate = current_refi_index + refi_margin
+    current_refi_ltv = st.session_state.get("refi_ltv_pct", 80.0)
     
-    st.markdown(f"📈 **Base Refi Rate (Index + Spread):** `{base_r_rate:.2f}%`")
+    # Apply 0.5% rate reduction for every 5% drop in LTV below 80%
+    refi_rate_discount = max(0.0, (80.0 - current_refi_ltv) / 5.0) * 0.5
+    adjusted_base_r_rate = max(1.0, raw_refi_rate - refi_rate_discount)
+    
+    # Save the final discounted base rate for calculations.py
+    st.session_state["base_refi_rate_pct"] = adjusted_base_r_rate
+    
+    # Display the breakdown in the UI
+    if refi_rate_discount > 0:
+        st.markdown(f"📈 **Raw Rate (Index + Spread):** `{raw_refi_rate:.2f}%`\n📉 **Tiered Equity Discount:** `-{refi_rate_discount:.2f}%`\n🎯 **Effective Base Rate:** `{adjusted_base_r_rate:.2f}%`")
+    else:
+        st.markdown(f"🎯 **Effective Base Refi Rate:** `{adjusted_base_r_rate:.2f}%`")
     
     st.markdown("##### Lender Information")
     st.text_input("Refinance Bank Name", key="refi_bank_name")
@@ -391,9 +404,9 @@ with st.sidebar.container():
     st.checkbox("Apply Interest Rate Buydown Points?", key="apply_buydown")
     if st.session_state.apply_buydown:
         st.number_input("Discount Points", min_value=0.0, max_value=10.0, step=0.25, format="%.2f", key="buydown_pts")
-        # Compute the net rate off the dynamically generated base_r_rate
-        net_rate = max(0.01, (base_r_rate / 100.0) - (st.session_state.buydown_pts * 0.0025))
-        st.markdown(f"📉 **Buydown Net Rate:** `{net_rate*100:.3f}%`")
+        # Compute the final net rate off the dynamically generated adjusted_base_r_rate
+        net_rate = max(0.01, (adjusted_base_r_rate / 100.0) - (st.session_state.buydown_pts * 0.0025))
+        st.markdown(f"📉 **Final Buydown Net Rate:** `{net_rate*100:.3f}%`")
 
 # ==========================================
 # --- MASTER ENGINE CALCULATION EXECUTION ---
