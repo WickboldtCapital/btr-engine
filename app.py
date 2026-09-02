@@ -352,7 +352,36 @@ with st.sidebar.container():
     st.slider("Refinance LTV (%)", min_value=60.0, max_value=85.0, step=5.0, key="refi_ltv_pct")
     st.number_input("Bank Target DSCR Rate", min_value=1.0, max_value=1.5, step=0.05, key="target_dscr_rate")
     st.selectbox("Amortization Term (Years)", [15, 20, 25, 30], key="refi_term_years")
-    st.slider("Base Refi Interest Rate (%)", min_value=4.0, max_value=10.0, step=0.25, key="base_refi_rate_pct")
+    
+    st.markdown("##### Commercial Base Rate (Index)")
+    st.radio("Refi Rate Source", ["Manual Entry", "Scrape Live WSJ Prime"], key="refi_rate_mode")
+    
+    if st.session_state.refi_rate_mode == "Scrape Live WSJ Prime":
+        if st.button("Fetch Live Refi Index Rate", use_container_width=True):
+            try:
+                with st.spinner("Scraping WSJ Prime..."):
+                    headers = {"User-Agent": "Mozilla/5.0"}
+                    response = requests.get("https://www.bankrate.com/rates/interest-rates/wall-street-prime-rate/", headers=headers)
+                    tables = pd.read_html(response.text)
+                    wsj_prime = float(tables[0].iloc[0, 1])
+                    st.session_state.refi_index_rate = wsj_prime
+                    st.success(f"Successfully scraped: {wsj_prime}%")
+            except Exception as e:
+                st.error("Could not scrape rate. Please use Manual Entry.")
+                
+        current_refi_index = st.session_state.get("refi_index_rate", 7.50)
+        st.info(f"**Active Index Rate:** `{current_refi_index:.2f}%`")
+    else:
+        current_refi_index = st.number_input("Manual Index Rate (%)", min_value=1.0, max_value=15.0, step=0.25, value=st.session_state.get("refi_index_rate", 7.50), key="refi_index_rate")
+
+    st.markdown("##### Bank Lending Margin & Discounts")
+    refi_margin = st.number_input("Refi Lending Spread (+ %)", min_value=0.0, max_value=10.0, step=0.25, value=1.00, key="refi_margin_pct", help="The margin your bank charges above the Index Rate.")
+
+    # Calculate base refi rate (Index + Spread) and save it for calculations.py
+    base_r_rate = current_refi_index + refi_margin
+    st.session_state["base_refi_rate_pct"] = base_r_rate
+    
+    st.markdown(f"📈 **Base Refi Rate (Index + Spread):** `{base_r_rate:.2f}%`")
     
     st.markdown("##### Lender Information")
     st.text_input("Refinance Bank Name", key="refi_bank_name")
@@ -362,7 +391,8 @@ with st.sidebar.container():
     st.checkbox("Apply Interest Rate Buydown Points?", key="apply_buydown")
     if st.session_state.apply_buydown:
         st.number_input("Discount Points", min_value=0.0, max_value=10.0, step=0.25, format="%.2f", key="buydown_pts")
-        net_rate = max(0.01, (st.session_state.base_refi_rate_pct / 100.0) - (st.session_state.buydown_pts * 0.0025))
+        # Compute the net rate off the dynamically generated base_r_rate
+        net_rate = max(0.01, (base_r_rate / 100.0) - (st.session_state.buydown_pts * 0.0025))
         st.markdown(f"📉 **Buydown Net Rate:** `{net_rate*100:.3f}%`")
 
 # ==========================================
