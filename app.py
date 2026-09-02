@@ -186,24 +186,18 @@ with st.sidebar.container():
     
     if st.session_state.prime_rate_mode == "Fetch Live FRED API (DPRIME)":
         if st.button("Fetch Live Fed Prime Rate", use_container_width=True):
-            # Pulls the key securely from local secrets.toml or Streamlit Cloud secrets
-            fred_api_key = os.environ.get("FRED_API_KEY") or st.secrets.get("FRED_API_KEY", "")
+           # Safely pull the key without crashing if secrets.toml is missing
+            fred_api_key = os.environ.get("FRED_API_KEY", "")
             if not fred_api_key:
-                st.error("FRED_API_KEY not found in secrets.toml or Cloud settings.")
-            else:
                 try:
-                    with st.spinner("Fetching DPRIME from St. Louis Fed..."):
-                        url = f"https://api.stlouisfed.org/fred/series/observations?series_id=DPRIME&api_key={fred_api_key.strip()}&file_type=json&sort_order=desc&limit=1"
-                        response = requests.get(url, timeout=10)
-                        if response.status_code == 200:
-                            data = response.json()
-                            wsj_prime = float(data['observations'][0]['value'])
-                            st.session_state.base_prime_rate = wsj_prime
-                            st.success(f"Successfully fetched: {wsj_prime}%")
-                        else:
-                            st.error(f"FRED API Error: {response.status_code}")
-                except Exception as e:
-                    st.error(f"Connection error: {e}")
+                    fred_api_key = st.secrets.get("FRED_API_KEY", "")
+                except Exception:
+                    fred_api_key = ""
+
+            if not fred_api_key:
+                st.error("FRED_API_KEY not found in environment variables or secrets.toml.")
+            else:
+                # Proceed with API call... 
                     
         current_prime = st.session_state.get("base_prime_rate", 7.50)
         st.info(f"**Active Prime Rate:** `{current_prime:.2f}%`")
@@ -420,7 +414,7 @@ with st.sidebar.container():
         # Compute the final net rate off the dynamically generated adjusted_base_r_rate
         net_rate = max(0.01, (adjusted_base_r_rate / 100.0) - (st.session_state.buydown_pts * 0.0025))
         st.markdown(f"📉 **Final Buydown Net Rate:** `{net_rate*100:.3f}%`")
-
+        
 # ==========================================
 # --- MASTER ENGINE CALCULATION EXECUTION ---
 # ==========================================
