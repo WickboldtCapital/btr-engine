@@ -181,18 +181,48 @@ with st.sidebar.container():
 with st.sidebar.container():
     st.subheader("7. Construction Loan Terms")
     
+    st.markdown("##### Commercial Base Rate (WSJ Prime)")
+    st.radio("Prime Rate Source", ["Manual Entry", "Scrape Live WSJ Prime"], key="prime_rate_mode")
+    
+    if st.session_state.prime_rate_mode == "Scrape Live WSJ Prime":
+        if st.button("Fetch Live WSJ Prime Rate", use_container_width=True):
+            try:
+                with st.spinner("Scraping WSJ Prime..."):
+                    headers = {"User-Agent": "Mozilla/5.0"}
+                    # Bankrate maintains a clean, consistently formatted HTML table for the WSJ Prime Rate
+                    response = requests.get("https://www.bankrate.com/rates/interest-rates/wall-street-prime-rate/", headers=headers)
+                    tables = pd.read_html(response.text)
+                    # The first table contains WSJ Prime Rate in the first row, second column
+                    wsj_prime = float(tables[0].iloc[0, 1])
+                    st.session_state.base_prime_rate = wsj_prime
+                    st.success(f"Successfully scraped: {wsj_prime}%")
+            except Exception as e:
+                st.error("Could not scrape rate. Please use Manual Entry.")
+                
+        current_prime = st.session_state.get("base_prime_rate", 7.50)
+        st.info(f"**Active Prime Rate:** `{current_prime:.2f}%`")
+    else:
+        current_prime = st.number_input("Manual Prime Rate (%)", min_value=1.0, max_value=15.0, step=0.25, value=st.session_state.get("base_prime_rate", 7.50), key="base_prime_rate")
+
+    st.markdown("##### Bank Lending Margin & Discounts")
+    bank_margin = st.number_input("Bank Lending Margin (Prime + %)", min_value=0.0, max_value=10.0, step=0.25, value=1.00, key="bank_margin_pct", help="The spread your bank charges above the Prime Rate.")
+    
     # Tiered LTV Selector
     st.selectbox("Construction / Bank LTC (%)", [80.0, 75.0, 70.0], key="const_ltv_pct", help="Select bank loan-to-cost tier. Lower LTC tiers unlock commercial rate discounts.")
     
-    # Calculate and display live tiered construction rate
-    base_c_rate = st.session_state.get("const_rate_pct", 7.0)
+    # Calculate base const rate (Prime + Margin) and save it for calculations.py
+    base_c_rate = current_prime + bank_margin
+    st.session_state["const_rate_pct"] = base_c_rate 
+    
+    # Display live tiered construction rate for the UI
     current_ltv = st.session_state.get("const_ltv_pct", 80.0)
     rate_discount = max(0.0, (80.0 - current_ltv) / 5.0) * 0.5
     effective_c_rate = max(1.0, base_c_rate - rate_discount)
     
-    st.slider("Base Construction Loan Rate (%)", min_value=4.0, max_value=14.0, step=0.5, key="const_rate_pct")
     if rate_discount > 0:
-        st.markdown(f"📉 **Tiered Equity Discount:** `-{rate_discount:.2f}%` ⇒ **Effective Rate:** `{effective_c_rate:.2f}%`")
+        st.markdown(f"📈 **Base Rate (Prime + Margin):** `{base_c_rate:.2f}%`\n📉 **Tiered Equity Discount:** `-{rate_discount:.2f}%`\n🎯 **Effective Rate:** `{effective_c_rate:.2f}%`")
+    else:
+        st.markdown(f"🎯 **Effective Construction Rate:** `{effective_c_rate:.2f}%`")
     
     st.slider("Construction Duration (Months)", min_value=3, max_value=18, step=1, key="build_months")
     
