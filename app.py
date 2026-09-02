@@ -22,6 +22,12 @@ for key, value in HARDCODED_DRIVERS.items():
     if key not in st.session_state:
         st.session_state[key] = value
 
+# Enforce specific UI defaults on the very first load (Overriding config.py if necessary)
+if "first_load_complete" not in st.session_state:
+    st.session_state["amortization_type"] = "Fully Amortizing (30-Yr)"
+    st.session_state["arv_constraint_mode"] = "Reverse-Engineer Max ARV from Min. Cash Flow"
+    st.session_state["first_load_complete"] = True
+
 if "raw_api_data" not in st.session_state:
     st.session_state.raw_api_data = None
 
@@ -424,7 +430,7 @@ with st.sidebar.container():
         st.info(f"**Tier {derived_tier} Pricing Activated:** `+{derived_margin:.3f}%` Margin")
         refi_margin = derived_margin
     else:
-        refi_margin = st.number_input("Manual Refi Lending Spread (+ %)", min_value=0.0, max_value=10.0, step=0.125, value=0.50, key="refi_margin_pct", help="The margin your bank charges above the Index Rate.")
+        refi_margin = st.number_input("Manual Refi Lending Spread (+ %)", min_value=0.0, max_value=10.0, step=0.1, value=0.50, key="refi_margin_pct", help="The margin your bank charges above the Index Rate.")
     # ------------------------------------------
 
     raw_refi_rate = current_refi_index + refi_margin
@@ -1841,7 +1847,7 @@ st.divider()
 # ==========================================
 # --- 19. MASTER MODEL DRIVERS & EXECUTIVE CONCLUSION ---
 # ==========================================
-st.markdown("### 🔑 19. Master Model Drivers & Executive Conclusion")
+st.markdown("### 🔑 19. MASTER MODEL DRIVERS & EXECUTIVE CONCLUSION")
 
 intro_text = (
     "The financial success of the Wickboldt Capital BTR strategy relies on the precise orchestration of interrelated project variables. "
