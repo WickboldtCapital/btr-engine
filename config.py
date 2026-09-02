@@ -71,7 +71,7 @@ HARDCODED_DRIVERS = {
     "const_bank_amort_yrs": 30,
     "reserve_accrual_pct": 100.0,
     
-    "refi_ltv_pct": 80.0,
+    "refi_ltv_pct": 75.0,
     "refi_term_years": 30,
     "base_refi_rate_pct": 6.75,
     "refi_closing_fee": 6000,
