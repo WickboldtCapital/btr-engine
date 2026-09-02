@@ -393,6 +393,98 @@ with st.sidebar.container():
         # Compute the final net rate off the dynamically generated adjusted_base_r_rate
         net_rate = max(0.01, (adjusted_base_r_rate / 100.0) - (st.session_state.buydown_pts * 0.0025))
         st.markdown(f"📉 **Final Buydown Net Rate:** `{net_rate*100:.3f}%`")
+
+# ==========================================
+# --- SECTION 11.5: REFINANCE OPTIMIZATION MATRIX & TARGET CALLOUT ---
+# ==========================================
+st.markdown("### 11.5 Refinance Optimization Matrix & Target Benchmarking")
+
+opt_intro = (
+    f"This matrix sweeps across LTV tiers (**80%, 75%, 70%**) and debt structures to identify the optimal configuration "
+    f"meeting your target **$\ge \$200/mo$ net cash flow** and **net-zero out-of-pocket** closing constraints "
+    f"for the Hammond asset (**${calc['total_arv']/calc['units']:,.0f} ARV**, **${calc['total_project_basis']:,.0f} Basis**, **${gross_monthly_rent:,.0f}/mo Rent**)."
+)
+st.info(opt_intro.replace("$", r"\$"))
+
+# --- Run Matrix Sweep Simulation ---
+matrix_rows = []
+test_ltvs = [80.0, 75.0, 70.0]
+test_structures = ["Interest-Only (10-Yr IO Rider)", "Fully Amortizing (30-Yr)"]
+
+for ltv_val in test_ltvs:
+    ltv_decimal = ltv_val / 100.0
+    gross_loan_sim = calc['total_arv'] * ltv_decimal
+    points_cost_sim = gross_loan_sim * (buydown_pts / 100.0)
+    net_rate_sim = max(0.01, base_refi_rate - (buydown_pts * 0.0025))
+    
+    for struct in test_structures:
+        if struct == "Interest-Only (10-Yr IO Rider)":
+            pi_mo = (gross_loan_sim / units) * (net_rate_sim / 12.0)
+        else:
+            m_rate = net_rate_sim / 12.0
+            n_pmts = refi_term_years * 12
+            if m_rate > 0:
+                pi_mo = (gross_loan_sim / units) * (m_rate * (1 + m_rate)**n_pmts) / ((1 + m_rate)**n_pmts - 1)
+            else:
+                pi_mo = (gross_loan_sim / units) / n_pmts
+                
+        tot_pi_mo = pi_mo * units
+        tot_outflow_mo = tot_pi_mo + mo_opex
+        net_cf_door = monthly_cash_flow_per_door if ltv_val == refi_ltv*100 and struct == amortization_type else (monthly_noi - tot_pi_mo) / units
+        
+        # DSCR calculation
+        pitia_unit = pi_mo + bank_tia_per_unit
+        dscr_sim = gross_monthly_rent / pitia_unit if pitia_unit > 0 else 0
+        
+        # Cash-at-Table calculation (Gross Loan - Basis Payoff - Points - Closing Bundle)
+        # Note: Using total project basis ex-refi/buydown as the payoff benchmark
+        basis_payoff_sim = total_construction_basis
+        cash_at_table_sim = gross_loan_sim - basis_payoff_sim - points_cost_sim - refi_closing_bundle
+        
+        # Fit status
+        if net_cf_door >= target_min_cashflow_per_door and cash_at_table_sim >= -500 and dscr_sim >= target_dscr_rate:
+            fit_status = "🟢 Optimal Target"
+        elif net_cf_door >= target_min_cashflow_per_door and dscr_sim >= target_dscr_rate:
+            fit_status = "🟡 Hits Flow / Capital Req."
+        elif dscr_sim >= target_dscr_rate:
+            fit_status = "🟠 Misses Cash Flow Target"
+        else:
+            fit_status = "🔴 Fails DSCR / High Risk"
+            
+        matrix_rows.append({
+            "LTV Tier": f"{ltv_val:.0f}%",
+            "Structure": "10-Yr IO" if "IO" in struct else f"{refi_term_years}-Yr Amort",
+            "Rate": f"{net_rate_sim*100:.2f}%",
+            "Gross Loan": f"${gross_loan_sim:,.0f}",
+            "Monthly P&I": f"${tot_pi_mo:,.0f}",
+            "Total Outflow": f"${tot_outflow_mo:,.0f}",
+            "Net Cash Flow": f"${net_cf_door:,.0f} /mo",
+            "DSCR": f"{dscr_sim:.2f}x",
+            "Cash-at-Table": f"+${cash_at_table_sim:,.0f}" if cash_at_table_sim >= 0 else f"-${-cash_at_table_sim:,.0f}",
+            "Fit Status": fit_status
+        })
+
+df_opt_matrix = pd.DataFrame(matrix_rows)
+st.dataframe(df_opt_matrix, hide_index=True, width='stretch')
+
+# --- Hammond Target Benchmark Callout Card ---
+col_b1, col_b2 = st.columns(2)
+
+with col_b1:
+    st.markdown("#### 🎯 Hammond Target Benchmark Card")
+    st.markdown(f"- **ARV Valuation:** `${calc['arv_per_unit']:,.0f}`")
+    st.markdown(f"- **Construction Basis Payoff:** `${total_construction_basis:,.0f}`")
+    st.markdown(f"- **Active Gross Loan ({refi_ltv*100:.0f}% LTV):** `${loan_total:,.0f}`")
+    st.markdown(f"- **Net Effective Rate (w/ {buydown_pts:.1f} Pts):** `{net_refi_rate*100:.2f}%`")
+
+with col_b2:
+    st.markdown("#### 📊 Execution Summary")
+    st.markdown(f"- **Total Monthly Outflow (PITIA + OpEx):** `${total_monthly_pi + mo_opex:,.0f}/mo`")
+    st.markdown(f"- **Net Monthly Cash Flow:** `+${monthly_cash_flow_per_door:,.0f}/mo per door` (Target: $\ge\${target_min_cashflow_per_door:.0f}$) ")
+    st.markdown(f"- **Underwritten DSCR:** `{actual_dscr:.2f}x` (Target: $\ge{target_dscr_rate:.2f}x$)")
+    st.markdown(f"- **Net Cash-at-Table:** `{format_surplus(net_cash_at_closing)}` (Target: $\ge \$0$)")
+
+st.divider()
         
 # ==========================================
 # --- MASTER ENGINE CALCULATION EXECUTION ---
