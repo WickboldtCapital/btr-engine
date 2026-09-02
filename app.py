@@ -185,18 +185,14 @@ with st.sidebar.container():
     st.radio("Prime Rate Source", ["Manual Entry", "Fetch Live FRED API (DPRIME)"], key="prime_rate_mode")
     
     if st.session_state.prime_rate_mode == "Fetch Live FRED API (DPRIME)":
-        with st.expander("⚙️ FRED API Configuration"):
-            fred_key_c = st.text_input("FRED API Key", type="password", key="fred_key_const")
-            st.caption("Get a free API key at [fred.stlouisfed.org](https://fred.stlouisfed.org/)")
-            
         if st.button("Fetch Live Fed Prime Rate", use_container_width=True):
-            fred_api_key = fred_key_c or os.environ.get("FRED_API_KEY") or st.secrets.get("FRED_API_KEY", "")
+            # Pulls the key securely from local secrets.toml or Streamlit Cloud secrets
+            fred_api_key = os.environ.get("FRED_API_KEY") or st.secrets.get("FRED_API_KEY", "")
             if not fred_api_key:
-                st.error("Please enter a valid FRED API key.")
+                st.error("FRED_API_KEY not found in secrets.toml or Cloud settings.")
             else:
                 try:
                     with st.spinner("Fetching DPRIME from St. Louis Fed..."):
-                        # Queries the FRED API for the single most recent data point of the DPRIME series
                         url = f"https://api.stlouisfed.org/fred/series/observations?series_id=DPRIME&api_key={fred_api_key.strip()}&file_type=json&sort_order=desc&limit=1"
                         response = requests.get(url, timeout=10)
                         if response.status_code == 200:
@@ -369,14 +365,10 @@ with st.sidebar.container():
     st.radio("Refi Rate Source", ["Manual Entry", "Fetch Live FRED API (DPRIME)"], key="refi_rate_mode")
     
     if st.session_state.refi_rate_mode == "Fetch Live FRED API (DPRIME)":
-        with st.expander("⚙️ FRED API Configuration"):
-            fred_key_r = st.text_input("FRED API Key", type="password", key="fred_key_refi")
-            st.caption("Get a free API key at [fred.stlouisfed.org](https://fred.stlouisfed.org/)")
-            
         if st.button("Fetch Live Fed Index Rate", use_container_width=True):
-            fred_api_key = fred_key_r or os.environ.get("FRED_API_KEY") or st.secrets.get("FRED_API_KEY", "")
+            fred_api_key = os.environ.get("FRED_API_KEY") or st.secrets.get("FRED_API_KEY", "")
             if not fred_api_key:
-                st.error("Please enter a valid FRED API key.")
+                st.error("FRED_API_KEY not found in secrets.toml or Cloud settings.")
             else:
                 try:
                     with st.spinner("Fetching DPRIME from St. Louis Fed..."):
