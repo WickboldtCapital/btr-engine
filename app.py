@@ -28,10 +28,13 @@ if "first_load_complete" not in st.session_state:
     st.session_state["arv_constraint_mode"] = "Reverse-Engineer Max ARV from Min. Cash Flow"
     st.session_state["target_grm"] = 10.0
     st.session_state["base_prime_rate"] = 6.75
+    st.session_state["refi_index_rate"] = 6.75
+    st.session_state["bank_margin_pct"] = 0.50
     st.session_state["borrower_fico"] = 750
     st.session_state["comp_address"] = "435 Pine St, Independence, LA 70443"
     st.session_state["refi_points_pct"] = 3.0
     st.session_state["refi_margin_pct"] = 0.50
+    st.session_state["active_refi_bundle"] = 6000.0
     st.session_state["first_load_complete"] = True
 
 if "raw_api_data" not in st.session_state:
@@ -87,7 +90,7 @@ with st.sidebar.container():
 
     st.markdown("##### 2.1 Primary Comp Metrics")
     is_rentcast = st.session_state.comp_entry_mode == "RentCast Live API Fetch"
-    st.text_input("Comparable Property Address", value="435 Pine St, Independence, LA 70443", key="comp_address", disabled=is_rentcast)
+    st.text_input("Comparable Property Address", value=st.session_state.get("comp_address", "435 Pine St, Independence, LA 70443"), key="comp_address", disabled=is_rentcast)
     st.number_input("Comp Sale Price ($)", min_value=0, step=1000, key="comp_price", disabled=is_rentcast)
     st.number_input("Comp Heated SF", min_value=0, step=50, key="comp_heated_sf", disabled=is_rentcast)
 
@@ -229,7 +232,7 @@ with st.sidebar.container():
         current_prime = st.number_input("Manual Prime Rate (%)", min_value=1.0, max_value=15.0, step=0.25, value=st.session_state.get("base_prime_rate", 6.75), key="base_prime_rate")
 
     st.markdown("##### Bank Lending Margin & Discounts")
-    bank_margin = st.number_input("Bank Lending Margin (Prime + %)", min_value=0.0, max_value=10.0, step=0.25, value=1.00, key="bank_margin_pct", help="The spread your bank charges above the Prime Rate.")
+    bank_margin = st.number_input("Bank Lending Margin (Prime + %)", min_value=0.0, max_value=10.0, step=0.25, value=st.session_state.get("bank_margin_pct", 0.50), key="bank_margin_pct", help="The spread your bank charges above the Prime Rate.")
     
     st.selectbox("Construction / Bank LTC (%)", [80.0, 75.0, 70.0], key="const_ltv_pct", help="Select bank loan-to-cost tier. Lower LTC tiers unlock commercial rate discounts.")
     
@@ -405,10 +408,10 @@ with st.sidebar.container():
                 except Exception as e:
                     st.error(f"Connection error: {e}")
                     
-        current_refi_index = st.session_state.get("refi_index_rate", 7.50)
+        current_refi_index = st.session_state.get("refi_index_rate", 6.75)
         st.info(f"**Active Index Rate:** `{current_refi_index:.2f}%`")
     else:
-        current_refi_index = st.number_input("Manual Index Rate (%)", min_value=1.0, max_value=15.0, step=0.25, value=st.session_state.get("refi_index_rate", 7.50), key="refi_index_rate")
+        current_refi_index = st.number_input("Manual Index Rate (%)", min_value=1.0, max_value=15.0, step=0.25, value=st.session_state.get("refi_index_rate", 6.75), key="refi_index_rate")
 
     # --- BANK LENDING MARGIN & RISK PROFILE ---
     st.markdown("##### Bank Lending Margin & Risk Profile")
@@ -437,7 +440,7 @@ with st.sidebar.container():
         st.info(f"**Tier {derived_tier} Pricing Activated:** `{margin_tag}` Margin")
         refi_margin = derived_margin
     else:
-        refi_margin = st.number_input("Manual Refi Lending Spread (+/- %)", min_value=-5.0, max_value=10.0, step=0.1, value=0.50, key="refi_margin_pct", help="The margin your bank charges above or below the Index Rate.")
+        refi_margin = st.number_input("Manual Refi Lending Spread (+/- %)", min_value=-5.0, max_value=10.0, step=0.1, value=st.session_state.get("refi_margin_pct", 0.50), key="refi_margin_pct", help="The margin your bank charges above or below the Index Rate.")
     # ------------------------------------------
 
     raw_refi_rate = current_refi_index + refi_margin
@@ -477,13 +480,13 @@ with st.sidebar.container():
     
     # --- CLOSING BUNDLE TOGGLE ---
     st.markdown("##### Takeout Closing & Title Bundle")
-    closing_bundle_mode = st.radio("Closing Bundle Mode", ["Standard Fixed ($6,500)", "Manual Custom Input"], key="refi_bundle_mode", horizontal=True)
+    closing_bundle_mode = st.radio("Closing Bundle Mode", ["Standard Fixed ($6,000)", "Manual Custom Input"], key="refi_bundle_mode", horizontal=True)
 
-    if closing_bundle_mode == "Standard Fixed ($6,500)":
-        refi_closing_bundle = 6500.0
-        st.info("📌 **Active Closing Bundle:** `$6,500` (Standard Title, Escrow & Legal)")
+    if closing_bundle_mode == "Standard Fixed ($6,000)":
+        refi_closing_bundle = 6000.0
+        st.info("📌 **Active Closing Bundle:** `$6,000` (Standard Title, Escrow & Legal)")
     else:
-        refi_closing_bundle = st.number_input("Custom Closing Bundle ($)", min_value=0.0, step=250.0, value=6500.0, key="manual_refi_bundle")
+        refi_closing_bundle = st.number_input("Custom Closing Bundle ($)", min_value=0.0, step=250.0, value=6000.0, key="manual_refi_bundle")
     st.session_state["active_refi_bundle"] = refi_closing_bundle
     
     st.markdown("##### Lender Information")
@@ -565,13 +568,16 @@ op1, op2, op3, op4 = st.columns(4)
 arv_label = "Derived Unit ARV (Price/SF)" if calc['appraisal_mode'] == "Sales Comp (Price/SF)" else "Derived Unit ARV"
 op1.metric(arv_label, f"${calc['arv_per_unit']:,.0f}", f"${calc['total_arv']:,.0f} Total ARV")
 op2.metric("Actual DSCR Rate", f"{calc['actual_dscr']:.2f}x", f"Target: {calc['target_dscr_rate']:.2f}x", delta_color="normal" if calc['actual_dscr'] >= calc['target_dscr_rate'] else "inverse")
-op3.metric("Monthly Cash Flow", f"${calc['monthly_cash_flow']:,.0f} /mo", f"${calc['monthly_cash_flow']*12:,.0f} Annual", delta_color="normal" if calc['monthly_cash_flow_per_door'] >= calc['target_min_cashflow_per_door'] else "inverse")
+
+# Rounding logic to fix floating point comparison bugs for cash flow (e.g. preventing exactly 200 from showing red)
+cf_pass = round(calc['monthly_cash_flow_per_door'], 0) >= round(calc['target_min_cashflow_per_door'], 0)
+
+op3.metric("Monthly Cash Flow", f"${calc['monthly_cash_flow']:,.0f} /mo", f"${calc['monthly_cash_flow']*12:,.0f} Annual", delta_color="normal" if cf_pass else "inverse")
 op4.metric("Monthly P&I Payment", f"${calc['total_monthly_pi']:,.0f} /mo", f"{calc['refi_term_years']}Yr @ {calc['net_refi_rate']*100:.3f}%")
 
 st.markdown("### 🚦 Go/No-Go Investment Decision Dashboard")
 dscr_pass = calc['actual_dscr'] >= calc['target_dscr_rate']
 cash_pass = calc['cash_surplus'] >= 0
-cf_pass = calc['monthly_cash_flow_per_door'] >= calc['target_min_cashflow_per_door']
 
 dash_col1, dash_col2, dash_col3, dash_col4 = st.columns(4)
 dash_col1.metric("DSCR Underwriting Status", "🟢 GREEN LIGHT" if dscr_pass else "🔴 RED LIGHT", f"Actual: {calc['actual_dscr']:.2f}x (Target: {calc['target_dscr_rate']:.2f}x)", delta_color="normal" if dscr_pass else "inverse")
@@ -1181,7 +1187,7 @@ for ltv_val in test_ltvs:
     buydown_pts_sim = st.session_state.get("refi_points_pct", 3.0)
     points_cost_sim = gross_loan_sim * (buydown_pts_sim / 100.0)
     net_rate_sim = calc['net_refi_rate']
-    refi_closing_bundle_sim = st.session_state.get("active_refi_bundle", 6500.0)
+    refi_closing_bundle_sim = st.session_state.get("active_refi_bundle", 6000.0)
     
     for struct in test_structures:
         if struct == "Interest-Only (10-Yr IO Rider)":
@@ -1605,7 +1611,7 @@ fig_y5_refi = go.Figure(go.Waterfall(
     y=[y5_new_loan, -y5_payoff, -y5_closing_costs, y5_net_cash_out],
     connector={"line": {"color": "rgb(63, 63, 63)"}},
     decreasing={"marker": {"color": "#d62728"}},
-    increasing={"marker": {"color": "#2ca02c"}},
+    increasing={"marker": {"color": "#1f77b4"}},
     totals={"marker": {"color": "#2ca02c"}}
 ))
 fig_y5_refi.update_layout(
@@ -1774,7 +1780,7 @@ ui_inputs = {
     "amortization_type": st.session_state.get("amortization_type", "Interest-Only (10-Yr IO Rider)"),
     "buydown_pts": calc.get('buydown_pts', 3.0),
     "net_refi_rate": calc.get('net_refi_rate', 0.0699),
-    "refi_closing_bundle": st.session_state.get("active_refi_bundle", 6500.0)
+    "refi_closing_bundle": st.session_state.get("active_refi_bundle", 6000.0)
 }
 
 texts_dict = {
