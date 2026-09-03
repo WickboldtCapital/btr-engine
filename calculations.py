@@ -123,10 +123,18 @@ def run_underwriting_engine(params, STRESS_SCENARIOS):
     refi_ltv = params.get("refi_ltv_pct", 80.0) / 100.0
     refi_term_years = params.get("refi_term_years", 30)
     base_refi_rate = params.get("base_refi_rate_pct", 7.00) / 100.0
-    refi_closing_fee = params.get("refi_closing_fee", 5000)
-    apply_buydown = params.get("apply_buydown", True)
-    buydown_pts = params.get("buydown_pts", 2.00)
-    net_refi_rate = max(0.01, base_refi_rate - (buydown_pts * 0.0025)) if apply_buydown else base_refi_rate
+    
+    # --- PHASE 2 REFINANCE ENHANCEMENTS ---
+    amortization_type = params.get("amortization_type", "Interest-Only (10-Yr IO Rider)")
+    buydown_pts = params.get("refi_points_pct", 3.0)
+    
+    # Net rate calculation incorporating discount points (1 pt = 0.25%)
+    net_refi_rate = max(0.01, base_refi_rate - (buydown_pts * 0.0025))
+
+    # Dynamic closing bundle selection
+    bundle_mode = params.get("refi_bundle_mode", "Standard Fixed ($6,500)")
+    refi_closing_bundle = 6500.0 if bundle_mode == "Standard Fixed ($6,500)" else params.get("manual_refi_bundle", 6500.0)
+    refi_closing_fee = refi_closing_bundle
 
     # Builder params
     contingency_pct = params.get("contingency_pct", 5.0) / 100.0
@@ -235,28 +243,31 @@ def run_underwriting_engine(params, STRESS_SCENARIOS):
         isolated_heated_rate = comp_isolated_heated_value / comp_heated_sf if comp_heated_sf > 0 else 0
         comp_equivalent_arv = (isolated_heated_rate * sqft) + (aux_sqft_total * comp_aux_rate_sf) + additional_foundation_cost
 
-   # Appraisals (NEW PITIA LOGIC & CF LIMIT)
+    # Appraisals (PITIA LOGIC & CF LIMIT)
     grm_arv = (gross_monthly_rent * 12) * target_grm
     refi_monthly_rate = net_refi_rate / 12.0
     refi_term_months = refi_term_years * 12
     
     # 1. Isolate the Bank TIA (Taxes, Insurance, Flood, HOA) per unit
-    if params.get("opex_entry_mode", "Percentage of EGI (%)") == "Percentage of EGI (%)":
-        mo_other_opex_per_unit = mo_other_opex / units if units > 0 else 0
-        bank_tia_per_unit = mo_other_opex_per_unit * 0.75 # Est 75% of other opex is TIA
+    if opex_entry_mode == "Percentage of EGI (%)":
+        # Fallback to standard standard 12% of gross rent if user hasn't explicitly itemized.
+        bank_tia_per_unit = gross_monthly_rent * 0.12
     else:
-        bank_tia_per_unit = params.get("opex_taxes_mo", 150.0) + params.get("opex_ins_mo", 115.0) + params.get("opex_flood_mo", 30.0) + params.get("opex_misc_mo", 0.0)
+        bank_tia_per_unit = (params.get("opex_taxes_mo", 150.0) + 
+                             params.get("opex_ins_mo", 115.0) + 
+                             params.get("opex_flood_mo", 30.0) + 
+                             params.get("opex_misc_mo", 0.0))
 
-    # Max PITIA payment allowed by the bank = Gross Rent / Target DSCR
     max_pitia = gross_monthly_rent / target_dscr_rate
-    
-    # Max Principal & Interest = Max PITIA minus Taxes/Ins/HOA
     max_pi_per_unit = max_pitia - bank_tia_per_unit
     
-    if refi_monthly_rate > 0:
-        target_loan_per_unit = max_pi_per_unit * ((1.0 - (1.0 + refi_monthly_rate)**-refi_term_months) / refi_monthly_rate)
+    if amortization_type == "Interest-Only (10-Yr IO Rider)":
+        target_loan_per_unit = (max_pi_per_unit * 12.0 / net_refi_rate) if net_refi_rate > 0 else 0
     else:
-        target_loan_per_unit = max_pi_per_unit * refi_term_months
+        if refi_monthly_rate > 0:
+            target_loan_per_unit = max_pi_per_unit * ((1.0 - (1.0 + refi_monthly_rate)**-refi_term_months) / refi_monthly_rate)
+        else:
+            target_loan_per_unit = max_pi_per_unit * refi_term_months
         
     dscr_arv = target_loan_per_unit / refi_ltv if refi_ltv > 0 else 0
     bank_dscr_max_loan_total = target_loan_per_unit * units
@@ -264,16 +275,17 @@ def run_underwriting_engine(params, STRESS_SCENARIOS):
     # Reverse calculate Cash Flow constrained loan
     max_cf_pi_per_unit = (monthly_noi / units) - target_min_cashflow_per_door
     if max_cf_pi_per_unit > 0:
-        if refi_monthly_rate > 0:
-            cf_max_loan_per_unit = max_cf_pi_per_unit * ((1.0 - (1.0 + refi_monthly_rate)**-refi_term_months) / refi_monthly_rate)
+        if amortization_type == "Interest-Only (10-Yr IO Rider)":
+            cf_max_loan_per_unit = (max_cf_pi_per_unit * 12.0 / net_refi_rate) if net_refi_rate > 0 else 0
         else:
-            cf_max_loan_per_unit = max_cf_pi_per_unit * refi_term_months
+            if refi_monthly_rate > 0:
+                cf_max_loan_per_unit = max_cf_pi_per_unit * ((1.0 - (1.0 + refi_monthly_rate)**-refi_term_months) / refi_monthly_rate)
+            else:
+                cf_max_loan_per_unit = max_cf_pi_per_unit * refi_term_months
     else:
         cf_max_loan_per_unit = 0
         
     cf_max_loan_total = cf_max_loan_per_unit * units
-    
-    # Calculate the Implied ARV needed to generate the exact Cash Flow Loan
     cf_arv_per_unit = cf_max_loan_per_unit / refi_ltv if refi_ltv > 0 else 0
 
     # Determine Base ARV
@@ -286,10 +298,8 @@ def run_underwriting_engine(params, STRESS_SCENARIOS):
     else: 
         arv_per_unit = min(grm_arv, dscr_arv)
         
-    # Intercept and override the ARV based on UI Constraints
     arv_constraint_mode = params.get("arv_constraint_mode", "No Override (Use Valuation Mode Above)")
     
-    # EXACT STRING MATCH FIX IS HERE
     if arv_constraint_mode == "Reverse-Engineer Max ARV from Min. Cash Flow":
         arv_per_unit = cf_arv_per_unit
     elif arv_constraint_mode == "Manual Target ARV Override":
@@ -330,7 +340,6 @@ def run_underwriting_engine(params, STRESS_SCENARIOS):
             target_heated_hard_cost = max(0, target_direct_hard_cost - our_aux_cost_total)
             direct_cost_sf = target_heated_hard_cost / sqft if sqft > 0 else 0
 
-    # Build up base costs
     front_porch_cost_sf = struct_cost_sf
     back_porch_cost_sf = struct_cost_sf
     storage_cost_sf = struct_cost_sf
@@ -347,7 +356,9 @@ def run_underwriting_engine(params, STRESS_SCENARIOS):
     total_hard_cost = target_direct_hard_cost * units
     total_arv = arv_per_unit * units
     loan_total = total_arv * refi_ltv
-    default_buydown_cost = loan_total * (buydown_pts / 100.0) if apply_buydown else 0
+    
+    # Lender points cost calculation based on gross loan proceeds
+    default_buydown_cost = loan_total * (buydown_pts / 100.0)
 
     target_lot_value_per_door = reference_price * lot_cost_pct
     target_total_lot_value = target_lot_value_per_door * units
@@ -377,7 +388,7 @@ def run_underwriting_engine(params, STRESS_SCENARIOS):
     else:
         bank_stressed_value = cb_gross_annual_rent * const_bank_grm
 
-    actual_const_loan = bank_stressed_value * const_ltv # updated to use selected LTC
+    actual_const_loan = bank_stressed_value * const_ltv 
     total_const = total_hard_cost + total_indirect_costs
     total_project_costs_ex_interest = total_land_default + total_const + total_vertical_soft + const_closing_fee
 
@@ -387,7 +398,6 @@ def run_underwriting_engine(params, STRESS_SCENARIOS):
     total_draw_budget = infra_total + total_const + total_vertical_soft
     carry_int_base = actual_const_loan * 0.5 * const_rate * (build_months / 12.0)
 
-    # Iterate S-Curve solver
     for _ in range(5):
         total_construction_basis = total_project_costs_ex_interest + carry_int_base
         seed_capital = max(0, total_construction_basis - actual_const_loan)
@@ -439,18 +449,20 @@ def run_underwriting_engine(params, STRESS_SCENARIOS):
     total_project_basis = total_construction_basis + refi_closing_fee + default_buydown_cost
     seed_capital = max(0, total_construction_basis - actual_const_loan)
 
-    # Actual Returns
-    monthly_interest_rate = net_refi_rate / 12.0
-    total_payments = refi_term_years * 12
-    if monthly_interest_rate > 0:
-        monthly_pi_per_unit = (loan_total / units) * (monthly_interest_rate * (1 + monthly_interest_rate)**total_payments) / ((1 + monthly_interest_rate)**total_payments - 1)
+    # --- ACTUAL RETURNS & DEBT SERVICE (AMORTIZING VS IO) ---
+    if amortization_type == "Interest-Only (10-Yr IO Rider)":
+        monthly_pi_per_unit = (loan_total / units) * (net_refi_rate / 12.0)
     else:
-        monthly_pi_per_unit = (loan_total / units) / total_payments if total_payments > 0 else 0
+        monthly_interest_rate = net_refi_rate / 12.0
+        total_payments = refi_term_years * 12
+        if monthly_interest_rate > 0:
+            monthly_pi_per_unit = (loan_total / units) * (monthly_interest_rate * (1 + monthly_interest_rate)**total_payments) / ((1 + monthly_interest_rate)**total_payments - 1)
+        else:
+            monthly_pi_per_unit = (loan_total / units) / total_payments if total_payments > 0 else 0
 
     total_monthly_pi = monthly_pi_per_unit * units
     annual_debt_service = total_monthly_pi * 12.0
     
-    # NEW DSCR (PITIA) METHOD LOGIC
     monthly_pitia_per_unit = monthly_pi_per_unit + bank_tia_per_unit
     actual_dscr = gross_monthly_rent / monthly_pitia_per_unit if monthly_pitia_per_unit > 0 else 0
     dscr_variance = actual_dscr - target_dscr_rate
@@ -505,7 +517,7 @@ def run_underwriting_engine(params, STRESS_SCENARIOS):
     for scn in STRESS_SCENARIOS:
         s_arv = total_arv * (1 + scn["ARV_Shift"])
         s_loan_total = s_arv * refi_ltv
-        s_buydown = s_loan_total * (buydown_pts / 100.0) if apply_buydown else 0
+        s_buydown = s_loan_total * (buydown_pts / 100.0)
         s_months = build_months + scn["Delay"]
         
         s_carry = actual_const_loan * 0.5 * const_rate * (s_months / 12.0)
@@ -546,10 +558,14 @@ def run_underwriting_engine(params, STRESS_SCENARIOS):
         
         s_net_rate = net_refi_rate + scn["Rate_Shift"]
         s_m_rate = s_net_rate / 12.0
-        if s_m_rate > 0:
-            s_pi = (s_loan_total / units) * (s_m_rate * (1 + s_m_rate)**total_payments) / ((1 + s_m_rate)**total_payments - 1)
+        
+        if amortization_type == "Interest-Only (10-Yr IO Rider)":
+            s_pi = (s_loan_total / units) * (s_net_rate / 12.0)
         else:
-            s_pi = (s_loan_total / units) / total_payments if total_payments > 0 else 0
+            if s_m_rate > 0:
+                s_pi = (s_loan_total / units) * (s_m_rate * (1 + s_m_rate)**total_payments) / ((1 + s_m_rate)**total_payments - 1)
+            else:
+                s_pi = (s_loan_total / units) / total_payments if total_payments > 0 else 0
             
         s_ds = s_pi * units * 12.0
         
@@ -636,7 +652,6 @@ def run_underwriting_engine(params, STRESS_SCENARIOS):
 
         mo_noi = r - mo_vac - total_mo_opex
         
-        # New PITIA DSCR calculation for Rent Sensitivity Matrix
         r_monthly_pitia_per_unit = monthly_pi_per_unit + bank_tia_per_unit
         dscr = r / r_monthly_pitia_per_unit if r_monthly_pitia_per_unit > 0 else 0
         
@@ -685,10 +700,13 @@ def run_underwriting_engine(params, STRESS_SCENARIOS):
 
     for y in proj_years:
         m = y * 12
-        if r_monthly > 0:
-            bal = loan_total * (((1 + r_monthly)**n_months - (1 + r_monthly)**m) / ((1 + r_monthly)**n_months - 1))
+        if amortization_type == "Interest-Only (10-Yr IO Rider)" and y <= 10:
+            bal = loan_total
         else:
-            bal = loan_total * (1 - m / n_months) if n_months > 0 else 0
+            if r_monthly > 0:
+                bal = loan_total * (((1 + r_monthly)**n_months - (1 + r_monthly)**m) / ((1 + r_monthly)**n_months - 1))
+            else:
+                bal = loan_total * (1 - m / n_months) if n_months > 0 else 0
         loan_vals.append(max(0, bal))
 
     equity_vals = [av - lv for av, lv in zip(asset_vals, loan_vals)]
@@ -721,5 +739,4 @@ def run_underwriting_engine(params, STRESS_SCENARIOS):
     retail_taxes = max(0, retail_pre_tax_profit * retail_tax_rate)
     retail_net_cash = retail_pre_tax_profit - retail_taxes
 
-    # Returns EVERY variable calculated above as a massive dictionary
     return locals()

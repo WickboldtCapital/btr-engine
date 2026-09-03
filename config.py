@@ -26,16 +26,16 @@ HARDCODED_DRIVERS = {
     "opex_taxes_mo": 150.0,
     "opex_ins_mo": 115.0,
     "opex_flood_mo": 30.0,
-    "opex_lawn_mo": 50.0,
+    "opex_lawn_mo": 35.0,
     "opex_maint_mo": 40.0,
-    "opex_misc_mo": 0.0,
+    "opex_misc_mo": 10.0,
     "income_tax_rate_pct": 30.0,
     "appreciation_rate_pct": 3.0,
     
     "const_ltv_pct": 80.0,
     "build_months": 7,
     "const_rate_pct": 7.50,
-    
+   
     # Lender Specifics
     "const_bank_name": "Local Regional Bank",
     "const_bank_contact": "Commercial Loan Officer",
@@ -46,7 +46,7 @@ HARDCODED_DRIVERS = {
     "borrower_name": "Stephen Wickboldt Jr.",
     "borrower_company": "Wickboldt Capital",
     "borrower_address": "Prairieville, LA",
-    "borrower_phone": "(555) 555-5555",
+    "borrower_phone": "(225) 505-9712",
     "borrower_email": "stephen@wickboldtcapital.com",
     
     # Construction Loan Closing Fees
@@ -71,12 +71,12 @@ HARDCODED_DRIVERS = {
     "const_bank_amort_yrs": 30,
     "reserve_accrual_pct": 100.0,
     
-    "refi_ltv_pct": 80.0,
+    "refi_ltv_pct": 75.0,
     "refi_term_years": 30,
-    "base_refi_rate_pct": 7.00,
-    "refi_closing_fee": 5000,
+    "base_refi_rate_pct": 6.75,
+    "refi_closing_fee": 6000,
     "apply_buydown": True,
-    "buydown_pts": 2.00,
+    "buydown_pts": 3.00,
     
     # Soft Costs & Fees
     "indirect_permits_pct": 4.5,
@@ -116,7 +116,7 @@ HARDCODED_DRIVERS = {
     "sewer_tie_in": 1500.0,
     "electric_drop": 1000.0,
     "gas_lateral": 0.0,
-    "impact_fees": 500.0,
+    "impact_fees": 250.0,
     
     "appraisal_mode": "Income Approach (DSCR Loan Sizing)",
     "target_grm": 10.0,
@@ -130,14 +130,18 @@ HARDCODED_DRIVERS = {
     "sales_pct": 3.6,
     "finance_pct": 1.5,
     
-    "comp_address": "",
-    "comp_price": 195000,
+    "comp_address": "435 Pine St, Independence, LA 70443",
+    "comp_price": 200000,
     "comp_heated_sf": 1275,
     "comp_struct_sf": 213,
     "comp_front_sf": 49,
     "comp_back_sf": 49,
-    "comp_storage_sf": 0
-}
+    "comp_storage_sf": 0,
+    
+    "refi_points_pct": 3.0,       
+    "amortization_type": "Interest-Only (10-Yr IO Rider)",
+    "refi_bundle_mode": "Standard Fixed ($6,000)",
+    "manual_refi_bundle": 6000.0,}
 
 
 # ==========================================

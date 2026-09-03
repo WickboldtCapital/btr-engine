@@ -22,8 +22,26 @@ for key, value in HARDCODED_DRIVERS.items():
     if key not in st.session_state:
         st.session_state[key] = value
 
+# Enforce specific UI defaults on initial load (takes precedence over config.py)
+if "first_load_complete" not in st.session_state:
+    st.session_state["amortization_type"] = "Fully Amortizing (30-Yr)"
+    st.session_state["arv_constraint_mode"] = "Reverse-Engineer Max ARV from Min. Cash Flow"
+    st.session_state["target_grm"] = 10.0
+    st.session_state["base_prime_rate"] = 6.75
+    st.session_state["refi_index_rate"] = 6.75
+    st.session_state["bank_margin_pct"] = 0.50
+    st.session_state["borrower_fico"] = 750
+    st.session_state["comp_address"] = "435 Pine St, Independence, LA 70443"
+    st.session_state["refi_points_pct"] = 3.0
+    st.session_state["refi_margin_pct"] = 0.50
+    st.session_state["active_refi_bundle"] = 6000.0
+    st.session_state["first_load_complete"] = True
+
 if "raw_api_data" not in st.session_state:
     st.session_state.raw_api_data = None
+
+def format_surplus(val):
+    return f"+${val:,.0f}" if val >= 0 else f"-${-val:,.0f}"
 
 # ==========================================
 # --- SIDEBAR (Live Underwriting Controls) ---
@@ -43,7 +61,7 @@ with st.sidebar.container():
         with st.expander("API Configuration (Optional)"):
             manual_key = st.text_input("RentCast API Key Override", type="password")
 
-        if st.button("Fetch Live Data", use_container_width=True):
+        if st.button("Fetch Live Data", width='stretch'):
             if search_address:
                 rentcast_key = manual_key or os.environ.get("RENTCAST_API_KEY") or st.secrets.get("RENTCAST_API_KEY", "")
                 if rentcast_key:
@@ -72,7 +90,7 @@ with st.sidebar.container():
 
     st.markdown("##### 2.1 Primary Comp Metrics")
     is_rentcast = st.session_state.comp_entry_mode == "RentCast Live API Fetch"
-    st.text_input("Comparable Property Address", key="comp_address", disabled=is_rentcast)
+    st.text_input("Comparable Property Address", value=st.session_state.get("comp_address", "435 Pine St, Independence, LA 70443"), key="comp_address", disabled=is_rentcast)
     st.number_input("Comp Sale Price ($)", min_value=0, step=1000, key="comp_price", disabled=is_rentcast)
     st.number_input("Comp Heated SF", min_value=0, step=50, key="comp_heated_sf", disabled=is_rentcast)
 
@@ -183,48 +201,44 @@ with st.sidebar.container():
     
     st.markdown("##### Commercial Base Rate (WSJ Prime)")
     st.radio("Prime Rate Source", ["Manual Entry", "Fetch Live FRED API (DPRIME)"], key="prime_rate_mode")
-    
-    if st.session_state.prime_rate_mode == "Fetch Live FRED API (DPRIME)":
-        with st.expander("⚙️ FRED API Configuration"):
-            fred_key_c = st.text_input("FRED API Key", type="password", key="fred_key_const")
-            st.caption("Get a free API key at [fred.stlouisfed.org](https://fred.stlouisfed.org/)")
-            
-        if st.button("Fetch Live Fed Prime Rate", use_container_width=True):
-            fred_api_key = fred_key_c or os.environ.get("FRED_API_KEY") or st.secrets.get("FRED_API_KEY", "")
-            if not fred_api_key:
-                st.error("Please enter a valid FRED API key.")
-            else:
-                try:
-                    with st.spinner("Fetching DPRIME from St. Louis Fed..."):
-                        # Queries the FRED API for the single most recent data point of the DPRIME series
-                        url = f"https://api.stlouisfed.org/fred/series/observations?series_id=DPRIME&api_key={fred_api_key.strip()}&file_type=json&sort_order=desc&limit=1"
-                        response = requests.get(url, timeout=10)
-                        if response.status_code == 200:
-                            data = response.json()
-                            wsj_prime = float(data['observations'][0]['value'])
-                            st.session_state.base_prime_rate = wsj_prime
-                            st.success(f"Successfully fetched: {wsj_prime}%")
-                        else:
-                            st.error(f"FRED API Error: {response.status_code}")
-                except Exception as e:
-                    st.error(f"Connection error: {e}")
+    if st.button("Fetch Live Fed Prime Rate", width='stretch'):
+        fred_api_key = os.environ.get("FRED_API_KEY", "")
+        if not fred_api_key:
+            try:
+                fred_api_key = st.secrets.get("FRED_API_KEY", "")
+            except Exception:
+                fred_api_key = ""
+
+        if not fred_api_key:
+            st.error("FRED_API_KEY not found in environment variables or secrets.toml.")
+        else:
+            try:
+                with st.spinner("Fetching DPRIME from St. Louis Fed..."):
+                    url = f"https://api.stlouisfed.org/fred/series/observations?series_id=DPRIME&api_key={fred_api_key.strip()}&file_type=json&sort_order=desc&limit=1"
+                    response = requests.get(url, timeout=10)
+                    if response.status_code == 200:
+                        data = response.json()
+                        wsj_prime = float(data['observations'][0]['value'])
+                        st.session_state.base_prime_rate = wsj_prime
+                        st.success(f"Successfully fetched: {wsj_prime}%")
+                    else:
+                        st.error(f"FRED API Error: {response.status_code}")
+            except Exception as e:
+                st.error(f"Connection error: {e}")
                     
-        current_prime = st.session_state.get("base_prime_rate", 7.50)
-        st.info(f"**Active Prime Rate:** `{current_prime:.2f}%`")
-    else:
-        current_prime = st.number_input("Manual Prime Rate (%)", min_value=1.0, max_value=15.0, step=0.25, value=st.session_state.get("base_prime_rate", 7.50), key="base_prime_rate")
+    current_prime = st.session_state.get("base_prime_rate", 6.75)
+    
+    if st.session_state.prime_rate_mode == "Manual Entry":
+        current_prime = st.number_input("Manual Prime Rate (%)", min_value=1.0, max_value=15.0, step=0.25, value=st.session_state.get("base_prime_rate", 6.75), key="base_prime_rate")
 
     st.markdown("##### Bank Lending Margin & Discounts")
-    bank_margin = st.number_input("Bank Lending Margin (Prime + %)", min_value=0.0, max_value=10.0, step=0.25, value=1.00, key="bank_margin_pct", help="The spread your bank charges above the Prime Rate.")
+    bank_margin = st.number_input("Bank Lending Margin (Prime + %)", min_value=0.0, max_value=10.0, step=0.25, value=st.session_state.get("bank_margin_pct", 0.50), key="bank_margin_pct", help="The spread your bank charges above the Prime Rate.")
     
-    # Tiered LTV Selector
     st.selectbox("Construction / Bank LTC (%)", [80.0, 75.0, 70.0], key="const_ltv_pct", help="Select bank loan-to-cost tier. Lower LTC tiers unlock commercial rate discounts.")
     
-    # Calculate base const rate (Prime + Margin) and save it for calculations.py
     base_c_rate = current_prime + bank_margin
     st.session_state["const_rate_pct"] = base_c_rate 
     
-    # Display live tiered construction rate for the UI
     current_ltv = st.session_state.get("const_ltv_pct", 80.0)
     rate_discount = max(0.0, (80.0 - current_ltv) / 5.0) * 0.5
     effective_c_rate = max(1.0, base_c_rate - rate_discount)
@@ -270,8 +284,10 @@ with st.sidebar.container():
 
 with st.sidebar.container():
     st.subheader("9. True Operating Pro Forma")
-    st.number_input("Gross Monthly Rental Income per Unit ($)", min_value=0, step=50, format="%d", key="gross_monthly_rent")
+    
     st.number_input("Min. Acceptable Cash Flow / Door ($)", min_value=0.0, max_value=1000.0, step=25.0, key="target_min_cashflow_per_door")
+    st.number_input("Gross Monthly Rental Income per Unit ($)", min_value=0, step=25, format="%d", key="gross_monthly_rent")
+    
     st.slider("Vacancy Rate (%)", min_value=0.0, max_value=15.0, step=1.0, key="vacancy_rate_pct")
     st.slider("Property Management Fee (% of EGI)", min_value=0.0, max_value=15.0, step=0.5, key="mgmt_fee_pct")
     
@@ -284,7 +300,6 @@ with st.sidebar.container():
         current_other_pct = st.session_state.get("opex_rate_pct", 15.0)
         st.markdown(f"**🎯 True Total OpEx:** `{current_mgmt_pct + current_other_pct:.1f}% of EGI`")
     else:
-        # Dynamic OpEx Percentage Calculation (Global Portfolio Level)
         current_tax_g = st.session_state.get("opex_taxes_global", 0.0)
         current_ins_g = st.session_state.get("opex_ins_global", 0.0)
         current_flood_g = st.session_state.get("opex_flood_global", 0.0)
@@ -302,7 +317,6 @@ with st.sidebar.container():
         
         st.markdown(f"**🎯 True Total OpEx:** `{true_total_opex:.1f}% of EGI`")
 
-        # Calculate individual line-item percentages
         tax_pct = (current_tax_g / global_egi) * 100 if global_egi > 0 else 0.0
         ins_pct = (current_ins_g / global_egi) * 100 if global_egi > 0 else 0.0
         flood_pct = (current_flood_g / global_egi) * 100 if global_egi > 0 else 0.0
@@ -318,7 +332,6 @@ with st.sidebar.container():
             st.number_input(f"Global Turnover/Maint ($/mo) — {maint_pct:.1f}%", min_value=0.0, step=50.0, key="opex_maint_global")
             st.number_input(f"Global HOA / Misc ($/mo) — {misc_pct:.1f}%", min_value=0.0, step=50.0, key="opex_misc_global")
         
-        # Translate global values to per-door values so the underlying engine still works flawlessly
         st.session_state['opex_taxes_mo'] = current_tax_g / project_units
         st.session_state['opex_ins_mo'] = current_ins_g / project_units
         st.session_state['opex_flood_mo'] = current_flood_g / project_units
@@ -339,7 +352,7 @@ with st.sidebar.container():
     ], key="appraisal_mode")
     
     if st.session_state.appraisal_mode in ["Income Approach (GRM)", "Conservative (Lesser of GRM or DSCR)"]:
-        st.number_input("Gross Rent Multiplier (GRM)", min_value=4.0, max_value=25.0, step=0.1, key="target_grm")
+        st.number_input("Gross Rent Multiplier (GRM)", min_value=4.0, max_value=25.0, step=0.1, value=10.0, key="target_grm")
         
     if st.session_state.appraisal_mode == "Income Approach (DSCR Loan Sizing)":
         st.info("ARV is automatically derived from your Operating (NOI) and Refi Loan terms to exactly meet your Target DSCR and LTV constraints.")
@@ -348,9 +361,10 @@ with st.sidebar.container():
         
     st.divider()
     st.markdown("##### Secondary ARV Constraints")
+    
     arv_constraint = st.radio("Override Target ARV?", [
-        "No Override (Use Valuation Mode Above)",
         "Reverse-Engineer Max ARV from Min. Cash Flow",
+        "No Override (Use Valuation Mode Above)",
         "Manual Target ARV Override"
     ], key="arv_constraint_mode", help="Allows you to bypass the primary valuation and force the reverse-engineering engine to use a specific ARV limit.")
     
@@ -358,25 +372,27 @@ with st.sidebar.container():
         st.number_input("Custom Target ARV per Unit ($)", min_value=10000.0, step=5000.0, value=250000.0, key="manual_arv_override")
 
 with st.sidebar.container():
-    st.subheader("11. Takeout Refinance Terms")
+    st.subheader("11. Takeout Refinance & Optimization Terms")
     
-    # Tiered LTV Selector for Refinance
-    st.selectbox("Refinance LTV Tier (%)", [80.0, 75.0, 70.0], key="refi_ltv_pct", help="Select permanent loan-to-value tier. Lower LTV tiers unlock commercial rate discounts.")
+    st.selectbox("Refinance LTV Tier (%)", [80.0, 75.0, 70.0], key="refi_ltv_pct")
+    st.selectbox("Amortization Structure", ["Fully Amortizing (30-Yr)", "Interest-Only (10-Yr IO Rider)"], key="amortization_type")
     st.number_input("Bank Target DSCR Rate", min_value=1.0, max_value=1.5, step=0.05, key="target_dscr_rate")
     st.selectbox("Amortization Term (Years)", [15, 20, 25, 30], key="refi_term_years")
     
-    st.markdown("##### Commercial Base Rate (Index)")
+    st.markdown("##### Commercial Base Rate & Pricing")
     st.radio("Refi Rate Source", ["Manual Entry", "Fetch Live FRED API (DPRIME)"], key="refi_rate_mode")
     
     if st.session_state.refi_rate_mode == "Fetch Live FRED API (DPRIME)":
-        with st.expander("⚙️ FRED API Configuration"):
-            fred_key_r = st.text_input("FRED API Key", type="password", key="fred_key_refi")
-            st.caption("Get a free API key at [fred.stlouisfed.org](https://fred.stlouisfed.org/)")
-            
-        if st.button("Fetch Live Fed Index Rate", use_container_width=True):
-            fred_api_key = fred_key_r or os.environ.get("FRED_API_KEY") or st.secrets.get("FRED_API_KEY", "")
+        if st.button("Fetch Live Fed Index Rate", width='stretch'):
+            fred_api_key = os.environ.get("FRED_API_KEY", "")
             if not fred_api_key:
-                st.error("Please enter a valid FRED API key.")
+                try:
+                    fred_api_key = st.secrets.get("FRED_API_KEY", "")
+                except Exception:
+                    fred_api_key = ""
+
+            if not fred_api_key:
+                st.error("FRED_API_KEY not found in environment variables or secrets.toml.")
             else:
                 try:
                     with st.spinner("Fetching DPRIME from St. Louis Fed..."):
@@ -392,42 +408,90 @@ with st.sidebar.container():
                 except Exception as e:
                     st.error(f"Connection error: {e}")
                     
-        current_refi_index = st.session_state.get("refi_index_rate", 7.50)
+        current_refi_index = st.session_state.get("refi_index_rate", 6.75)
         st.info(f"**Active Index Rate:** `{current_refi_index:.2f}%`")
     else:
-        current_refi_index = st.number_input("Manual Index Rate (%)", min_value=1.0, max_value=15.0, step=0.25, value=st.session_state.get("refi_index_rate", 7.50), key="refi_index_rate")
+        current_refi_index = st.number_input("Manual Index Rate (%)", min_value=1.0, max_value=15.0, step=0.25, value=st.session_state.get("refi_index_rate", 6.75), key="refi_index_rate")
 
-    st.markdown("##### Bank Lending Margin & Discounts")
-    refi_margin = st.number_input("Refi Lending Spread (+ %)", min_value=0.0, max_value=10.0, step=0.25, value=1.00, key="refi_margin_pct", help="The margin your bank charges above the Index Rate.")
+    # --- BANK LENDING MARGIN & RISK PROFILE ---
+    st.markdown("##### Bank Lending Margin & Risk Profile")
+    st.number_input("Borrower FICO Score", min_value=300, max_value=850, step=10, value=750, key="borrower_fico")
+    
+    margin_mode = st.radio("Refi Lending Spread Mode", ["Estimated Risk-Based Margin", "Manual Entry"], key="refi_margin_mode")
+    
+    # Calculate target tier logic
+    fico = st.session_state.get("borrower_fico", 750)
+    ltv = st.session_state.get("refi_ltv_pct", 80.0)
+    dscr_check = st.session_state.get("target_dscr_rate", 1.25)
+    
+    # Recalibrated Wholesale Risk-Based Pricing Matrix
+    if fico < 680 or ltv > 80.0 or dscr_check < 1.00:
+        derived_tier = 3
+        derived_margin = 1.375 # Prime + 1.375% (Midpoint of Tier 3)
+    elif fico >= 740 and ltv <= 75.0 and dscr_check >= 1.25:
+        derived_tier = 1
+        derived_margin = -0.375 # Prime - 0.375% (Midpoint of Tier 1 Discount)
+    else:
+        derived_tier = 2
+        derived_margin = 0.625 # Prime + 0.625% (Midpoint of Tier 2)
+        
+    if margin_mode == "Estimated Risk-Based Margin":
+        margin_tag = f"+{derived_margin:.3f}%" if derived_margin >= 0 else f"{derived_margin:.3f}%"
+        st.info(f"**Tier {derived_tier} Pricing Activated:** `{margin_tag}` Margin")
+        refi_margin = derived_margin
+    else:
+        refi_margin = st.number_input("Manual Refi Lending Spread (+/- %)", min_value=-5.0, max_value=10.0, step=0.1, value=st.session_state.get("refi_margin_pct", 0.50), key="refi_margin_pct", help="The margin your bank charges above or below the Index Rate.")
+    # ------------------------------------------
 
-    # Calculate raw base refi rate (Index + Spread)
     raw_refi_rate = current_refi_index + refi_margin
     current_refi_ltv = st.session_state.get("refi_ltv_pct", 80.0)
     
-    # Apply 0.5% rate reduction for every 5% drop in LTV below 80%
     refi_rate_discount = max(0.0, (80.0 - current_refi_ltv) / 5.0) * 0.5
     adjusted_base_r_rate = max(1.0, raw_refi_rate - refi_rate_discount)
     
-    # Save the final discounted base rate for calculations.py
     st.session_state["base_refi_rate_pct"] = adjusted_base_r_rate
     
-    # Display the breakdown in the UI
+    # Clear breakdown of where the Effective Base Rate comes from
+    margin_display_str = f"+{refi_margin:.3f}%" if refi_margin >= 0 else f"{refi_margin:.3f}%"
     if refi_rate_discount > 0:
-        st.markdown(f"📈 **Raw Rate (Index + Spread):** `{raw_refi_rate:.2f}%`\n📉 **Tiered Equity Discount:** `-{refi_rate_discount:.2f}%`\n🎯 **Effective Base Rate:** `{adjusted_base_r_rate:.2f}%`")
+        st.markdown(f"🏛️ **Index Rate:** `{current_refi_index:.2f}%`\n📊 **Risk Margin (Tier {derived_tier}):** `{margin_display_str}`\n📈 **Raw Rate (Index + Spread):** `{raw_refi_rate:.3f}%`\n📉 **Tiered Equity Discount (LTV Reward):** `-{refi_rate_discount:.3f}%`\n🎯 **Effective Base Rate:** `{adjusted_base_r_rate:.3f}%`")
     else:
-        st.markdown(f"🎯 **Effective Base Refi Rate:** `{adjusted_base_r_rate:.2f}%`")
+        st.markdown(f"🏛️ **Index Rate:** `{current_refi_index:.2f}%`\n📊 **Risk Margin (Tier {derived_tier}):** `{margin_display_str}`\n📈 **Raw Rate (Index + Spread):** `{raw_refi_rate:.3f}%`\n🎯 **Effective Base Rate:** `{adjusted_base_r_rate:.3f}%`")
+    
+    st.markdown("##### Lender Points & Closing Bundle")
+    
+    st.number_input(
+        "Lender Discount Points (%)", 
+        min_value=0.0, 
+        max_value=5.0, 
+        step=0.25,
+        value=3.0,
+        format="%.2f", 
+        key="refi_points_pct", 
+        help="Points paid to lender to buy down rate (e.g. 3.0 pts for 6.99%)."
+    )
+    
+    # --- LIVE NET RATE DISPLAY ---
+    current_pts = st.session_state.get("refi_points_pct", 3.0)
+    # 1 point = 0.25% reduction in rate
+    final_net_rate_pct = max(0.25, adjusted_base_r_rate - (current_pts * 0.25))
+    st.markdown(f"🎯 **Effective Net Refi Rate (w/ {current_pts:.2f} Pts):** `{final_net_rate_pct:.2f}%`")
+    # -----------------------------
+    
+    # --- CLOSING BUNDLE TOGGLE ---
+    st.markdown("##### Takeout Closing & Title Bundle")
+    closing_bundle_mode = st.radio("Closing Bundle Mode", ["Standard Fixed ($6,000)", "Manual Custom Input"], key="refi_bundle_mode", horizontal=True)
+
+    if closing_bundle_mode == "Standard Fixed ($6,000)":
+        refi_closing_bundle = 6000.0
+        st.info("📌 **Active Closing Bundle:** `$6,000` (Standard Title, Escrow & Legal)")
+    else:
+        refi_closing_bundle = st.number_input("Custom Closing Bundle ($)", min_value=0.0, step=250.0, value=6000.0, key="manual_refi_bundle")
+    st.session_state["active_refi_bundle"] = refi_closing_bundle
     
     st.markdown("##### Lender Information")
     st.text_input("Refinance Bank Name", key="refi_bank_name")
     st.text_input("Contact Person", key="refi_bank_contact")
-    
-    st.number_input("Refinance Closing Fee ($ total)", min_value=0, step=250, format="%d", key="refi_closing_fee")
-    st.checkbox("Apply Interest Rate Buydown Points?", key="apply_buydown")
-    if st.session_state.apply_buydown:
-        st.number_input("Discount Points", min_value=0.0, max_value=10.0, step=0.25, format="%.2f", key="buydown_pts")
-        # Compute the final net rate off the dynamically generated adjusted_base_r_rate
-        net_rate = max(0.01, (adjusted_base_r_rate / 100.0) - (st.session_state.buydown_pts * 0.0025))
-        st.markdown(f"📉 **Final Buydown Net Rate:** `{net_rate*100:.3f}%`")
 
 # ==========================================
 # --- MASTER ENGINE CALCULATION EXECUTION ---
@@ -504,13 +568,16 @@ op1, op2, op3, op4 = st.columns(4)
 arv_label = "Derived Unit ARV (Price/SF)" if calc['appraisal_mode'] == "Sales Comp (Price/SF)" else "Derived Unit ARV"
 op1.metric(arv_label, f"${calc['arv_per_unit']:,.0f}", f"${calc['total_arv']:,.0f} Total ARV")
 op2.metric("Actual DSCR Rate", f"{calc['actual_dscr']:.2f}x", f"Target: {calc['target_dscr_rate']:.2f}x", delta_color="normal" if calc['actual_dscr'] >= calc['target_dscr_rate'] else "inverse")
-op3.metric("Monthly Cash Flow", f"${calc['monthly_cash_flow']:,.0f} /mo", f"${calc['monthly_cash_flow']*12:,.0f} Annual", delta_color="normal" if calc['monthly_cash_flow_per_door'] >= calc['target_min_cashflow_per_door'] else "inverse")
+
+# Rounding logic to fix floating point comparison bugs for cash flow (e.g. preventing exactly 200 from showing red)
+cf_pass = round(calc['monthly_cash_flow_per_door'], 0) >= round(calc['target_min_cashflow_per_door'], 0)
+
+op3.metric("Monthly Cash Flow", f"${calc['monthly_cash_flow']:,.0f} /mo", f"${calc['monthly_cash_flow']*12:,.0f} Annual", delta_color="normal" if cf_pass else "inverse")
 op4.metric("Monthly P&I Payment", f"${calc['total_monthly_pi']:,.0f} /mo", f"{calc['refi_term_years']}Yr @ {calc['net_refi_rate']*100:.3f}%")
 
 st.markdown("### 🚦 Go/No-Go Investment Decision Dashboard")
 dscr_pass = calc['actual_dscr'] >= calc['target_dscr_rate']
 cash_pass = calc['cash_surplus'] >= 0
-cf_pass = calc['monthly_cash_flow_per_door'] >= calc['target_min_cashflow_per_door']
 
 dash_col1, dash_col2, dash_col3, dash_col4 = st.columns(4)
 dash_col1.metric("DSCR Underwriting Status", "🟢 GREEN LIGHT" if dscr_pass else "🔴 RED LIGHT", f"Actual: {calc['actual_dscr']:.2f}x (Target: {calc['target_dscr_rate']:.2f}x)", delta_color="normal" if dscr_pass else "inverse")
@@ -523,7 +590,6 @@ st.markdown("<br>", unsafe_allow_html=True)
 # ==========================================
 # --- DYNAMIC EXECUTIVE CONCLUSION BUBBLE ---
 # ==========================================
-# Safely round DSCR to 2 decimals to prevent floating-point failure logic (e.g. 1.198 failing against 1.20)
 safe_dscr = round(calc['actual_dscr'], 2)
 dscr_pass_safe = safe_dscr >= calc['target_dscr_rate']
 
@@ -659,7 +725,7 @@ with st.expander("View Granular Trade Buildup & Master Roll-up", expanded=False)
         h_data = {"Division / Trade Level": [], "Live Cost / SF": [], "Per Unit Cost": []}
         for name, base_val, is_header in NAHB_HEATED_DIVS:
             live_sf = calc['direct_cost_sf'] * (base_val / 100.0)
-            prefix = "" if is_header else "   "
+            prefix = "" if is_header else "    "
             h_data["Division / Trade Level"].append(f"{prefix}{name}")
             h_data["Live Cost / SF"].append(f"${live_sf:.2f}")
             h_data["Per Unit Cost"].append(f"${live_sf * calc['sqft']:,.0f}")
@@ -693,7 +759,7 @@ with st.expander("View Granular Trade Buildup & Master Roll-up", expanded=False)
             pdf_granular_data.append((cat, cat_sum, cat_sum * calc['sqft'], cat_sum * calc['sqft'] * calc['units'], True))
             for _, row in cat_df.iterrows():
                 live_sf = row["Cost / SF"]
-                pdf_granular_data.append((f"   - {row['Division / Component']}", live_sf, live_sf * calc['sqft'], live_sf * calc['sqft'] * calc['units'], False))
+                pdf_granular_data.append((f"    - {row['Division / Component']}", live_sf, live_sf * calc['sqft'], live_sf * calc['sqft'] * calc['units'], False))
 
     st.markdown("#### 4.3 Auxiliary, Foundation & Outdoor Living")
     p_data = {
@@ -740,7 +806,7 @@ if calc['const_bank_val_mode'] == "DSCR Stress Test":
         "Value": [f"${calc['cb_gross_annual_rent']:,.0f} / yr", f"-${calc['cb_gross_annual_rent'] - calc['cb_noi']:,.0f} / yr", f"${calc['cb_noi']:,.0f} / yr", f"{calc['const_bank_dscr']:.2f}x", f"${calc['bank_stressed_value']:,.0f}", f"${calc['actual_const_loan']:,.0f}", f"${calc['total_construction_basis']:,.0f}", f"${calc['seed_capital']:,.0f}"]
     }
 else:
-    st.info(f"**Construction Loan Underwriting:** The bank determines implied asset value on a **{calc['const_bank_grm']:.1f}x Gross Rent Multiplier** (yielding **${calc['bank_stressed_value']:,.0f}**). Loan cap: **${calc['actual_const_loan']:,.0f}**.".replace("$", r"\$"))
+    st.info(f"**Construction Loan Under underwriting:** The bank determines implied asset value on a **{calc['const_bank_grm']:.1f}x Gross Rent Multiplier** (yielding **${calc['bank_stressed_value']:,.0f}**). Loan cap: **${calc['actual_const_loan']:,.0f}**.".replace("$", r"\$"))
     stress_test_data = {
         "Bank Underwriting Step": ["1. Gross Potential Rent (Bank Model)", "2. Bank Underwriting GRM", "3. Bank Implied Asset Value", f"4. Const. Lender Loan Value ({calc['const_ltv']*100:.1f}% Bank LTC)", "5. Total Capitalized Construction Basis", "6. Required Seed Capital Reserve"],
         "Value": [f"${calc['cb_gross_annual_rent']:,.0f} / yr", f"{calc['const_bank_grm']:.1f}x", f"${calc['bank_stressed_value']:,.0f}", f"${calc['actual_const_loan']:,.0f}", f"${calc['total_construction_basis']:,.0f}", f"${calc['seed_capital']:,.0f}"]
@@ -778,7 +844,6 @@ st.divider()
 # ==========================================
 st.markdown("### 7. Bank DSCR Underwriting & True Operating Cash Flow")
 
-# Re-calculate Bank PITIA for UI display
 u_rent = st.session_state.get('gross_monthly_rent', 0) * calc['units']
 u_tax = st.session_state.get('opex_taxes_mo', 0) * calc['units']
 u_ins = st.session_state.get('opex_ins_mo', 0) * calc['units']
@@ -797,7 +862,6 @@ operating_summary_text = (
 )
 st.info(operating_summary_text.replace("$", r"\$"))
 
-# Data Tables for UI
 dscr_summary_data = {
     "Bank Underwriting (DSCR Sizing)": [
         "Gross Scheduled Rent", 
@@ -954,7 +1018,6 @@ st.divider()
 # ==========================================
 st.markdown("### 10.5. The Exit: Refinance & The \"Two-Pocket\" Cash Flow Strategy")
 
-# Extract dynamic 6-unit program variables
 prog_units = 6
 prog_loan = calc['loan_6']
 prog_basis = calc['cap_6']
@@ -992,7 +1055,6 @@ with col_exit1:
         st.write(f"In commercial real estate, Cash-on-Cash Return is mathematically defined as: Annual Net Cash Flow divided by Total Developer Capital Trapped in the Asset. With **${-prog_surplus:,.0f}** remaining as trapped capital, the portfolio yields a **{(calc['monthly_cf_6']*12) / (-prog_surplus) * 100 :.1f}%** cash-on-cash return.")
 
 with col_exit2:
-    # Dynamic Waterfall Chart for the Pockets of Wealth
     fig_wealth_pockets = go.Figure(go.Waterfall(
         name="Wealth Creation",
         orientation="v",
@@ -1014,7 +1076,6 @@ with col_exit2:
     )
     st.plotly_chart(fig_wealth_pockets, use_container_width=True)
 
-# Detailed Data Table
 wealth_pocket_data = {
     "Wealth Component": [
         "Pocket 1: GC Management Fees Earned During Build",
@@ -1054,6 +1115,142 @@ st.plotly_chart(fig_scurve, use_container_width=True)
 
 with st.expander("View S-Curve Schedule Table", expanded=False):
     st.dataframe(calc['df_schedule'].style.format({"Monthly Draw ($)": "${:,.0f}", "Capitalized Interest ($)": "${:,.0f}", "Total Drawn Balance ($)": "${:,.0f}"}), hide_index=True, use_container_width=True)
+st.divider()
+
+# ==========================================
+# --- 11.2 COMMERCIAL TAKEOUT RISK PROFILE ---
+# ==========================================
+st.markdown("### 11.2 Commercial Takeout Risk Profile & Pricing Margin")
+
+risk_intro = (
+    "Commercial DSCR loan pricing is directly linked to the borrower's risk profile. "
+    "Lenders determine the base margin over WSJ Prime using a matrix driven by "
+    "**FICO Score**, **Loan-to-Value (LTV)**, and the underwritten **Debt Service Coverage Ratio (DSCR)**."
+)
+st.info(risk_intro)
+
+risk_df = pd.DataFrame({
+    "Risk Profile Characteristics": [
+        "Tier 1 (Prime Pricing)", 
+        "Tier 2 (Standard Pricing)", 
+        "Tier 3 (High-Risk Pricing)"
+    ],
+    "DSCR Requirement": ["≥ 1.25x", "1.00x – 1.24x", "< 1.00x"],
+    "FICO Requirement": ["≥ 740", "680 – 739", "< 680"],
+    "Max LTV Limit": ["≤ 75%", "80%", "> 80%"],
+    "Estimated Margin Spread": [
+        "Prime - 0.625% to -0.125%", 
+        "Prime + 0.250% to +1.000%", 
+        "Prime + 1.000% to +1.750%"
+    ]
+})
+
+st.dataframe(risk_df, hide_index=True, use_container_width=True)
+
+col_r1, col_r2 = st.columns(2)
+
+with col_r1:
+    st.markdown("#### 🎯 Active Risk Assessment")
+    st.markdown(f"- **Borrower FICO:** `{st.session_state.get('borrower_fico', 750)}`")
+    st.markdown(f"- **Refinance LTV:** `{st.session_state.get('refi_ltv_pct', 80.0):.0f}%`")
+    st.markdown(f"- **Underwritten DSCR:** `{calc['actual_dscr']:.2f}x`")
+
+with col_r2:
+    st.markdown("#### 🏦 Applied Pricing Tier")
+    st.markdown(f"Based on the most constraining metric, the engine has categorized this transaction as **Tier {derived_tier}**.")
+    margin_disp = f"+{derived_margin:.3f}%" if derived_margin >= 0 else f"{derived_margin:.3f}%"
+    st.markdown(f"- **Applied Target Margin:** `{margin_disp}`")
+    st.markdown(f"- **Index Rate:** `{current_refi_index:.2f}%`")
+    st.markdown(f"- **Gross Base Rate:** `{current_refi_index + derived_margin:.3f}%`")
+
+st.divider()
+
+# ==========================================
+# --- 11.5 REFINANCE OPTIMIZATION MATRIX & TARGET CALLOUT ---
+# ==========================================
+st.markdown("### 11.5 Refinance Optimization Matrix & Target Benchmarking")
+
+opt_intro = (
+    f"This matrix sweeps across LTV tiers (**80%, 75%, 70%**) and debt structures to identify the optimal configuration "
+    f"meeting your target **$\ge \${calc['target_min_cashflow_per_door']:.0f}/mo$ net cash flow** and **net-zero out-of-pocket** closing constraints "
+    f"for the Hammond asset (**${calc['total_arv']/calc['units']:,.0f} ARV**, **${calc['total_project_basis']:,.0f} Basis**, **${calc['gross_monthly_rent']:,.0f}/mo Rent**)."
+)
+st.info(opt_intro.replace("$", r"\$"))
+
+matrix_rows = []
+test_ltvs = [80.0, 75.0, 70.0]
+test_structures = ["Interest-Only (10-Yr IO Rider)", "Fully Amortizing (30-Yr)"]
+
+for ltv_val in test_ltvs:
+    ltv_decimal = ltv_val / 100.0
+    gross_loan_sim = calc['total_arv'] * ltv_decimal
+    buydown_pts_sim = st.session_state.get("refi_points_pct", 3.0)
+    points_cost_sim = gross_loan_sim * (buydown_pts_sim / 100.0)
+    net_rate_sim = calc['net_refi_rate']
+    refi_closing_bundle_sim = st.session_state.get("active_refi_bundle", 6000.0)
+    
+    for struct in test_structures:
+        if struct == "Interest-Only (10-Yr IO Rider)":
+            pi_mo = (gross_loan_sim / calc['units']) * (net_rate_sim / 12.0)
+        else:
+            m_rate = net_rate_sim / 12.0
+            n_pmts = calc['refi_term_years'] * 12
+            if m_rate > 0:
+                pi_mo = (gross_loan_sim / calc['units']) * (m_rate * (1 + m_rate)**n_pmts) / ((1 + m_rate)**n_pmts - 1)
+            else:
+                pi_mo = (gross_loan_sim / calc['units']) / n_pmts
+                
+        tot_pi_mo = pi_mo * calc['units']
+        tot_outflow_mo = tot_pi_mo + calc['mo_opex']
+        net_cf_door = (calc['monthly_noi'] - tot_pi_mo) / calc['units']
+        
+        pitia_unit = pi_mo + calc['bank_tia_per_unit']
+        dscr_sim = calc['gross_monthly_rent'] / pitia_unit if pitia_unit > 0 else 0
+        
+        basis_payoff_sim = calc['total_construction_basis']
+        cash_at_table_sim = gross_loan_sim - basis_payoff_sim - points_cost_sim - refi_closing_bundle_sim
+        
+        if net_cf_door >= calc['target_min_cashflow_per_door'] and cash_at_table_sim >= -500 and dscr_sim >= calc['target_dscr_rate']:
+            fit_status = "🟢 Optimal Target"
+        elif net_cf_door >= calc['target_min_cashflow_per_door'] and dscr_sim >= calc['target_dscr_rate']:
+            fit_status = "🟡 Hits Flow / Capital Req."
+        elif dscr_sim >= calc['target_dscr_rate']:
+            fit_status = "🟠 Misses Cash Flow Target"
+        else:
+            fit_status = "🔴 Fails DSCR / High Risk"
+            
+        matrix_rows.append({
+            "LTV Tier": f"{ltv_val:.0f}%",
+            "Structure": "10-Yr IO" if "IO" in struct else f"{calc['refi_term_years']}-Yr Amort",
+            "Rate": f"{net_rate_sim*100:.2f}%",
+            "Gross Loan": f"${gross_loan_sim:,.0f}",
+            "Monthly P&I": f"${tot_pi_mo:,.0f}",
+            "Total Outflow": f"${tot_outflow_mo:,.0f}",
+            "Net Cash Flow": f"${net_cf_door:,.0f} /mo",
+            "DSCR": f"{dscr_sim:.2f}x",
+            "Cash-at-Table": f"+${cash_at_table_sim:,.0f}" if cash_at_table_sim >= 0 else f"-${-cash_at_table_sim:,.0f}",
+            "Fit Status": fit_status
+        })
+
+df_opt_matrix = pd.DataFrame(matrix_rows)
+st.dataframe(df_opt_matrix, hide_index=True, use_container_width=True)
+
+col_b1, col_b2 = st.columns(2)
+
+with col_b1:
+    st.markdown("#### 🎯 Hammond Target Benchmark Card")
+    st.markdown(f"- **ARV Valuation:** `${calc['arv_per_unit']:,.0f}`")
+    st.markdown(f"- **Construction Basis Payoff:** `${calc['total_construction_basis']:,.0f}`")
+    st.markdown(f"- **Active Gross Loan ({calc['refi_ltv']*100:.0f}% LTV):** `${calc['loan_total']:,.0f}`")
+    st.markdown(f"- **Net Effective Rate (w/ {calc['buydown_pts']:.1f} Pts):** `{calc['net_refi_rate']*100:.2f}%`")
+
+with col_b2:
+    st.markdown("#### 📊 Execution Summary")
+    st.markdown(f"- **Total Monthly Outflow (PITIA + OpEx):** `${calc['total_monthly_pi'] + calc['mo_opex']:,.0f}/mo`")
+    st.markdown(f"- **Net Monthly Cash Flow:** `+${calc['monthly_cash_flow_per_door']:,.0f}/mo per door` (Target: $\ge\${calc['target_min_cashflow_per_door']:.0f}$) ")
+    st.markdown(f"- **Underwritten DSCR:** `{calc['actual_dscr']:.2f}x` (Target: $\ge{calc['target_dscr_rate']:.2f}x$)")
+    st.markdown(f"- **Net Cash-at-Table:** `{format_surplus(calc['net_cash_at_closing'])}` (Target: $\ge \$0$)")
+
 st.divider()
 
 # ==========================================
@@ -1185,13 +1382,12 @@ comp_labels = []
 comp_cfs_plot = []
 comp_colors = []
 
-# Generate 7 dynamic cost-compression steps centered around the active modeled cost
 base_d_cost = calc['direct_cost_sf']
-step_val = max(3.0, base_d_cost * 0.05) # Dynamic ~5% steps
+step_val = max(3.0, base_d_cost * 0.05)
 test_d_costs = [
     base_d_cost + (step_val * 2),
     base_d_cost + (step_val * 1),
-    base_d_cost, # Active Model Baseline
+    base_d_cost,
     base_d_cost - (step_val * 1),
     base_d_cost - (step_val * 2),
     base_d_cost - (step_val * 3),
@@ -1201,7 +1397,6 @@ test_d_costs = [
 for idx, d_cost in enumerate(test_d_costs):
     if d_cost <= 0: continue
     
-    # 1. Hard Costs
     h_hc = d_cost * calc['sqft']
     if calc['aux_cost_mode'] == "Percentage of Heated Rate (%)":
         aux_c = (d_cost * calc['aux_ratio'] * calc['aux_sqft_total']) + calc['additional_foundation_cost']
@@ -1209,7 +1404,6 @@ for idx, d_cost in enumerate(test_d_costs):
         aux_c = (calc['aux_fixed_cost_sf'] * calc['aux_sqft_total']) + calc['additional_foundation_cost']
     t_hc = h_hc + aux_c
     
-    # 2. Indirects
     c_pct = calc['contingency_pct']
     p_pct = calc['indirect_permits_pct']
     t_pct = calc['indirect_temp_facilities_pct']
@@ -1223,7 +1417,6 @@ for idx, d_cost in enumerate(test_d_costs):
     t_ind = cont + perm + temp + gc
     t_const = t_hc + t_ind
     
-    # 3. Basis & Carry (Single Unit)
     unit_const_loan = calc['actual_const_loan'] / calc['units']
     carry = unit_const_loan * 0.5 * calc['const_rate'] * (calc['build_months'] / 12.0)
     
@@ -1236,7 +1429,6 @@ for idx, d_cost in enumerate(test_d_costs):
     basis_ex_refi = unit_land + t_const + unit_soft + unit_const_close + carry
     total_basis = basis_ex_refi + unit_refi_close + unit_buy
     
-    # 4. Returns
     unit_refi_loan = calc['loan_total'] / calc['units']
     unit_seed = max(0, basis_ex_refi - unit_const_loan)
     net_cash_close = unit_refi_loan - unit_const_loan - unit_refi_close - unit_buy
@@ -1247,7 +1439,6 @@ for idx, d_cost in enumerate(test_d_costs):
     
     tot_cost_sf = total_basis / calc['sqft']
     
-    # Labeling
     if idx == 0:
         lbl_prefix = "(Over Budget Risk)"
     elif idx == 2:
@@ -1272,7 +1463,6 @@ for idx, d_cost in enumerate(test_d_costs):
     comp_cfs_plot.append(surplus)
     comp_colors.append('#2ca02c' if surplus >= 0 else '#d62728')
 
-# --- Dynamic Bar Chart ---
 fig_comp_chart = go.Figure(go.Bar(
     x=comp_labels, 
     y=comp_cfs_plot,
@@ -1337,11 +1527,10 @@ st.divider()
 # ==========================================
 st.markdown("### 16.5 Five-Year Portfolio Projections & 80% LTV Refinance Analysis")
 
-# --- Dynamic Year 5 Engine Variables ---
 y5_units = 6
-y5_rent_growth = 0.03  # Standard 3% escalation
+y5_rent_growth = 0.03 
 y5_refi_ltv = 0.80
-y5_closing_pct = 0.03  # 3% refi closing costs
+y5_closing_pct = 0.03 
 
 arv_u = calc['arv_per_unit']
 rent_u = calc['gross_monthly_rent']
@@ -1358,13 +1547,10 @@ total_ds_annual = mo_pi_u * 12 * y5_units
 y_arv, y_port, y_rent, y_gross, y_egi, y_opex, y_noi, y_ds, y_ncf, y_prin, y_bal = [], [], [], [], [], [], [], [], [], [], []
 cum_prin = 0
 
-# --- Calculate 5-Year Progression ---
 for y in range(1, 6):
-    # Appreciation & Value
     curr_arv = arv_u * ((1 + appr_r) ** (y - 1))
     port_val = curr_arv * y5_units
     
-    # Income & Operations
     curr_rent = rent_u * ((1 + y5_rent_growth) ** (y - 1))
     ann_gross = curr_rent * 12 * y5_units
     egi = ann_gross * (1 - vac_r)
@@ -1372,7 +1558,6 @@ for y in range(1, 6):
     noi = egi - opex
     ncf = noi - total_ds_annual
     
-    # Exact Amortization Paydown Loop (12 months)
     yr_prin = 0
     for _ in range(12):
         if r_mo > 0:
@@ -1397,20 +1582,17 @@ for y in range(1, 6):
     y_prin.append(cum_prin)
     y_bal.append(bal)
 
-# --- Year 5 Refinance Execution ---
 y5_new_loan = y_port[4] * y5_refi_ltv
 y5_closing_costs = y5_new_loan * y5_closing_pct
 y5_payoff = y_bal[4]
 y5_net_cash_out = y5_new_loan - y5_payoff - y5_closing_costs
 
-# Calculate new DSCR on the newly minted debt to verify solvency
 if r_mo > 0:
     y5_new_mo_pi = (y5_new_loan) * (r_mo * (1 + r_mo)**360) / ((1 + r_mo)**360 - 1)
 else:
     y5_new_mo_pi = y5_new_loan / 360
 y5_new_dscr = y_noi[4] / (y5_new_mo_pi * 12) if y5_new_mo_pi > 0 else 0
 
-# --- UI Rendering ---
 y5_intro = (
     f"This section projects the 5-year financial performance of the **{y5_units}-house** annual portfolio. It incorporates compounding "
     f"**{y5_rent_growth*100:.1f}%** annual rent growth, **{appr_r*100:.1f}%** annual appreciation (starting from ${arv_u:,.0f} ARV), "
@@ -1419,7 +1601,6 @@ y5_intro = (
 )
 st.info(y5_intro.replace("$", r"\$"))
 
-# --- Dynamic Waterfall Chart ---
 fig_y5_refi = go.Figure(go.Waterfall(
     name="Year 5 Refinance",
     orientation="v",
@@ -1441,7 +1622,6 @@ fig_y5_refi.update_layout(
 )
 st.plotly_chart(fig_y5_refi, use_container_width=True)
 
-# --- Data Table ---
 y5_data = {
     "Portfolio Projection Metric": [
         f"Average Property Value (ARV @ {appr_r*100:.1f}% Appr.)",
@@ -1471,7 +1651,7 @@ with st.expander(f"View {y5_units}-House 5-Year Portfolio Progression Matrix", e
 
 y5_takeaway = (
     f"**5-Year Projections & Net {y5_refi_ltv*100:.0f}% LTV Refinance Takeaway**\n\n"
-    f"Over a 5-year hold, compounding {y5_rent_growth*100:.0f}% annual rent growth expands annual portfolio net cash flow from **${y_ncf[0]:,.0f}** to **${y_ncf[4]:,.0f}/year** "
+    f"Over a 5-year hold, compounding {y5_rent_growth*100:.1f}% annual rent growth expands annual portfolio net cash flow from **${y_ncf[0]:,.0f}** to **${y_ncf[4]:,.0f}/year** "
     f"while standard amortization pays down **${y_prin[4]:,.0f} in principal**. By Year 5, portfolio value reaches **${y_port[4]:,.0f}**. "
     f"Executing an {y5_refi_ltv*100:.0f}% LTV cash-out refinance (${y5_new_loan:,.0f} gross proceeds minus ${y5_payoff:,.0f} payoff balance and ${y5_closing_costs:,.0f} in estimated closing costs) "
     f"unlocks a net **${y5_net_cash_out:,.0f} in tax-free liquidity** for the developer while maintaining a highly secure **{y5_new_dscr:.2f}x DSCR** on the newly minted commercial debt."
@@ -1484,7 +1664,6 @@ st.divider()
 # ==========================================
 st.markdown("### 16.6 Post-Refinance Cash Flow Sensitivity Analysis (Post-Year 5 Refi)")
 
-# --- Dynamic Post-Refi Variables ---
 y5_loan_per_door = y5_new_loan / y5_units
 y5_noi_total = y_noi[4]
 y5_noi_per_door_annual = y5_noi_total / y5_units
@@ -1505,7 +1684,6 @@ y5_cfs_plot = []
 y5_dscrs_plot = []
 y5_colors_plot = []
 
-# Generate symmetrical rate offsets around the baseline refi rate (-1.0%, -0.5%, Base, +0.5%, +1.0%)
 rate_offsets = [-0.01, -0.005, 0.0, 0.005, 0.01]
 
 for r_offset in rate_offsets:
@@ -1514,26 +1692,24 @@ for r_offset in rate_offsets:
     
     test_rate_mo = test_rate / 12.0
     
-    # Calculate New P&I per door for Year 5 Loan
     pi_mo_door = y5_loan_per_door * (test_rate_mo * (1 + test_rate_mo)**360) / ((1 + test_rate_mo)**360 - 1)
     pi_ann_door = pi_mo_door * 12.0
     
     ncf_mo_door = y5_noi_per_door_monthly - pi_mo_door
     dscr_val = y5_noi_per_door_annual / pi_ann_door
     
-    # Formatting & Logic
     lbl = f"{test_rate*100:.2f}% Interest Rate" + (" (Baseline)" if r_offset == 0.0 else "")
     
     dscr_str = f"{dscr_val:.2f}x"
     if dscr_val < calc['target_dscr_rate']:
         dscr_str += " (Requires Buydown)"
-        bar_color = '#d62728' # Red
+        bar_color = '#d62728'
     elif ncf_mo_door < 0:
-        bar_color = '#d62728' # Red
+        bar_color = '#d62728'
     elif dscr_val < calc['target_dscr_rate'] + 0.05:
-        bar_color = '#ff7f0e' # Orange
+        bar_color = '#ff7f0e'
     else:
-        bar_color = '#2ca02c' # Green
+        bar_color = '#2ca02c'
         
     y5_rates_labels.append(f"{test_rate*100:.2f}%")
     y5_cfs_plot.append(ncf_mo_door)
@@ -1550,7 +1726,6 @@ for r_offset in rate_offsets:
         "Post-Refi DSCR": dscr_str
     })
 
-# --- Dynamic Bar Chart ---
 fig_y5_sens = go.Figure(go.Bar(
     x=y5_rates_labels, 
     y=y5_cfs_plot,
@@ -1559,7 +1734,6 @@ fig_y5_sens = go.Figure(go.Bar(
     textposition='auto',
 ))
 
-# Breakeven Line (Zero Cash Flow)
 fig_y5_sens.add_hline(
     y=0, 
     line_dash="solid", 
@@ -1576,7 +1750,6 @@ fig_y5_sens.update_layout(
 )
 st.plotly_chart(fig_y5_sens, use_container_width=True)
 
-# --- Data Table ---
 with st.expander("View Post-Refinance Cash Flow Sensitivity Matrix", expanded=False):
     st.dataframe(pd.DataFrame(y5_sens_data), hide_index=True, use_container_width=True)
 
@@ -1603,7 +1776,11 @@ ui_inputs = {
     "const_bank_name": st.session_state.get("const_bank_name", "Local Regional Bank"),
     "const_bank_contact": st.session_state.get("const_bank_contact", "Commercial Loan Officer"),
     "refi_bank_name": st.session_state.get("refi_bank_name", "National DSCR Lender"),
-    "refi_bank_contact": st.session_state.get("refi_bank_contact", "Takeout Underwriter")
+    "refi_bank_contact": st.session_state.get("refi_bank_contact", "Takeout Underwriter"),
+    "amortization_type": st.session_state.get("amortization_type", "Interest-Only (10-Yr IO Rider)"),
+    "buydown_pts": calc.get('buydown_pts', 3.0),
+    "net_refi_rate": calc.get('net_refi_rate', 0.0699),
+    "refi_closing_bundle": st.session_state.get("active_refi_bundle", 6000.0)
 }
 
 texts_dict = {
@@ -1639,21 +1816,21 @@ tables_dict = {
 
 col_p1, col_p2 = st.columns(2)
 with col_p1:
-    st.download_button("📄 Download Full Enterprise Pro Forma PDF", data=create_pdf(pdf_detail_mode, ui_inputs, calc, texts_dict, tables_dict), file_name=f"{borrower_company}_BTR_ProForma_{report_date.replace(' ', '_').replace(',', '')}.pdf", mime="application/pdf", use_container_width=True)
+    st.download_button("📄 Download Full Enterprise Pro Forma PDF", data=create_pdf(pdf_detail_mode, ui_inputs, calc, texts_dict, tables_dict), file_name=f"{borrower_company}_BTR_ProForma_{report_date.replace(' ', '_').replace(',', '')}.pdf", mime="application/pdf", width='stretch')
 with col_p2:
-    st.download_button("📄 Download Construction Proposal Letter", data=create_lender_letter_pdf("Construction", ui_inputs, calc), file_name=f"{borrower_company}_Const_Proposal_{report_date.replace(' ', '_').replace(',', '')}.pdf", mime="application/pdf", use_container_width=True)
+    st.download_button("📄 Download Construction Proposal Letter", data=create_lender_letter_pdf("Construction", ui_inputs, calc), file_name=f"{borrower_company}_Const_Proposal_{report_date.replace(' ', '_').replace(',', '')}.pdf", mime="application/pdf", width='stretch')
 
 col_p3, col_p4 = st.columns(2)
 with col_p3:
-    st.download_button("📄 Download Refinance Takeout Letter", data=create_lender_letter_pdf("Refinance", ui_inputs, calc), file_name=f"{borrower_company}_Refi_Proposal_{report_date.replace(' ', '_').replace(',', '')}.pdf", mime="application/pdf", use_container_width=True)
+    st.download_button("📄 Download Refinance Takeout Letter", data=create_lender_letter_pdf("Refinance", ui_inputs, calc), file_name=f"{borrower_company}_Refi_Proposal_{report_date.replace(' ', '_').replace(',', '')}.pdf", mime="application/pdf", width='stretch')
 with col_p4:
-    st.download_button("📊 Download Presentation Deck (PPTX)", data=create_pptx(ui_inputs, calc), file_name=f"{borrower_company}_Deck_{report_date.replace(' ', '_').replace(',', '')}.pptx", mime="application/vnd.openxmlformats-officedocument.presentationml.presentation", use_container_width=True)
+    st.download_button("📊 Download Presentation Deck (PPTX)", data=create_pptx(ui_inputs, calc), file_name=f"{borrower_company}_Deck_{report_date.replace(' ', '_').replace(',', '')}.pptx", mime="application/vnd.openxmlformats-officedocument.presentationml.presentation", width='stretch')
 
 col_p5, col_p6 = st.columns(2)
 with col_p5:
-    st.download_button("📄 Download Slide Deck (PDF Slides)", data=create_slide_pdf(ui_inputs, calc), file_name=f"{borrower_company}_Slide_Deck_{report_date.replace(' ', '_').replace(',', '')}.pdf", mime="application/pdf", use_container_width=True)
+    st.download_button("📄 Download Slide Deck (PDF Slides)", data=create_slide_pdf(ui_inputs, calc), file_name=f"{borrower_company}_Slide_Deck_{report_date.replace(' ', '_').replace(',', '')}.pdf", mime="application/pdf", width='stretch')
 with col_p6:
-    st.download_button("💼 Download Master Business Plan", data=create_business_plan_pdf(ui_inputs, calc), file_name=f"{borrower_company}_Business_Plan_{report_date.replace(' ', '_').replace(',', '')}.pdf", mime="application/pdf", use_container_width=True)
+    st.download_button("💼 Download Master Business Plan", data=create_business_plan_pdf(ui_inputs, calc), file_name=f"{borrower_company}_Business_Plan_{report_date.replace(' ', '_').replace(',', '')}.pdf", mime="application/pdf", width='stretch')
 
 st.divider()
 
@@ -1670,7 +1847,7 @@ with col_tb1:
         data=create_tb1_lvp_pdf(ui_inputs), 
         file_name=f"{borrower_company}_TechBrief1_LVP_{report_date.replace(' ', '_').replace(',', '')}.pdf", 
         mime="application/pdf", 
-        use_container_width=True
+        width='stretch'
     )
 with col_tb2:
     st.download_button(
@@ -1678,7 +1855,7 @@ with col_tb2:
         data=create_tb2_shower_pdf(ui_inputs), 
         file_name=f"{borrower_company}_TechBrief2_Showers_{report_date.replace(' ', '_').replace(',', '')}.pdf", 
         mime="application/pdf", 
-        use_container_width=True
+        width='stretch'
     )
 
 st.divider()
