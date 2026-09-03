@@ -249,11 +249,14 @@ def run_underwriting_engine(params, STRESS_SCENARIOS):
     refi_term_months = refi_term_years * 12
     
     # 1. Isolate the Bank TIA (Taxes, Insurance, Flood, HOA) per unit
-    if params.get("opex_entry_mode", "Percentage of EGI (%)") == "Percentage of EGI (%)":
-        mo_other_opex_per_unit = mo_other_opex / units if units > 0 else 0
-        bank_tia_per_unit = mo_other_opex_per_unit * 0.75 
+    if opex_entry_mode == "Percentage of EGI (%)":
+        # Fallback to standard standard 12% of gross rent if user hasn't explicitly itemized.
+        bank_tia_per_unit = gross_monthly_rent * 0.12
     else:
-        bank_tia_per_unit = params.get("opex_taxes_mo", 150.0) + params.get("opex_ins_mo", 115.0) + params.get("opex_flood_mo", 30.0) + params.get("opex_misc_mo", 0.0)
+        bank_tia_per_unit = (params.get("opex_taxes_mo", 150.0) + 
+                             params.get("opex_ins_mo", 115.0) + 
+                             params.get("opex_flood_mo", 30.0) + 
+                             params.get("opex_misc_mo", 0.0))
 
     max_pitia = gross_monthly_rent / target_dscr_rate
     max_pi_per_unit = max_pitia - bank_tia_per_unit
