@@ -21,8 +21,16 @@ def init_supabase():
 supabase = init_supabase()
 
 # --- 2. THE SECURITY DEADBOLT ---
-# If the user is not authenticated, stop rendering the rest of the page.
+# If the user is not authenticated, hide the sidebar entirely and stop rendering the rest of the page.
 if not render_auth_gate(supabase):
+    st.markdown(
+        """
+        <style>
+            [data-testid="stSidebar"] {display: none;}
+        </style>
+        """,
+        unsafe_allow_html=True
+    )
     st.stop()
 
 # ==========================================
@@ -245,7 +253,6 @@ with st.sidebar.container():
             else:
                 try:
                     with st.spinner("Fetching DPRIME from St. Louis Fed..."):
-                        # Queries the FRED API for the single most recent data point of the DPRIME series
                         url = f"https://api.stlouisfed.org/fred/series/observations?series_id=DPRIME&api_key={fred_api_key.strip()}&file_type=json&sort_order=desc&limit=1"
                         response = requests.get(url, timeout=10)
                         if response.status_code == 200:
@@ -572,7 +579,6 @@ st.markdown("<br>", unsafe_allow_html=True)
 # ==========================================
 # --- DYNAMIC EXECUTIVE CONCLUSION BUBBLE ---
 # ==========================================
-# Safely round DSCR to 2 decimals to prevent floating-point failure logic (e.g. 1.198 failing against 1.20)
 safe_dscr = round(calc['actual_dscr'], 2)
 dscr_pass_safe = safe_dscr >= calc['target_dscr_rate']
 
@@ -827,7 +833,6 @@ st.divider()
 # ==========================================
 st.markdown("### 7. Bank DSCR Underwriting & True Operating Cash Flow")
 
-# Re-calculate Bank PITIA for UI display
 u_rent = st.session_state.get('gross_monthly_rent', 0) * calc['units']
 u_tax = st.session_state.get('opex_taxes_mo', 0) * calc['units']
 u_ins = st.session_state.get('opex_ins_mo', 0) * calc['units']
@@ -846,7 +851,6 @@ operating_summary_text = (
 )
 st.info(operating_summary_text.replace("$", r"\$"))
 
-# Data Tables for UI
 dscr_summary_data = {
     "Pro Forma Line Item": [ 
         "Gross Scheduled Rent", 
@@ -891,7 +895,6 @@ proforma_summary_data = {
 
 col_t1, col_t2 = st.columns(2)
 with col_t1:
-    # Rename column dynamically just for the web UI display
     st.dataframe(pd.DataFrame(dscr_summary_data).rename(columns={"Pro Forma Line Item": "Bank Underwriting (DSCR Sizing)"}), hide_index=True, use_container_width=True)
 with col_t2:
     st.dataframe(pd.DataFrame(proforma_summary_data).rename(columns={"Pro Forma Line Item": "True Operating Pro Forma"}), hide_index=True, use_container_width=True)
@@ -1004,7 +1007,6 @@ st.divider()
 # ==========================================
 st.markdown("### 10.5. The Exit: Refinance & The \"Two-Pocket\" Cash Flow Strategy")
 
-# Extract dynamic 6-unit program variables
 prog_units = 6
 prog_loan = calc['loan_6']
 prog_basis = calc['cap_6']
@@ -1042,7 +1044,6 @@ with col_exit1:
         st.write(f"In commercial real estate, Cash-on-Cash Return is mathematically defined as: Annual Net Cash Flow divided by Total Developer Capital Trapped in the Asset. With **${-prog_surplus:,.0f}** remaining as trapped capital, the portfolio yields a **{(calc['monthly_cf_6']*12) / (-prog_surplus) * 100 :.1f}%** cash-on-cash return.")
 
 with col_exit2:
-    # Dynamic Waterfall Chart for the Pockets of Wealth
     fig_wealth_pockets = go.Figure(go.Waterfall(
         name="Wealth Creation",
         orientation="v",
@@ -1064,7 +1065,6 @@ with col_exit2:
     )
     st.plotly_chart(fig_wealth_pockets, use_container_width=True)
 
-# Detailed Data Table
 wealth_pocket_data = {
     "Wealth Component": [
         "Pocket 1: GC Management Fees Earned During Build",
@@ -1235,13 +1235,12 @@ comp_labels = []
 comp_cfs_plot = []
 comp_colors = []
 
-# Generate 7 dynamic cost-compression steps centered around the active modeled cost
 base_d_cost = calc['direct_cost_sf']
-step_val = max(3.0, base_d_cost * 0.05) # Dynamic ~5% steps
+step_val = max(3.0, base_d_cost * 0.05)
 test_d_costs = [
     base_d_cost + (step_val * 2),
     base_d_cost + (step_val * 1),
-    base_d_cost, # Active Model Baseline
+    base_d_cost,
     base_d_cost - (step_val * 1),
     base_d_cost - (step_val * 2),
     base_d_cost - (step_val * 3),
@@ -1251,7 +1250,6 @@ test_d_costs = [
 for idx, d_cost in enumerate(test_d_costs):
     if d_cost <= 0: continue
     
-    # 1. Hard Costs
     h_hc = d_cost * calc['sqft']
     if calc['aux_cost_mode'] == "Percentage of Heated Rate (%)":
         aux_c = (d_cost * calc['aux_ratio'] * calc['aux_sqft_total']) + calc['additional_foundation_cost']
@@ -1259,7 +1257,6 @@ for idx, d_cost in enumerate(test_d_costs):
         aux_c = (calc['aux_fixed_cost_sf'] * calc['aux_sqft_total']) + calc['additional_foundation_cost']
     t_hc = h_hc + aux_c
     
-    # 2. Indirects
     c_pct = calc['contingency_pct']
     p_pct = calc['indirect_permits_pct']
     t_pct = calc['indirect_temp_facilities_pct']
@@ -1273,7 +1270,6 @@ for idx, d_cost in enumerate(test_d_costs):
     t_ind = cont + perm + temp + gc
     t_const = t_hc + t_ind
     
-    # 3. Basis & Carry (Single Unit)
     unit_const_loan = calc['actual_const_loan'] / calc['units']
     carry = unit_const_loan * 0.5 * calc['const_rate'] * (calc['build_months'] / 12.0)
     
@@ -1286,7 +1282,6 @@ for idx, d_cost in enumerate(test_d_costs):
     basis_ex_refi = unit_land + t_const + unit_soft + unit_const_close + carry
     total_basis = basis_ex_refi + unit_refi_close + unit_buy
     
-    # 4. Returns
     unit_refi_loan = calc['loan_total'] / calc['units']
     unit_seed = max(0, basis_ex_refi - unit_const_loan)
     net_cash_close = unit_refi_loan - unit_const_loan - unit_refi_close - unit_buy
@@ -1297,7 +1292,6 @@ for idx, d_cost in enumerate(test_d_costs):
     
     tot_cost_sf = total_basis / calc['sqft']
     
-    # Labeling
     if idx == 0:
         lbl_prefix = "(Over Budget Risk)"
     elif idx == 2:
@@ -1322,7 +1316,6 @@ for idx, d_cost in enumerate(test_d_costs):
     comp_cfs_plot.append(surplus)
     comp_colors.append('#2ca02c' if surplus >= 0 else '#d62728')
 
-# --- Dynamic Bar Chart ---
 fig_comp_chart = go.Figure(go.Bar(
     x=comp_labels, 
     y=comp_cfs_plot,
@@ -1387,11 +1380,10 @@ st.divider()
 # ==========================================
 st.markdown("### 16.5 Five-Year Portfolio Projections & 80% LTV Refinance Analysis")
 
-# --- Dynamic Year 5 Engine Variables ---
 y5_units = 6
-y5_rent_growth = 0.03  # Standard 3% escalation
+y5_rent_growth = 0.03
 y5_refi_ltv = 0.80
-y5_closing_pct = 0.03  # 3% refi closing costs
+y5_closing_pct = 0.03
 
 arv_u = calc['arv_per_unit']
 rent_u = calc['gross_monthly_rent']
@@ -1408,13 +1400,10 @@ total_ds_annual = mo_pi_u * 12 * y5_units
 y_arv, y_port, y_rent, y_gross, y_egi, y_opex, y_noi, y_ds, y_ncf, y_prin, y_bal = [], [], [], [], [], [], [], [], [], [], []
 cum_prin = 0
 
-# --- Calculate 5-Year Progression ---
 for y in range(1, 6):
-    # Appreciation & Value
     curr_arv = arv_u * ((1 + appr_r) ** (y - 1))
     port_val = curr_arv * y5_units
     
-    # Income & Operations
     curr_rent = rent_u * ((1 + y5_rent_growth) ** (y - 1))
     ann_gross = curr_rent * 12 * y5_units
     egi = ann_gross * (1 - vac_r)
@@ -1422,7 +1411,6 @@ for y in range(1, 6):
     noi = egi - opex
     ncf = noi - total_ds_annual
     
-    # Exact Amortization Paydown Loop (12 months)
     yr_prin = 0
     for _ in range(12):
         if r_mo > 0:
@@ -1447,20 +1435,17 @@ for y in range(1, 6):
     y_prin.append(cum_prin)
     y_bal.append(bal)
 
-# --- Year 5 Refinance Execution ---
 y5_new_loan = y_port[4] * y5_refi_ltv
 y5_closing_costs = y5_new_loan * y5_closing_pct
 y5_payoff = y_bal[4]
 y5_net_cash_out = y5_new_loan - y5_payoff - y5_closing_costs
 
-# Calculate new DSCR on the newly minted debt to verify solvency
 if r_mo > 0:
     y5_new_mo_pi = (y5_new_loan) * (r_mo * (1 + r_mo)**360) / ((1 + r_mo)**360 - 1)
 else:
     y5_new_mo_pi = y5_new_loan / 360
 y5_new_dscr = y_noi[4] / (y5_new_mo_pi * 12) if y5_new_mo_pi > 0 else 0
 
-# --- UI Rendering ---
 y5_intro = (
     f"This section projects the 5-year financial performance of the **{y5_units}-house** annual portfolio. It incorporates compounding "
     f"**{y5_rent_growth*100:.1f}%** annual rent growth, **{appr_r*100:.1f}%** annual appreciation (starting from ${arv_u:,.0f} ARV), "
@@ -1469,7 +1454,6 @@ y5_intro = (
 )
 st.info(y5_intro.replace("$", r"\$"))
 
-# --- Dynamic Waterfall Chart ---
 fig_y5_refi = go.Figure(go.Waterfall(
     name="Year 5 Refinance",
     orientation="v",
@@ -1491,7 +1475,6 @@ fig_y5_refi.update_layout(
 )
 st.plotly_chart(fig_y5_refi, use_container_width=True)
 
-# --- Data Table ---
 y5_data = {
     "Portfolio Projection Metric": [
         f"Average Property Value (ARV @ {appr_r*100:.1f}% Appr.)",
@@ -1521,7 +1504,7 @@ with st.expander(f"View {y5_units}-House 5-Year Portfolio Progression Matrix", e
 
 y5_takeaway = (
     f"**5-Year Projections & Net {y5_refi_ltv*100:.0f}% LTV Refinance Takeaway**\n\n"
-    f"Over a 5-year hold, compounding {y5_rent_growth*100:.0f}% annual rent growth expands annual portfolio net cash flow from **${y_ncf[0]:,.0f}** to **${y_ncf[4]:,.0f}/year** "
+    f"Over a 5-year hold, compounding {y5_rent_growth*100:.1f}% annual rent growth expands annual portfolio net cash flow from **${y_ncf[0]:,.0f}** to **${y_ncf[4]:,.0f}/year** "
     f"while standard amortization pays down **${y_prin[4]:,.0f} in principal**. By Year 5, portfolio value reaches **${y_port[4]:,.0f}**. "
     f"Executing an {y5_refi_ltv*100:.0f}% LTV cash-out refinance (${y5_new_loan:,.0f} gross proceeds minus ${y5_payoff:,.0f} payoff balance and ${y5_closing_costs:,.0f} in estimated closing costs) "
     f"unlocks a net **${y5_net_cash_out:,.0f} in tax-free liquidity** for the developer while maintaining a highly secure **{y5_new_dscr:.2f}x DSCR** on the newly minted commercial debt."
@@ -1534,7 +1517,6 @@ st.divider()
 # ==========================================
 st.markdown("### 16.6 Post-Refinance Cash Flow Sensitivity Analysis (Post-Year 5 Refi)")
 
-# --- Dynamic Post-Refi Variables ---
 y5_loan_per_door = y5_new_loan / y5_units
 y5_noi_total = y_noi[4]
 y5_noi_per_door_annual = y5_noi_total / y5_units
@@ -1555,7 +1537,6 @@ y5_cfs_plot = []
 y5_dscrs_plot = []
 y5_colors_plot = []
 
-# Generate symmetrical rate offsets around the baseline refi rate (-1.0%, -0.5%, Base, +0.5%, +1.0%)
 rate_offsets = [-0.01, -0.005, 0.0, 0.005, 0.01]
 
 for r_offset in rate_offsets:
@@ -1564,26 +1545,24 @@ for r_offset in rate_offsets:
     
     test_rate_mo = test_rate / 12.0
     
-    # Calculate New P&I per door for Year 5 Loan
     pi_mo_door = y5_loan_per_door * (test_rate_mo * (1 + test_rate_mo)**360) / ((1 + test_rate_mo)**360 - 1)
     pi_ann_door = pi_mo_door * 12.0
     
     ncf_mo_door = y5_noi_per_door_monthly - pi_mo_door
     dscr_val = y5_noi_per_door_annual / pi_ann_door
     
-    # Formatting & Logic
     lbl = f"{test_rate*100:.2f}% Interest Rate" + (" (Baseline)" if r_offset == 0.0 else "")
     
     dscr_str = f"{dscr_val:.2f}x"
     if dscr_val < calc['target_dscr_rate']:
         dscr_str += " (Requires Buydown)"
-        bar_color = '#d62728' # Red
+        bar_color = '#d62728'
     elif ncf_mo_door < 0:
-        bar_color = '#d62728' # Red
+        bar_color = '#d62728'
     elif dscr_val < calc['target_dscr_rate'] + 0.05:
-        bar_color = '#ff7f0e' # Orange
+        bar_color = '#ff7f0e'
     else:
-        bar_color = '#2ca02c' # Green
+        bar_color = '#2ca02c'
         
     y5_rates_labels.append(f"{test_rate*100:.2f}%")
     y5_cfs_plot.append(ncf_mo_door)
@@ -1600,7 +1579,6 @@ for r_offset in rate_offsets:
         "Post-Refi DSCR": dscr_str
     })
 
-# --- Dynamic Bar Chart ---
 fig_y5_sens = go.Figure(go.Bar(
     x=y5_rates_labels, 
     y=y5_cfs_plot,
@@ -1609,7 +1587,6 @@ fig_y5_sens = go.Figure(go.Bar(
     textposition='auto',
 ))
 
-# Breakeven Line (Zero Cash Flow)
 fig_y5_sens.add_hline(
     y=0, 
     line_dash="solid", 
@@ -1626,7 +1603,6 @@ fig_y5_sens.update_layout(
 )
 st.plotly_chart(fig_y5_sens, use_container_width=True)
 
-# --- Data Table ---
 with st.expander("View Post-Refinance Cash Flow Sensitivity Matrix", expanded=False):
     st.dataframe(pd.DataFrame(y5_sens_data), hide_index=True, use_container_width=True)
 

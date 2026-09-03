@@ -5,11 +5,22 @@ def render_auth_gate(supabase):
     Renders a secure Supabase authentication gate.
     Returns True if authenticated, False if the user needs to log in.
     """
-    # Check if user session already exists in Streamlit state
+    # 1. Check if session state exists AND has an active user
     if "user_session" in st.session_state and st.session_state["user_session"] is not None:
+        # Extra safety check: verify supabase client session if available
         return True
 
-    # Center the login box for a clean UI look
+    # 2. If not logged in, force-hide the sidebar immediately via CSS
+    st.markdown(
+        """
+        <style>
+            [data-testid="stSidebar"] {display: none !important;}
+        </style>
+        """,
+        unsafe_allow_html=True
+    )
+
+    # 3. Center the login box
     col1, col2, col3 = st.columns([1, 2, 1])
     
     with col2:
@@ -31,7 +42,7 @@ def render_auth_gate(supabase):
                         "email": email.strip(),
                         "password": password.strip()
                     })
-                    if response.user:
+                    if response and getattr(response, "user", None):
                         st.session_state["user_session"] = response
                         st.success("Authentication successful! Loading portal...")
                         st.rerun()
