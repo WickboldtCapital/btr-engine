@@ -4,3 +4,4 @@ fpdf
 python-pptx
 plotly
 jinja2
+supabase
