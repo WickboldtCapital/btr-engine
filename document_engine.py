@@ -1,4 +1,4 @@
-from jinja2 import Template, Environment, meta
+from jinja2 import Template, Environment
 
 def render_dynamic_document(raw_markdown, calc_dict):
     """
@@ -36,8 +36,14 @@ def render_dynamic_document(raw_markdown, calc_dict):
         rendered_text = template.render(**calc_dict)
         return rendered_text
     except Exception as e:
-        return f"**Render Error:** {e}\n\nCheck your variable tags."
+        return f"**Render Error:** {e}\n\nCheck your variable tags to make sure they are spelled correctly."
 
 def get_available_variables(calc_dict):
     """Returns a sorted list of all available keys to display in the UI ledger."""
-    return sorted(list(calc_dict.keys()))
+    # Filter out complex objects like dataframes so they don't clog up the list
+    import pandas as pd
+    clean_keys = []
+    for k, v in calc_dict.items():
+        if not isinstance(v, (pd.DataFrame, list, dict)):
+            clean_keys.append(k)
+    return sorted(clean_keys)
