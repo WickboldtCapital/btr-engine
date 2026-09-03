@@ -1,4 +1,37 @@
 import streamlit as st
+from supabase import create_client
+from auth_gate import render_auth_gate  # Pulls in the module you just created
+
+@st.cache_resource
+def init_supabase():
+    return create_client(st.secrets["SUPABASE_URL"], st.secrets["SUPABASE_KEY"])
+
+supabase = init_supabase()
+
+st.set_page_config(
+    page_title="Wickboldt Capital Platform",
+    layout="wide",
+    initial_sidebar_state="expanded"
+)
+
+# Enforce secure authentication gate before rendering anything else
+if render_auth_gate(supabase):
+    st.title("Wickboldt Capital — Project Dashboard")
+    st.sidebar.success(f"Logged in as: {st.session_state.user.email}")
+    
+    selected_project = st.sidebar.selectbox(
+        "Select Active Asset",
+        ["Rogers Moore Parkway (Hammond, LA)", "Bud Broussard Relocation (Prairieville, LA)"]
+    )
+    
+    if "Rogers Moore" in selected_project:
+        st.header("Rogers Moore Parkway — Build-to-Rent Development")
+        st.write("Managing 24-lot subdivision layout, civil engineering milestones, and lender draw schedules.")
+    else:
+        st.header("Bud Broussard Road — Structure Relocation")
+        st.write("Managing foundation elevation spec (21.12), utility hookups, and HVAC Manual J/S/D compliance.")
+
+import streamlit as st
 import pandas as pd
 import plotly.express as px
 import plotly.graph_objects as go
