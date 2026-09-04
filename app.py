@@ -865,6 +865,13 @@ dscr_summary_data = {
         f"-${bank_tia_mo:,.0f}", 
         f"${total_pitia_mo:,.0f}", 
         f"{calc['actual_dscr']:.2f}x"
+    ],
+    "Annual": [
+        f"${u_rent * 12:,.0f}", 
+        f"-${calc['total_monthly_pi'] * 12:,.0f}", 
+        f"-${bank_tia_mo * 12:,.0f}", 
+        f"${total_pitia_mo * 12:,.0f}", 
+        f"{calc['actual_dscr']:.2f}x"
     ]
 }
 
@@ -890,6 +897,17 @@ proforma_summary_data = {
         f"${calc['monthly_noi']:,.0f}", 
         f"-${calc['total_monthly_pi']:,.0f}", 
         f"${calc['monthly_cash_flow']:,.0f}"
+    ],
+    "Annual": [
+        f"${u_rent * 12:,.0f}", 
+        f"-${calc['monthly_vacancy_loss'] * 12:,.0f}", 
+        f"${(u_rent - calc['monthly_vacancy_loss']) * 12:,.0f}", 
+        f"-${calc['monthly_mgmt_fee'] * 12:,.0f}", 
+        f"-${bank_tia_mo * 12:,.0f}", 
+        f"-${((calc['mo_other_opex'] * calc['units']) - bank_tia_mo) * 12:,.0f}", 
+        f"${calc['monthly_noi'] * 12:,.0f}", 
+        f"-${calc['total_monthly_pi'] * 12:,.0f}", 
+        f"${calc['monthly_cash_flow'] * 12:,.0f}"
     ]
 }
 
