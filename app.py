@@ -283,17 +283,15 @@ with st.sidebar.container():
     st.markdown("##### Bank Lending Margin & Discounts")
     bank_margin = st.number_input("Bank Lending Margin (Prime + %)", min_value=0.0, max_value=10.0, step=0.25, value=1.00, key="bank_margin_pct", help="The spread your bank charges above the Prime Rate.")
     
-    # Tiered LTV Selector
     st.selectbox("Construction / Bank LTC (%)", [80.0, 75.0, 70.0], key="const_ltv_pct", help="Select bank loan-to-cost tier. Lower LTC tiers unlock commercial rate discounts.")
     
-    # Calculate base const rate (Prime + Margin) and save it for calculations.py
+    # Calculate base const rate
     base_c_rate = current_prime + bank_margin
-    st.session_state["const_rate_pct"] = base_c_rate 
-    
-    # Display live tiered construction rate for the UI
     current_ltv = st.session_state.get("const_ltv_pct", 80.0)
     rate_discount = max(0.0, (80.0 - current_ltv) / 5.0) * 0.5
     effective_c_rate = max(1.0, base_c_rate - rate_discount)
+    
+    st.session_state["const_rate_pct"] = effective_c_rate
     
     if rate_discount > 0:
         st.markdown(f"📈 **Base Rate (Prime + Margin):** `{base_c_rate:.2f}%`\n📉 **Tiered Equity Discount:** `-{rate_discount:.2f}%`\n🎯 **Effective Rate:** `{effective_c_rate:.2f}%`")
@@ -350,7 +348,6 @@ with st.sidebar.container():
         current_other_pct = st.session_state.get("opex_rate_pct", 15.0)
         st.markdown(f"**🎯 True Total OpEx:** `{current_mgmt_pct + current_other_pct:.1f}% of EGI`")
     else:
-        # Dynamic OpEx Percentage Calculation (Global Portfolio Level)
         current_tax_g = st.session_state.get("opex_taxes_global", 0.0)
         current_ins_g = st.session_state.get("opex_ins_global", 0.0)
         current_flood_g = st.session_state.get("opex_flood_global", 0.0)
@@ -368,7 +365,6 @@ with st.sidebar.container():
         
         st.markdown(f"**🎯 True Total OpEx:** `{true_total_opex:.1f}% of EGI`")
 
-        # Calculate individual line-item percentages
         tax_pct = (current_tax_g / global_egi) * 100 if global_egi > 0 else 0.0
         ins_pct = (current_ins_g / global_egi) * 100 if global_egi > 0 else 0.0
         flood_pct = (current_flood_g / global_egi) * 100 if global_egi > 0 else 0.0
@@ -384,7 +380,6 @@ with st.sidebar.container():
             st.number_input(f"Global Turnover/Maint ($/mo) — {maint_pct:.1f}%", min_value=0.0, step=50.0, key="opex_maint_global")
             st.number_input(f"Global HOA / Misc ($/mo) — {misc_pct:.1f}%", min_value=0.0, step=50.0, key="opex_misc_global")
         
-        # Translate global values to per-door values so the underlying engine still works flawlessly
         st.session_state['opex_taxes_mo'] = current_tax_g / project_units
         st.session_state['opex_ins_mo'] = current_ins_g / project_units
         st.session_state['opex_flood_mo'] = current_flood_g / project_units
@@ -397,12 +392,7 @@ with st.sidebar.container():
 
 with st.sidebar.container():
     st.subheader("10. Takeout Appraisal Methodology")
-    st.radio("Primary Valuation Mode", [
-        "Sales Comp (Price/SF)", 
-        "Income Approach (GRM)", 
-        "Income Approach (DSCR Loan Sizing)",
-        "Conservative (Lesser of GRM or DSCR)"
-    ], key="appraisal_mode")
+    st.radio("Primary Valuation Mode", ["Sales Comp (Price/SF)", "Income Approach (GRM)", "Income Approach (DSCR Loan Sizing)", "Conservative (Lesser of GRM or DSCR)"], key="appraisal_mode")
     
     if st.session_state.appraisal_mode in ["Income Approach (GRM)", "Conservative (Lesser of GRM or DSCR)"]:
         st.number_input("Gross Rent Multiplier (GRM)", min_value=4.0, max_value=25.0, step=0.1, key="target_grm")
@@ -414,11 +404,7 @@ with st.sidebar.container():
         
     st.divider()
     st.markdown("##### Secondary ARV Constraints")
-    arv_constraint = st.radio("Override Target ARV?", [
-        "No Override (Use Valuation Mode Above)",
-        "Reverse-Engineer Max ARV from Min. Cash Flow",
-        "Manual Target ARV Override"
-    ], key="arv_constraint_mode", help="Allows you to bypass the primary valuation and force the reverse-engineering engine to use a specific ARV limit.")
+    arv_constraint = st.radio("Override Target ARV?", ["No Override (Use Valuation Mode Above)", "Reverse-Engineer Max ARV from Min. Cash Flow", "Manual Target ARV Override"], key="arv_constraint_mode")
     
     if arv_constraint == "Manual Target ARV Override":
         st.number_input("Custom Target ARV per Unit ($)", min_value=10000.0, step=5000.0, value=250000.0, key="manual_arv_override")
@@ -426,8 +412,7 @@ with st.sidebar.container():
 with st.sidebar.container():
     st.subheader("11. Takeout Refinance Terms")
     
-    # Tiered LTV Selector for Refinance
-    st.selectbox("Refinance LTV Tier (%)", [80.0, 75.0, 70.0], key="refi_ltv_pct", help="Select permanent loan-to-value tier. Lower LTV tiers unlock commercial rate discounts.")
+    st.selectbox("Refinance LTV Tier (%)", [80.0, 75.0, 70.0], key="refi_ltv_pct", help="Select permanent loan-to-value tier.")
     st.number_input("Bank Target DSCR Rate", min_value=1.0, max_value=1.5, step=0.05, key="target_dscr_rate")
     st.selectbox("Amortization Term (Years)", [15, 20, 25, 30], key="refi_term_years")
     
@@ -464,20 +449,13 @@ with st.sidebar.container():
         current_refi_index = st.number_input("Manual Index Rate (%)", min_value=1.0, max_value=15.0, step=0.25, value=st.session_state.get("refi_index_rate", 7.50), key="refi_index_rate")
 
     st.markdown("##### Bank Lending Margin & Discounts")
-    refi_margin = st.number_input("Refi Lending Spread (+ %)", min_value=0.0, max_value=10.0, step=0.25, value=1.00, key="refi_margin_pct", help="The margin your bank charges above the Index Rate.")
+    refi_margin = st.number_input("Refi Lending Spread (+ %)", min_value=0.0, max_value=10.0, step=0.25, value=1.00, key="refi_margin_pct")
 
-    # Calculate raw base refi rate (Index + Spread)
     raw_refi_rate = current_refi_index + refi_margin
     current_refi_ltv = st.session_state.get("refi_ltv_pct", 80.0)
-    
-    # Apply 0.5% rate reduction for every 5% drop in LTV below 80%
     refi_rate_discount = max(0.0, (80.0 - current_refi_ltv) / 5.0) * 0.5
     adjusted_base_r_rate = max(1.0, raw_refi_rate - refi_rate_discount)
     
-    # Save the final discounted base rate for calculations.py
-    st.session_state["base_refi_rate_pct"] = adjusted_base_r_rate
-    
-    # Display the breakdown in the UI
     if refi_rate_discount > 0:
         st.markdown(f"📈 **Raw Rate (Index + Spread):** `{raw_refi_rate:.2f}%`\n📉 **Tiered Equity Discount:** `-{refi_rate_discount:.2f}%`\n🎯 **Effective Base Rate:** `{adjusted_base_r_rate:.2f}%`")
     else:
@@ -489,15 +467,38 @@ with st.sidebar.container():
     
     st.number_input("Refinance Closing Fee ($ total)", min_value=0, step=250, format="%d", key="refi_closing_fee")
     st.checkbox("Apply Interest Rate Buydown Points?", key="apply_buydown")
+    
+    final_refi_rate = adjusted_base_r_rate
+    
     if st.session_state.apply_buydown:
-        st.number_input("Discount Points", min_value=0.0, max_value=10.0, step=0.25, format="%.2f", key="buydown_pts")
-        # Compute the final net rate off the dynamically generated adjusted_base_r_rate
-        net_rate = max(0.01, (adjusted_base_r_rate / 100.0) - (st.session_state.buydown_pts * 0.0025))
-        st.markdown(f"📉 **Final Buydown Net Rate:** `{net_rate*100:.3f}%`")
+        pts = st.number_input("Discount Points", min_value=0.0, max_value=10.0, step=0.25, format="%.2f", key="buydown_pts")
+        # 1 point = 0.25% interest rate reduction
+        final_refi_rate = max(1.0, adjusted_base_r_rate - (pts * 0.25))
+        st.markdown(f"📉 **Final Buydown Net Rate:** `{final_refi_rate:.3f}%`")
+    else:
+        st.session_state["buydown_pts"] = 0.0
 
 # ==========================================
 # --- MASTER ENGINE CALCULATION EXECUTION ---
 # ==========================================
+# 🚨 BRUTE-FORCE ENGINE SYNCHRONIZATION
+# We duplicate the effective rates into every possible dictionary key 
+# to guarantee the calculation engine catches them regardless of its internal naming.
+
+c_rate = st.session_state.get("const_rate_pct", 8.5)
+st.session_state["const_rate"] = c_rate
+st.session_state["base_const_rate"] = c_rate
+st.session_state["const_interest_rate"] = c_rate
+
+r_rate = final_refi_rate
+st.session_state["refi_rate_pct"] = r_rate
+st.session_state["refi_rate"] = r_rate
+st.session_state["base_refi_rate"] = r_rate
+st.session_state["net_refi_rate"] = r_rate
+st.session_state["refi_interest_rate"] = r_rate
+st.session_state["permanent_rate"] = r_rate
+st.session_state["takeout_rate"] = r_rate
+
 calc = run_underwriting_engine(st.session_state, STRESS_SCENARIOS)
 
 # ==========================================
@@ -648,14 +649,11 @@ m5_col4.metric("Tax Savings", f"${calc['yr1_tax']:,.0f}", "Depreciation tax shel
 st.markdown("### 6. Wealth Pillars: Multi-Year Horizon Returns")
 m6_col1, m6_col2, m6_col3, m6_col4 = st.columns(4)
 
-# Calculate multi-year accumulated returns with exact programmatic array lookups
-# Note: arrays are 1-indexed in the engine output (Year 1 is index 1)
 annual_tax = calc.get('annual_tax_savings', 0)
 base_arv = calc.get('total_arv', 0)
 
 yr1_tot = calc['yr1_cf'] + calc['yr1_prin'] + calc['yr1_appr'] + calc['yr1_tax']
 
-# Enterprise-grade exact lookups for Years 3, 5, and 10
 yr3_tot = calc['cumulative_cf'][3] + calc['principal_paid'][3] + (calc['asset_vals'][3] - base_arv) + (annual_tax * 3)
 yr5_tot = calc['cumulative_cf'][5] + calc['principal_paid'][5] + (calc['asset_vals'][5] - base_arv) + (annual_tax * 5)
 yr10_tot = calc['cumulative_cf'][10] + calc['principal_paid'][10] + (calc['asset_vals'][10] - base_arv) + (annual_tax * 10)
