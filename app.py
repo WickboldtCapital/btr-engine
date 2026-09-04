@@ -26,12 +26,22 @@ if not render_auth_gate(supabase):
     st.markdown(
         """
         <style>
-            [data-testid="stSidebar"] {display: none;}
+            [data-testid="stSidebar"] {display: none !important;}
         </style>
         """,
         unsafe_allow_html=True
     )
-    st.stop()
+    st.stop() # <--- THE MAGIC BULLET. Stops FRED and all calculations until logged in.
+else:
+    # Explicitly turn the sidebar back on after successful login to prevent CSS ghosting
+    st.markdown(
+        """
+        <style>
+            [data-testid="stSidebar"] {display: flex !important;}
+        </style>
+        """,
+        unsafe_allow_html=True
+    )
 
 # ==========================================
 # --- 3. SECURE DASHBOARD STARTS HERE ---

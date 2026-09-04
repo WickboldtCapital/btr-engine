@@ -7,7 +7,8 @@ def render_auth_gate(supabase):
     """
     # 1. Check if session state exists AND has an active user
     if "user_session" in st.session_state and st.session_state["user_session"] is not None:
-        # Extra safety check: verify supabase client session if available
+        # We are logged in. Do NOT inject any CSS here. 
+        # Streamlit will naturally render the sidebar.
         return True
 
     # 2. If not logged in, force-hide the sidebar immediately via CSS
