@@ -544,71 +544,116 @@ st.info(executive_summary_text.replace("$", r"\$"))
 st.divider()
 
 # ==========================================
-# --- 1. POPULATE EXECUTIVE METRICS DASHBOARD ---
+# --- 1. GO/NO-GO INVESTMENT DECISION BANNER ---
 # ==========================================
-st.markdown("### 1. Project Capital & Valuation Metrics")
-col1, col2, col3, col4 = st.columns(4)
-
-refi_vs_basis = calc['loan_total'] - calc['total_project_basis']
-col1.metric("Takeout Loan Proceeds", f"${calc['loan_total']:,.0f}", f"{refi_vs_basis:+,.0f} vs Project Basis", delta_color="normal")
-col2.metric("Day-1 Seed Capital", f"${calc['seed_capital']:,.0f}" if calc['seed_capital'] > 0 else "$0", "-Requires Cash Reserves" if calc['seed_capital'] > 0 else "Fully Funded", delta_color="normal")
-col3.metric("Under-Roof Blended Cost", f"${calc['blended_cost_per_sf']:.2f} / SF", f"{calc['total_under_roof_sqft']:,} Total SF Under Roof")
-col4.metric("Tax-Free Cash Surplus" if calc['cash_surplus'] >= 0 else "Trapped Seed Capital", f"${calc['cash_surplus']:,.0f}", "Capital Recovered" if calc['cash_surplus'] >= 0 else "Loss at Closing", delta_color="normal" if calc['cash_surplus'] >= 0 else "inverse")
-
-st.markdown("### 🏢 Operating & DSCR Metrics")
-op1, op2, op3, op4 = st.columns(4)
-arv_label = "Derived Unit ARV (Price/SF)" if calc['appraisal_mode'] == "Sales Comp (Price/SF)" else "Derived Unit ARV"
-op1.metric(arv_label, f"${calc['arv_per_unit']:,.0f}", f"${calc['total_arv']:,.0f} Total ARV")
-op2.metric("Actual DSCR Rate", f"{calc['actual_dscr']:.2f}x", f"Target: {calc['target_dscr_rate']:.2f}x", delta_color="normal" if calc['actual_dscr'] >= calc['target_dscr_rate'] else "inverse")
-op3.metric("Monthly Cash Flow", f"${calc['monthly_cash_flow']:,.0f} /mo", f"${calc['monthly_cash_flow']*12:,.0f} Annual", delta_color="normal" if calc['monthly_cash_flow_per_door'] >= calc['target_min_cashflow_per_door'] else "inverse")
-op4.metric("Monthly P&I Payment", f"${calc['total_monthly_pi']:,.0f} /mo", f"{calc['refi_term_years']}Yr @ {calc['net_refi_rate']*100:.3f}%")
-
 st.markdown("### 🚦 Go/No-Go Investment Decision Dashboard")
-dscr_pass = calc['actual_dscr'] >= calc['target_dscr_rate']
-cash_pass = calc['cash_surplus'] >= 0
-cf_pass = calc['monthly_cash_flow_per_door'] >= calc['target_min_cashflow_per_door']
+safe_dscr = round(calc.get('actual_dscr', 0), 2)
+target_dscr = calc.get('target_dscr_rate', 1.20)
+dscr_pass_safe = safe_dscr >= target_dscr
 
-dash_col1, dash_col2, dash_col3, dash_col4 = st.columns(4)
-dash_col1.metric("DSCR Underwriting Status", "🟢 GREEN LIGHT" if dscr_pass else "🔴 RED LIGHT", f"Actual: {calc['actual_dscr']:.2f}x (Target: {calc['target_dscr_rate']:.2f}x)", delta_color="normal" if dscr_pass else "inverse")
-dash_col2.metric("Cash Flow Status", "🟢 GREEN LIGHT" if cf_pass else "🔴 RED LIGHT", f"Actual: ${calc['monthly_cash_flow_per_door']:,.0f}/door (Target: ${calc['target_min_cashflow_per_door']:,.0f})", delta_color="normal" if cf_pass else "inverse")
-dash_col3.metric("Capital Recovery Status", "🟢 GREEN LIGHT" if cash_pass else "🔴 RED LIGHT", f"${calc['cash_surplus']:,.0f} at Refi Close", delta_color="normal" if cash_pass else "inverse")
-dash_col4.metric("Day-1 Wealth Creation", f"${calc['day1_wealth']:,.0f}", f"${calc['day1_wealth']/calc['units']:,.0f} per door", delta_color="normal")
-
-st.markdown("<br>", unsafe_allow_html=True)
-
-# ==========================================
-# --- DYNAMIC EXECUTIVE CONCLUSION BUBBLE ---
-# ==========================================
-safe_dscr = round(calc['actual_dscr'], 2)
-dscr_pass_safe = safe_dscr >= calc['target_dscr_rate']
+cash_pass = calc.get('cash_surplus', 0) >= 0
+cf_pass = calc.get('monthly_cash_flow_per_door', 0) >= calc.get('target_min_cashflow_per_door', 0)
 
 if dscr_pass_safe and cf_pass and cash_pass:
-    conclusion_text = (
-        f"**✅ PROJECT CLEARED FOR EXECUTION:**\n\n"
-        f"This build configuration is structurally sound and achieves an infinite return profile. "
-        f"The **{safe_dscr:.2f}x DSCR** successfully clears the bank's {calc['target_dscr_rate']:.2f}x minimum, unlocking the full **${calc['loan_total']:,.0f}** permanent takeout loan. "
-        f"Operations generate a healthy **${calc['monthly_cash_flow_per_door']:,.0f} per month** net cash flow per door. "
-        f"Most importantly, the loan proceeds completely pay off the **${calc['total_project_basis']:,.0f}** capital basis, returning 100% of your seed capital and handing you a **${calc['cash_surplus']:,.0f} tax-free cash surplus** at closing."
+    decision_banner = (
+        f"**✅ PROJECT CLEARED FOR EXECUTION:** "
+        f"The **{safe_dscr:.2f}x DSCR** clears the bank's {target_dscr:.2f}x minimum, "
+        f"generating **${calc['monthly_cash_flow_per_door']:,.0f}/door** cash flow and **${calc['cash_surplus']:,.0f}** in tax-free cash surplus at closing."
     )
-    st.success(conclusion_text.replace("$", r"\$"))
+    st.success(decision_banner.replace("$", r"\$"))
 else:
     failures = []
-    
     if not dscr_pass_safe:
-        failures.append(f"- **DSCR Failure (Lender Rejection Risk):** The modeled {safe_dscr:.2f}x DSCR falls below the bank's {calc['target_dscr_rate']:.2f}x limit. This suppresses your permanent loan amount and forces you to leave cash in the deal.")
-        
+        failures.append(f"DSCR ({safe_dscr:.2f}x) is below target ({target_dscr:.2f}x)")
     if not cf_pass:
-        failures.append(f"- **Cash Flow Squeeze:** The unit yields only ${calc['monthly_cash_flow_per_door']:,.0f} per month, which is below your baseline target of ${calc['target_min_cashflow_per_door']:,.0f} per month.")
-        
+        failures.append(f"Cash flow (${calc['monthly_cash_flow_per_door']:,.0f}/door) is below target (${calc['target_min_cashflow_per_door']:,.0f})")
     if not cash_pass:
-        failures.append(f"- **Trapped Capital (Loss at Close):** The takeout loan (${calc['loan_total']:,.0f}) is too small to cover the total project basis (${calc['total_project_basis']:,.0f}). This traps **${-calc['cash_surplus']:,.0f}** of seed capital inside the asset as dead equity.")
-        
-    conclusion_text = (
-        f"**🛑 UNDERWRITING WARNING - OPTIMIZATION REQUIRED:**\n\n"
-        f"This configuration fails one or more core investment constraints. To execute an infinite-return BTR strategy, you must adjust your levers (lower direct costs, buy down the interest rate, or increase target rents):\n\n" + 
-        "\n\n".join(failures)
-    )
-    st.error(conclusion_text.replace("$", r"\$"))
+        failures.append(f"Requires ${-calc['cash_surplus']:,.0f} in trapped seed capital")
+    
+    decision_banner = f"**🛑 UNDERWRITING WARNING:** " + " | ".join(failures)
+    st.error(decision_banner.replace("$", r"\$"))
+
+st.divider()
+
+# ==========================================
+# --- 2. COST TO BUILD METRICS ---
+# ==========================================
+st.markdown("### 1. Cost to Build Metrics")
+m1_col1, m1_col2, m1_col3, m1_col4 = st.columns(4)
+
+m1_col1.metric("Baseline Cost", f"${calc['direct_cost_sf']:.2f} / SF", "Base direct cost per heated SF")
+m1_col2.metric("Living Area Cost", f"${calc['heated_hard_cost']:,.0f}", f"${calc['direct_cost_sf']:.2f} / SF ({calc['sqft']:,} SF)")
+m1_col3.metric("Auxiliary Cost", f"${calc['our_aux_cost_total']:,.0f}", f"Garage/Porches ({calc['struct_sqft'] + calc['front_porch_sqft'] + calc['back_porch_sqft'] + calc['storage_sqft']:,} SF)")
+m1_col4.metric("Blended Under-Roof Cost", f"${calc['blended_cost_per_sf']:.2f} / SF", f"${calc['target_direct_hard_cost']:,.0f} Total Hard Cost")
+
+# ==========================================
+# --- 3. LOAN TOTALS & CAPITAL STRUCTURE ---
+# ==========================================
+st.markdown("### 2. Loan Totals & Capital Structure")
+m2_col1, m2_col2, m2_col3, m2_col4 = st.columns(4)
+
+m2_col1.metric("Const. Loan Total", f"${calc['actual_const_loan']:,.0f}", f"{calc['const_ltv']*100:.0f}% LTC Limit")
+m2_col2.metric("Take Out Loan Total", f"${calc['loan_total']:,.0f}", f"{calc['refi_ltv']*100:.0f}% LTV Permanent Debt")
+m2_col3.metric("Day-1 Seed Cap", f"${calc['seed_capital']:,.0f}" if calc['seed_capital'] > 0 else "$0", "Requires Reserves" if calc['seed_capital'] > 0 else "Fully Funded", delta_color="inverse")
+m2_col4.metric("Equity Total", f"${calc['retained_equity']:,.0f}", f"${calc['total_arv']:,.0f} Total ARV")
+
+# ==========================================
+# --- 4. DSCR & OPERATING METRICS ---
+# ==========================================
+st.markdown("### 3. DSCR & Operating Metrics")
+m3_col1, m3_col2, m3_col3, m3_col4 = st.columns(4)
+
+total_gross_rent = st.session_state.get('gross_monthly_rent', 0) * calc['units']
+
+m3_col1.metric("Gross Rent", f"${total_gross_rent:,.0f} /mo", f"${st.session_state.get('gross_monthly_rent', 0):,.0f} /door")
+m3_col2.metric("DSCR Rate", f"{calc['actual_dscr']:.2f}x", f"Target: {calc['target_dscr_rate']:.2f}x", delta_color="normal" if dscr_pass_safe else "inverse")
+m3_col3.metric("Monthly Cash Flow", f"${calc['monthly_cash_flow']:,.0f} /mo", f"${calc['monthly_cash_flow_per_door']:,.0f} /door", delta_color="normal" if cf_pass else "inverse")
+m3_col4.metric("Monthly P&I", f"${calc['total_monthly_pi']:,.0f} /mo", f"{calc['refi_term_years']}Yr @ {calc['net_refi_rate']*100:.3f}%")
+
+# ==========================================
+# --- 5. REFI CLOSING & DAY-1 WEALTH POCKETS ---
+# ==========================================
+st.markdown("### 4. Refi Closing & Day-1 Wealth Pockets")
+m4_col1, m4_col2, m4_col3, m4_col4 = st.columns(4)
+
+m4_col1.metric("GC Fee (Pocket 1)", f"${calc['default_gc_fee']:,.0f}", "Active Build Revenue")
+m4_col2.metric("Cash-Out Surplus (Pocket 2)", f"${calc['cash_surplus']:,.0f}", "Tax-free cash at close", delta_color="normal" if calc['cash_surplus'] >= 0 else "inverse")
+m4_col3.metric("Retained Equity (Pocket 3)", f"${calc['retained_equity']:,.0f}", "Unencumbered ARV Equity")
+m4_col4.metric("Total Day-1 Wealth", f"${calc['day1_wealth']:,.0f}", f"${calc['day1_wealth']/calc['units']:,.0f} per door")
+
+# ==========================================
+# --- 6. YEAR-1 OPERATING RETURN BREAKDOWN ---
+# ==========================================
+st.markdown("### 5. Year-1 Operating Return Breakdown")
+m5_col1, m5_col2, m5_col3, m5_col4 = st.columns(4)
+
+m5_col1.metric("Net Cash Flow", f"${calc['yr1_cf']:,.0f}", "Annual operational NCF")
+m5_col2.metric("Principal Paydown", f"${calc['yr1_prin']:,.0f}", "Amortization paydown")
+m5_col3.metric("Asset Appreciation", f"${calc['yr1_appr']:,.0f}", f"{calc['appreciation_rate']*100:.1f}% annual growth")
+m5_col4.metric("Tax Savings", f"${calc['yr1_tax']:,.0f}", "Depreciation tax shelter")
+
+# ==========================================
+# --- 7. WEALTH PILLARS: MULTI-YEAR HORIZON ---
+# ==========================================
+st.markdown("### 6. Wealth Pillars: Multi-Year Horizon Returns")
+m6_col1, m6_col2, m6_col3, m6_col4 = st.columns(4)
+
+# Calculate multi-year accumulated returns with exact programmatic array lookups
+# Note: arrays are 1-indexed in the engine output (Year 1 is index 1)
+annual_tax = calc.get('annual_tax_savings', 0)
+base_arv = calc.get('total_arv', 0)
+
+yr1_tot = calc['yr1_cf'] + calc['yr1_prin'] + calc['yr1_appr'] + calc['yr1_tax']
+
+# Enterprise-grade exact lookups for Years 3, 5, and 10
+yr3_tot = calc['cumulative_cf'][3] + calc['principal_paid'][3] + (calc['asset_vals'][3] - base_arv) + (annual_tax * 3)
+yr5_tot = calc['cumulative_cf'][5] + calc['principal_paid'][5] + (calc['asset_vals'][5] - base_arv) + (annual_tax * 5)
+yr10_tot = calc['cumulative_cf'][10] + calc['principal_paid'][10] + (calc['asset_vals'][10] - base_arv) + (annual_tax * 10)
+
+m6_col1.metric("1-Year Total Return", f"${yr1_tot:,.0f}", "Combined Y1 Return")
+m6_col2.metric("3-Year Total Return", f"${yr3_tot:,.0f}", "Cumulative accumulation")
+m6_col3.metric("5-Year Total Return", f"${yr5_tot:,.0f}", "Cumulative incl. Refi")
+m6_col4.metric("10-Year Total Return", f"${yr10_tot:,.0f}", "Long-term compounding")
 
 st.divider()
 
