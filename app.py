@@ -21,7 +21,6 @@ def init_supabase():
 supabase = init_supabase()
 
 # --- 2. THE SECURITY DEADBOLT ---
-# If the user is not authenticated, hide the sidebar entirely and stop rendering the rest of the page.
 if not render_auth_gate(supabase):
     st.markdown(
         """
@@ -31,9 +30,8 @@ if not render_auth_gate(supabase):
         """,
         unsafe_allow_html=True
     )
-    st.stop() # <--- THE MAGIC BULLET. Stops FRED and all calculations until logged in.
+    st.stop()
 else:
-    # Explicitly turn the sidebar back on after successful login to prevent CSS ghosting
     st.markdown(
         """
         <style>
@@ -56,7 +54,7 @@ from presentation_engine import create_pptx, create_slide_pdf
 from business_plan_engine import create_business_plan_pdf
 from technical_briefs_engine import create_tb1_lvp_pdf, create_tb2_shower_pdf
 
-@st.cache_data(ttl=86400) # Caches the data for 24 hours so you don't burn through API limits
+@st.cache_data(ttl=86400)
 def fetch_fred_series(series_id):
     """Fetches economic data from the St. Louis Fed and returns a clean Pandas DataFrame."""
     api_key = st.secrets.get("FRED_API_KEY", "")
@@ -70,7 +68,6 @@ def fetch_fred_series(series_id):
         if response.status_code == 200:
             data = response.json()
             df = pd.DataFrame(data['observations'])
-            # Clean the data types
             df['date'] = pd.to_datetime(df['date'])
             df['value'] = pd.to_numeric(df['value'], errors='coerce')
             return df[['date', 'value']].dropna()
@@ -80,9 +77,6 @@ def fetch_fred_series(series_id):
     except Exception as e:
         st.error(f"Error fetching FRED data: {e}")
         return pd.DataFrame()
-
-# Example usage to pull mortgage rates
-mortgage_rates = fetch_fred_series('MORTGAGE30US')
 
 # Initialize Session State Defaults
 for key, value in HARDCODED_DRIVERS.items():
@@ -247,7 +241,6 @@ with st.sidebar.container():
 
 with st.sidebar.container():
     st.subheader("7. Construction Loan Terms")
-    
     st.markdown("##### Commercial Base Rate (WSJ Prime)")
     st.radio("Prime Rate Source", ["Manual Entry", "Fetch Live FRED API (DPRIME)"], key="prime_rate_mode")
     
@@ -281,17 +274,13 @@ with st.sidebar.container():
         current_prime = st.number_input("Manual Prime Rate (%)", min_value=1.0, max_value=15.0, step=0.25, value=st.session_state.get("base_prime_rate", 7.50), key="base_prime_rate")
 
     st.markdown("##### Bank Lending Margin & Discounts")
-    bank_margin = st.number_input("Bank Lending Margin (Prime + %)", min_value=0.0, max_value=10.0, step=0.25, value=1.00, key="bank_margin_pct", help="The spread your bank charges above the Prime Rate.")
+    bank_margin = st.number_input("Bank Lending Margin (Prime + %)", min_value=0.0, max_value=10.0, step=0.25, value=1.00, key="bank_margin_pct")
+    st.selectbox("Construction / Bank LTC (%)", [80.0, 75.0, 70.0], key="const_ltv_pct")
     
-    st.selectbox("Construction / Bank LTC (%)", [80.0, 75.0, 70.0], key="const_ltv_pct", help="Select bank loan-to-cost tier. Lower LTC tiers unlock commercial rate discounts.")
-    
-    # Calculate base const rate
     base_c_rate = current_prime + bank_margin
     current_ltv = st.session_state.get("const_ltv_pct", 80.0)
     rate_discount = max(0.0, (80.0 - current_ltv) / 5.0) * 0.5
     effective_c_rate = max(1.0, base_c_rate - rate_discount)
-    
-    st.session_state["const_rate_pct"] = effective_c_rate
     
     if rate_discount > 0:
         st.markdown(f"📈 **Base Rate (Prime + Margin):** `{base_c_rate:.2f}%`\n📉 **Tiered Equity Discount:** `-{rate_discount:.2f}%`\n🎯 **Effective Rate:** `{effective_c_rate:.2f}%`")
@@ -481,25 +470,20 @@ with st.sidebar.container():
 # ==========================================
 # --- MASTER ENGINE CALCULATION EXECUTION ---
 # ==========================================
-# 🚨 BRUTE-FORCE ENGINE SYNCHRONIZATION
-# We duplicate the effective rates into every possible dictionary key 
-# to guarantee the calculation engine catches them regardless of its internal naming.
+# 🚨 SECURE ENGINE INJECTION
+# Create a flat dictionary mapping exactly what the engine needs.
+# Passing whole percentages (e.g. 8.5) so the engine doesn't miscalculate decimals.
+engine_state = {}
+for k, v in st.session_state.items():
+    if isinstance(v, (int, float, str, bool)):
+        engine_state[k] = v
 
-c_rate = st.session_state.get("const_rate_pct", 8.5)
-st.session_state["const_rate"] = c_rate
-st.session_state["base_const_rate"] = c_rate
-st.session_state["const_interest_rate"] = c_rate
+engine_state["const_rate_pct"] = effective_c_rate
+engine_state["base_refi_rate_pct"] = adjusted_base_r_rate
+engine_state["refi_rate_pct"] = final_refi_rate
+engine_state["buydown_pts"] = st.session_state.get("buydown_pts", 0.0)
 
-r_rate = final_refi_rate
-st.session_state["refi_rate_pct"] = r_rate
-st.session_state["refi_rate"] = r_rate
-st.session_state["base_refi_rate"] = r_rate
-st.session_state["net_refi_rate"] = r_rate
-st.session_state["refi_interest_rate"] = r_rate
-st.session_state["permanent_rate"] = r_rate
-st.session_state["takeout_rate"] = r_rate
-
-calc = run_underwriting_engine(st.session_state, STRESS_SCENARIOS)
+calc = run_underwriting_engine(engine_state, STRESS_SCENARIOS)
 
 # ==========================================
 # --- PAGE HEADER ---
@@ -884,7 +868,7 @@ st.divider()
 # ==========================================
 # --- 7. BANK DSCR UNDERWRITING & TRUE CASH FLOW ---
 # ==========================================
-st.markdown("### 7. Bank DSCR Underwriting & True Operating Cash Flow")
+st.markdown("### 7. Bank DSCR Under underwriting & True Operating Cash Flow")
 
 u_rent = st.session_state.get('gross_monthly_rent', 0) * calc['units']
 u_tax = st.session_state.get('opex_taxes_mo', 0) * calc['units']
